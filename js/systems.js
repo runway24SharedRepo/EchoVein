@@ -13,6 +13,8 @@ function update(g,dt){
   updateWardenDrones(g,dt);
   updateSifterDrones(g,dt);
   updateEnemies(g,dt);
+  updateEnemyBullets(g,dt);
+  if(g.state !== 'playing') return;
   updateArcConnection(g,dt);
   updateBullets(g,dt);
   updateBoomerangs(g,dt);
@@ -208,6 +210,77 @@ function findPathAStar(g,startTx,startTy,goalTx,goalTy,maxNodes=900){
   return bestId!==startId ? reconstructPath(cameFrom,bestId).slice(1) : [];
 }
 
+function circleClearOfSolids(g,x,y,r){
+  const minx=Math.floor((x-r)/TILE), maxx=Math.floor((x+r)/TILE);
+  const miny=Math.floor((y-r)/TILE), maxy=Math.floor((y+r)/TILE);
+  for(let ty=miny;ty<=maxy;ty++) for(let tx=minx;tx<=maxx;tx++){
+    if(isSolid(tileAt(g,tx,ty))){
+      const rx=tx*TILE, ry=ty*TILE;
+      const cx=clamp(x,rx,rx+TILE), cy=clamp(y,ry,ry+TILE);
+      if(dist2(x,y,cx,cy)<r*r) return false;
+    }
+  }
+  return true;
+}
+
+function openTileScore(g,tx,ty,radiusTiles=2){
+  let open=0;
+  for(let y=ty-radiusTiles;y<=ty+radiusTiles;y++) for(let x=tx-radiusTiles;x<=tx+radiusTiles;x++){
+    if(tileWalkable(g,x,y)) open++;
+  }
+  return open;
+}
+
+function bossSpawnCandidateValid(g,x,y){
+  const [tx,ty]=worldToTile(x,y);
+  if(!tileWalkable(g,tx,ty)) return false;
+  if(!circleClearOfSolids(g,x,y,ENEMY_TYPES.boss.r+8)) return false;
+  if(openTileScore(g,tx,ty,2)<16) return false;
+  const [ptx,pty]=worldToTile(g.player.x,g.player.y);
+  return findPathAStar(g,tx,ty,ptx,pty,1400).length>0;
+}
+
+function findSafeBossSpawn(g){
+  const p=g.player;
+  let fallback=null, fallbackScore=-Infinity;
+  for(let tries=0;tries<120;tries++){
+    const a=rand(0,Math.PI*2), d=rand(560,1350);
+    const x=clamp(p.x+Math.cos(a)*d,TILE*4,WORLD_W-TILE*4);
+    const y=clamp(p.y+Math.sin(a)*d,TILE*4,WORLD_H-TILE*4);
+    const [tx,ty]=worldToTile(x,y);
+    if(!tileWalkable(g,tx,ty) || !circleClearOfSolids(g,x,y,ENEMY_TYPES.boss.r+8)) continue;
+    const score=openTileScore(g,tx,ty,3)-Math.abs(880-d)*0.004;
+    if(score>fallbackScore){ fallbackScore=score; fallback={x,y}; }
+    if(bossSpawnCandidateValid(g,x,y)) return {x,y};
+  }
+  if(fallback) return fallback;
+  const [ptx,pty]=worldToTile(p.x,p.y);
+  for(let r=14;r<40;r++){
+    for(let ty=pty-r;ty<=pty+r;ty++) for(let tx=ptx-r;tx<=ptx+r;tx++){
+      if(Math.abs(tx-ptx)!==r && Math.abs(ty-pty)!==r) continue;
+      const c=tileCenter(tx,ty);
+      if(dist2(c.x,c.y,p.x,p.y)<520*520) continue;
+      if(bossSpawnCandidateValid(g,c.x,c.y)) return c;
+    }
+  }
+  return {x:clamp(p.x+620,TILE*4,WORLD_W-TILE*4), y:p.y};
+}
+
+function ensureBossSpawnPocket(g,x,y){
+  const [cx,cy]=worldToTile(x,y);
+  let changed=false;
+  for(let ty=cy-2;ty<=cy+2;ty++) for(let tx=cx-2;tx<=cx+2;tx++){
+    if(!inMap(tx,ty)) continue;
+    const i=tileIdx(tx,ty);
+    if(g.tiles[i]!==TILE_HARD && g.tiles[i]!==TILE_EMPTY){
+      g.tiles[i]=TILE_EMPTY;
+      g.tileHp[i]=0;
+      changed=true;
+    }
+  }
+  if(changed) g.navigationVersion++;
+}
+
 function updateSpawning(g,dt){
   const minute = Math.floor(g.time/60);
   g.spawnTimer -= dt;
@@ -254,7 +327,15 @@ function allObjectivesComplete(g){
 function spawnRunBoss(g){
   if(g.bossSpawned) return;
   g.bossSpawned=true;
-  spawnEnemy(g,'boss');
+  const spot=findSafeBossSpawn(g);
+  ensureBossSpawnPocket(g,spot.x,spot.y);
+  const boss=new Enemy(spot.x,spot.y,'boss');
+  const diff=g.missionDifficulty || missionDifficulty(1);
+  boss.hp*=diff.bossHealthMultiplier;
+  boss.maxHp=boss.hp;
+  boss.damage=Math.round(boss.damage*diff.bossDamageMultiplier);
+  boss.rangedCd=1.8;
+  g.enemies.push(boss);
   log(g,'Sector boss incoming. Clear it to call extraction.');
   sfx('elite',1.2);
   shake=Math.max(shake,9);
@@ -825,6 +906,7 @@ function updateEnemies(g,dt){
   for(const e of g.enemies){
     e.hitFlash=Math.max(0,e.hitFlash-dt);
     e.slow=Math.max(0,e.slow-dt);
+    updateEliteRangedAttack(g,e,dt);
     const moved=Math.hypot(e.x-e.lastX,e.y-e.lastY);
     if(moved<4) e.stuckTimer+=dt; else { e.stuckTimer=0; e.lastX=e.x; e.lastY=e.y; }
     e.pathTimer-=dt;
@@ -897,6 +979,87 @@ function updateEnemies(g,dt){
     const e=g.enemies[i];
     if(e.hp<=0){ killEnemy(g,e); g.enemies.splice(i,1); }
   }
+}
+
+function eliteProjectileConfig(g,e){
+  if(e.type!=='elite' && e.type!=='boss') return null;
+  const runLevel=g.runIndex || 1;
+  const mission=g.missionIndex || 1;
+  const destructive=e.type==='boss' || runLevel>=3;
+  return {
+    cooldown:(e.type==='boss'?1.75:3.8)/(1+runLevel*0.12+(mission-1)*0.05),
+    speed:(e.type==='boss'?360:300)*(1+runLevel*0.05),
+    damage:Math.round((e.type==='boss'?18:12)*(1+(mission-1)*0.08)),
+    destructive,
+    color:destructive?'#ff9f43':'#ff4fd8',
+    radius:destructive?7:5
+  };
+}
+
+function updateEliteRangedAttack(g,e,dt){
+  const cfg=eliteProjectileConfig(g,e);
+  if(!cfg || e.hp<=0) return;
+  e.rangedCd-=dt;
+  const p=g.player;
+  const d=Math.hypot(p.x-e.x,p.y-e.y);
+  if(d<190 || d>850 || e.rangedCd>0) return;
+  e.rangedCd=rand(cfg.cooldown*0.75,cfg.cooldown*1.25);
+  const a=Math.atan2(p.y-e.y,p.x-e.x)+rand(-0.10,0.10);
+  g.enemyBullets.push({
+    x:e.x+Math.cos(a)*(e.r+8), y:e.y+Math.sin(a)*(e.r+8),
+    vx:Math.cos(a)*cfg.speed, vy:Math.sin(a)*cfg.speed,
+    r:cfg.radius, life:e.type==='boss'?3.4:2.8, damage:cfg.damage,
+    destructive:cfg.destructive, color:cfg.color
+  });
+  addRing(g,e.x,e.y,cfg.destructive?'rgba(255,159,67,0.75)':'rgba(255,79,216,0.65)',0.18,e.r,e.r+22,3);
+  sfx('shoot',0.45);
+}
+
+function destroyTileByEnemyProjectile(g,tx,ty){
+  if(!inMap(tx,ty)) return false;
+  const i=tileIdx(tx,ty);
+  const t=g.tiles[i];
+  if(t===TILE_HARD || t===TILE_EMPTY) return false;
+  if(!isSolid(t)) return false;
+  const wasOre=t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL;
+  g.tiles[i]=TILE_EMPTY;
+  g.tileHp[i]=0;
+  g.navigationVersion++;
+  for(const e of g.enemies){
+    if(dist2(e.x,e.y,tx*TILE+TILE/2,ty*TILE+TILE/2)<520*520) e.pathTimer=0;
+  }
+  const color=wasOre?'#ff6b35':'#9a6a45';
+  for(let k=0;k<12;k++) addParticle(g,tx*TILE+TILE/2,ty*TILE+TILE/2,rand(-150,150),rand(-150,150),color,rand(0.22,0.52),rand(2,6),'spark');
+  if(wasOre) floating(g,tx*TILE+18,ty*TILE+12,'Ore lost','#ff9f43');
+  return true;
+}
+
+function updateEnemyBullets(g,dt){
+  const p=g.player;
+  for(const b of g.enemyBullets){
+    b.x+=b.vx*dt; b.y+=b.vy*dt; b.life-=dt;
+    addParticle(g,b.x,b.y,-b.vx*0.02+rand(-10,10),-b.vy*0.02+rand(-10,10),b.color,b.destructive?0.16:0.11,b.destructive?4:2,'spark');
+    const [tx,ty]=worldToTile(b.x,b.y);
+    const t=tileAt(g,tx,ty);
+    if(isSolid(t)){
+      if(b.destructive && destroyTileByEnemyProjectile(g,tx,ty)){
+        shake=Math.max(shake,4);
+      }
+      b.life=0;
+      continue;
+    }
+    if(dist2(p.x,p.y,b.x,b.y)<(p.r+b.r)*(p.r+b.r)){
+      const damage=Math.max(1,Math.round(b.damage*(p.armourMul || 1)));
+      p.hp-=damage;
+      p.iframes=Math.max(p.iframes,0.28);
+      floating(g,p.x,p.y-25,`-${damage}`,'#ff9f43');
+      flashDamage();
+      sfx('hit',0.8);
+      b.life=0;
+      if(p.hp<=0) gameOver(g);
+    }
+  }
+  g.enemyBullets=g.enemyBullets.filter(b=>b.life>0 && b.x>-120 && b.y>-120 && b.x<WORLD_W+120 && b.y<WORLD_H+120);
 }
 
 function killEnemy(g,e){

@@ -65,6 +65,8 @@ class Enemy {
     this.lastY=y;
     this.unstickAngle=Math.random()*Math.PI*2;
     this.noPathTimer=0;
+    this.rangedCd=rand(1.2,3.0);
+    this.burstShots=0;
   }
 }
 
@@ -83,7 +85,7 @@ function makeGame(cls){
     player:new Player(cls),
     tiles:new Uint8Array(MAP_W*MAP_H),
     tileHp:new Float32Array(MAP_W*MAP_H),
-    enemies:[], bullets:[], boomerangs:[], wardenDrones:[], sifterDrones:[], traps:[], arcs:[], pickups:[], particles:[], texts:[], waves:[],
+    enemies:[], bullets:[], enemyBullets:[], boomerangs:[], wardenDrones:[], sifterDrones:[], traps:[], arcs:[], pickups:[], particles:[], texts:[], waves:[],
     weapons:[],
     arcConnection:{ unlocked:false, level:0, maxTargets:0, selectedEnemies:[], flash:0 },
     navigationVersion:0,

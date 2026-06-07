@@ -41,6 +41,7 @@ function render(g){
   drawTraps(g);
   drawExtractionCraft(g);
   drawPickups(g);
+  drawEnemyBullets(g);
   drawBullets(g);
   drawBoomerangs(g);
   drawArcConnection(g);
@@ -254,6 +255,28 @@ function drawBullets(g){
     ctx.lineWidth=b.rail?4:2;
     ctx.beginPath(); ctx.moveTo(b.x-b.vx*0.025,b.y-b.vy*0.025); ctx.lineTo(b.x,b.y); ctx.stroke();
     ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill();
+  }
+}
+
+function drawEnemyBullets(g){
+  for(const b of g.enemyBullets){
+    ctx.save();
+    ctx.fillStyle=b.color;
+    ctx.strokeStyle=b.destructive?'rgba(255,235,190,0.9)':'rgba(255,255,255,0.55)';
+    ctx.shadowColor=b.color;
+    ctx.shadowBlur=b.destructive?18:11;
+    ctx.lineWidth=b.destructive?3:2;
+    ctx.beginPath();
+    ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+    if(b.destructive){
+      ctx.beginPath();
+      ctx.moveTo(b.x-b.vx*0.035,b.y-b.vy*0.035);
+      ctx.lineTo(b.x+b.vx*0.010,b.y+b.vy*0.010);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 }
 function drawWardenDrones(g){

@@ -49,6 +49,7 @@ js/main.js              requestAnimationFrame loop, keyboard/mouse input, startu
 - Development debug mode adds a Debug button with upgrade application, weapon unlocks, test spawns, clears, player-state controls, and a debug action log.
 - Enemies now use terrain-aware pursuit: direct line-of-sight movement when possible, grid pathfinding through mined tunnels around obstacles when needed, mining-triggered navigation invalidation, stuck recovery, and a debug toggle for path visualization.
 - The prototype now starts through a saved-profile flow, main menu, permanent upgrades, mission/run objectives, boss gating, extraction timer, and persistent resource banking.
+- Boss spawns are validated against current terrain with clearance and reachability checks. Elites can fire scaling ranged bolts, and later-run shatter bolts can destroy mineable terrain while permanently losing any ore they hit.
 
 ## Development Notes
 
