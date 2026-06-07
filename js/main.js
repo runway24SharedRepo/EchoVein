@@ -74,4 +74,8 @@ if(!CanvasRenderingContext2D.prototype.roundRect){
 }
 
 bindStartCardInput();
-startupFlow();
+if(typeof spritePreloadPromise !== 'undefined' && spritePreloadPromise){
+  spritePreloadPromise.finally(()=>startupFlow());
+} else {
+  startupFlow();
+}

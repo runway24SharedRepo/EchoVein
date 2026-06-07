@@ -57,3 +57,58 @@
   .debugPanel { right: 14px; top: 62px; }
   .debugToggle { top: 14px; }
 }
+
+/* Sprite integration debug panel */
+.spriteTestPanel {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(980px, calc(100vw - 36px));
+  max-height: calc(100vh - 60px);
+  overflow: auto;
+  z-index: 80;
+  background: rgba(12, 16, 25, 0.96);
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 18px;
+  box-shadow: 0 18px 80px rgba(0,0,0,0.65);
+  padding: 14px;
+}
+.spriteTestHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.spriteTestHead h2 { margin: 0; }
+.spriteTestGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 8px;
+}
+.spriteTestRow {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+.spriteTestRow.missing { border-color: rgba(255,91,91,0.35); }
+.spriteTestRow.ok { border-color: rgba(93,255,154,0.25); }
+.spriteTestRow img, .spriteMissing {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.28);
+}
+.spriteTestRow b, .spriteTestRow span, .spriteTestRow small { display: block; }
+.spriteTestRow span { color: #95a2ba; font-size: 11px; overflow-wrap: anywhere; }
+.spriteTestRow small { color: #d7ecff; font-size: 11px; }
+.spriteMissing { color: #ff8a8a; font-weight: 900; font-size: 24px; }

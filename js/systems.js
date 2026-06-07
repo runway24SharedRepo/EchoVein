@@ -317,7 +317,7 @@ function updateLavaContactDamage(g,dt){
     p.x+=dx/l*9;
     p.y+=dy/l*9;
     shake=Math.max(shake,4);
-    for(let k=0;k<12;k++) addParticle(g,hit.cx,hit.cy,rand(-80,80),rand(-80,80),'#ff7038',rand(0.15,0.38),rand(2,6),'spark');
+    for(let k=0;k<12;k++) addParticle(g,hit.cx,hit.cy,rand(-80,80),rand(-80,80),'#ff7038',rand(0.15,0.38),rand(2,6), k%3===0?'fragment':'spark');
     addRing(g,hit.cx,hit.cy,'rgba(255,112,56,0.72)',0.18,5,28,3);
     if(p.hp<=0) gameOver(g);
   }
@@ -1871,7 +1871,7 @@ function hexShardExplode(g,e,r){
   addParticle(g,e.x,e.y,0,0,'rgba(255,245,220,0.96)',0.10,26);
   for(let k=0;k<44;k++){
     const a=rand(0,Math.PI*2), sp=rand(120,420);
-    addParticle(g,e.x,e.y,Math.cos(a)*sp,Math.sin(a)*sp,k%3===0?'#ffd36b':'#ff7038',rand(0.18,0.55),rand(1.6,4.2),'spark');
+    addParticle(g,e.x,e.y,Math.cos(a)*sp,Math.sin(a)*sp,k%3===0?'#ffd36b':'#ff7038',rand(0.18,0.55),rand(1.6,4.2), k%4===0?'fragment':'spark');
   }
   for(let k=0;k<18;k++){
     const a=rand(0,Math.PI*2), sp=rand(45,150);
@@ -2138,7 +2138,8 @@ function openUpgrade(g){
   for(const up of choices){
     const div=document.createElement('div');
     div.className='card';
-    div.innerHTML=`<div class="icon">${up.icon}</div><h3>${up.name}</h3><p>${up.desc}</p><span class="tag">Select</span>`;
+    const iconHtml = up.spriteId ? spriteIconHtml(up.spriteId, up.icon) : up.icon;
+    div.innerHTML=`<div class="icon">${iconHtml}</div><h3>${up.name}</h3><p>${up.desc}</p><span class="tag">Select</span>`;
     div.onclick=()=>{
       up.apply(g); awaitingUpgrade=false; ui.upgradeOverlay.classList.remove('show'); updateUI(g);
     };

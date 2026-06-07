@@ -381,6 +381,74 @@ window.debugHex = {
   ranges: debugToggleHexRanges
 };
 
+
+
+function showSpriteTestPanel(){
+  let panel=document.getElementById('spriteTestPanel');
+  if(panel){ panel.remove(); return; }
+  panel=document.createElement('div');
+  panel.id='spriteTestPanel';
+  panel.className='spriteTestPanel';
+  const rows=(typeof getSpriteLoadReport==='function' ? getSpriteLoadReport() : []).map(r=>{
+    const status=r.ok?'loaded':'missing';
+    const wh=r.ok?`${r.width}×${r.height}`:'fallback active';
+    const img=r.ok?`<img src="${r.url}" alt="${r.id}">`:'<div class="spriteMissing">?</div>';
+    return `<div class="spriteTestRow ${r.ok?'ok':'missing'}">${img}<div><b>${r.id}</b><span>${r.url}</span><small>${status} · ${wh}</small></div></div>`;
+  }).join('');
+  panel.innerHTML=`<div class="spriteTestHead"><h2>Sprite Test Panel</h2><button id="spriteTestClose">Close</button></div><div class="spriteTestGrid">${rows}</div>`;
+  document.body.appendChild(panel);
+  document.getElementById('spriteTestClose')?.addEventListener('click',()=>panel.remove());
+  debugLog('Sprite Test Panel opened. Missing sprites use procedural fallbacks.');
+}
+
+function debugPlaceResourceNode(resourceId){
+  if(!requireGame()) return;
+  const def=(RESOURCE_TILE_TYPES || []).find(r=>r.resourceId===resourceId);
+  if(!def){ debugLog(`No resource tile definition for ${resourceId}.`); return; }
+  const p=game.player;
+  const baseTx=Math.floor(p.x/TILE)+2;
+  const baseTy=Math.floor(p.y/TILE);
+  for(let y=baseTy-1;y<=baseTy+1;y++) for(let x=baseTx-1;x<=baseTx+1;x++){
+    if(!inMap(x,y)) continue;
+    const i=tileIdx(x,y);
+    if(game.tiles[i]!==TILE_HARD && game.tiles[i]!==TILE_LAVA_ROCK){ game.tiles[i]=TILE_EMPTY; game.tileHp[i]=0; }
+  }
+  const i=tileIdx(baseTx,baseTy);
+  game.tiles[i]=def.tile;
+  game.tileHp[i]=def.hp || 34;
+  game.navigationVersion++;
+  debugLog(`Placed resource node: ${MINERALS[resourceId]?.displayName || resourceId}.`);
+  updateGameAfterDebug();
+}
+
+function debugSpawnExtractionCraft(){
+  if(!requireGame()) return;
+  if(typeof spawnExtractionCraft === 'function'){
+    game.bossDefeated=true;
+    spawnExtractionCraft(game);
+    debugLog('Spawned extraction craft for sprite test.');
+    updateGameAfterDebug();
+  }
+}
+function debugSpawnTrapSprite(){ if(requireGame()){ game.player.canUseTraps=true; placeTrap(game); debugLog('Placed Pathfinder trap sprite test.'); updateGameAfterDebug(); } }
+function debugSpawnHammerfallMissileSprite(){
+  if(!requireGame()) return;
+  const p=game.player;
+  game.missiles.push({x:p.x,y:p.y,vx:360,vy:0,r:5,age:0,life:1.8,damage:1,speed:360,accuracy:1,turnRate:3,phase:'launch',trail:[]});
+  debugLog('Spawned Hammerfall missile sprite test.');
+}
+function debugSpawnEnemyRedBulletSprite(){
+  if(!requireGame()) return;
+  const p=game.player;
+  game.enemyBullets.push({x:p.x+120,y:p.y,vx:-160,vy:0,r:5,life:2.2,damage:1,destructive:false,color:'#ff3636',small:true});
+  debugLog('Spawned enemy red bullet sprite test.');
+}
+function debugSpawnDestructiveBulletSprite(){
+  if(!requireGame()) return;
+  const p=game.player;
+  game.enemyBullets.push({x:p.x+140,y:p.y+28,vx:-140,vy:0,r:7,life:2.4,damage:1,destructive:true,color:'#ff7038',small:false});
+  debugLog('Spawned destructive enemy bullet sprite test.');
+}
 function buildDebugPanel(){
   if(!DEBUG_MODE) return;
   const toggle = document.createElement('button');
@@ -459,6 +527,22 @@ function buildDebugPanel(){
     makeDebugButton('Toggle Lava Collision Zones',debugToggleLavaZones),
     makeDebugButton('Toggle Hex Ranges',debugToggleHexRanges)
   ]);
+  addDebugSection(panel,'Sprite Integration Tests',[
+    makeDebugButton('Show Sprite Test Panel',showSpriteTestPanel),
+    makeDebugButton('Spawn Hex Shard Sprite',()=>debugSpawnHexShard(1)),
+    makeDebugButton('Spawn Elite Shellback Sprite',()=>debugSpawnEnemies('elite',1)),
+    makeDebugButton('Spawn Hollow Tyrant Sprite',()=>debugSpawnEnemies('boss',1)),
+    makeDebugButton('Spawn Extraction Craft Sprite',debugSpawnExtractionCraft),
+    makeDebugButton('Place Ferrite Node',()=>debugPlaceResourceNode('ferriteBark')),
+    makeDebugButton('Place Lumina Node',()=>debugPlaceResourceNode('luminaSpores')),
+    makeDebugButton('Place Aether Node',()=>debugPlaceResourceNode('aetherQuartz')),
+    makeDebugButton('Place Crysalith Node',()=>debugPlaceResourceNode('crysalith')),
+    makeDebugButton('Place Emberglass Node',()=>debugPlaceResourceNode('emberglass')),
+    makeDebugButton('Place Pathfinder Trap',debugSpawnTrapSprite),
+    makeDebugButton('Hammerfall Missile Sprite',debugSpawnHammerfallMissileSprite),
+    makeDebugButton('Enemy Red Bullet Sprite',debugSpawnEnemyRedBulletSprite),
+    makeDebugButton('Destructive Bullet Sprite',debugSpawnDestructiveBulletSprite)
+  ]);
   addDebugSection(panel,'Pathfinding',[
     makeDebugButton('Toggle Show Enemy Paths',debugToggleEnemyPaths)
   ]);
@@ -500,6 +584,15 @@ function buildDebugPanel(){
   debugLog('Debug system ready.');
 }
 
+
+window.debugSprites = {
+  panel: showSpriteTestPanel,
+  report: ()=>typeof getSpriteLoadReport==='function' ? getSpriteLoadReport() : [],
+  placeResource: debugPlaceResourceNode,
+  missile: debugSpawnHammerfallMissileSprite,
+  redBullet: debugSpawnEnemyRedBulletSprite,
+  destructiveBullet: debugSpawnDestructiveBulletSprite
+};
 
 window.debugFog = {
   toggle: debugToggleFogOfWar,

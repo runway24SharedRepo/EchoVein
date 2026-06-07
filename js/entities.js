@@ -90,9 +90,9 @@ const ENEMY_TYPES = {
   swarmer: { r: 8, hp: 10, speed: 145, damage: 6, xp: 2, color:'#c8ff5c' },
   guard: { r: 18, hp: 68, speed: 66, damage: 22, xp: 12, color:'#ffb84d' },
   exploder: { r: 15, hp: 34, speed: 115, damage: 30, xp: 8, color:'#ff5b5b' },
-  hexShard: { r: 16, hp: 54, speed: 98, damage: 14, xp: 14, color:'#ff7a38' },
-  elite: { r: 28, hp: 260, speed: 70, damage: 36, xp: 45, color:'#b46bff' },
-  boss: { r: 42, hp: 980, speed: 58, damage: 48, xp: 120, color:'#ff4fd8' }
+  hexShard: { r: 16, hp: 54, speed: 98, damage: 14, xp: 14, color:'#ff7a38', spriteId:'hexShardEnemy', warningSpriteId:'hexShardWarningGlow', projectileSpriteId:'hexBoomerangProjectile' },
+  elite: { r: 28, hp: 260, speed: 70, damage: 36, xp: 45, color:'#b46bff', spriteId:'eliteShellbackEnemy' },
+  boss: { r: 42, hp: 980, speed: 58, damage: 48, xp: 120, color:'#ff4fd8', spriteId:'hollowTyrantBoss' }
 };
 
 function makeGame(cls){
