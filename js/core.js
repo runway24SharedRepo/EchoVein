@@ -50,7 +50,8 @@ const WEAPON_DATA = {
 };
 
 const keys = new Set();
-let mouse = { x: 0, y: 0, lastMove: -999, used: false };
+let mouse = { x: 0, y: 0, down: false, lastMove: -999, used: false };
+let gamepadButtonsPrev = [];
 let lastTime = performance.now();
 let game = null;
 let paused = false;
@@ -129,6 +130,21 @@ function gamepadVector(){
     }
   }
   return { dx:0, dy:0, active:false };
+}
+
+function gamepadButtonPressed(index){
+  if(!navigator.getGamepads) return false;
+  let isDown = false;
+  const pads = navigator.getGamepads();
+  for(const pad of pads){
+    if(pad?.buttons?.[index]?.pressed){
+      isDown = true;
+      break;
+    }
+  }
+  const wasDown = !!gamepadButtonsPrev[index];
+  gamepadButtonsPrev[index] = isDown;
+  return isDown && !wasDown;
 }
 
 function resizeCanvas(){

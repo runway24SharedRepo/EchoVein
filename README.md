@@ -42,7 +42,8 @@ js/main.js              requestAnimationFrame loop, keyboard/mouse input, startu
 
 - Gamepad movement support uses the first connected controller's left analogue stick.
 - Upgrade cards use pictorial icons again instead of acronym-only labels.
-- Targeting Cursor is a one-time upgrade that lets recent mouse movement bias player-fired weapons toward enemies near the cursor while preserving normal auto-targeting when the mouse is idle.
+- Targeting Cursor is a one-time upgrade that switches player weapons into manual mouse fire while the mouse is active; left click shoots purple projectiles, and auto-fire resumes when the mouse goes idle.
+- Pathfinder traps can be placed with `E` on keyboard or the Xbox controller `A` button.
 
 ## Development Notes
 

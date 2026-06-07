@@ -7,6 +7,7 @@ function update(g,dt){
   g.time += dt;
   shake = Math.max(0, shake - dt*18);
   logTimeout = Math.max(0, logTimeout-dt);
+  updateGamepadActions(g);
   updatePlayer(g,dt);
   updateWeapons(g,dt);
   updateWardenDrones(g,dt);
@@ -19,6 +20,10 @@ function update(g,dt){
   updateParticles(g,dt);
   updateSpawning(g,dt);
   updateUI(g);
+}
+
+function updateGamepadActions(g){
+  if(gamepadButtonPressed(0)) placeTrap(g);
 }
 
 function updatePlayer(g,dt){
@@ -146,6 +151,10 @@ function mouseTargetActive(g){
   return g.player.mouseTargeting && mouse.used && g.time - mouse.lastMove < 3.2;
 }
 
+function mouseManualFireActive(g){
+  return mouseTargetActive(g);
+}
+
 function targetEnemy(g,range,mouseBiasRadius=180){
   const p=g.player;
   if(mouseTargetActive(g)){
@@ -163,6 +172,7 @@ function targetEnemy(g,range,mouseBiasRadius=180){
 
 function updateWeapons(g,dt){
   const p=g.player;
+  const manualMode = mouseManualFireActive(g);
   for(const w of g.weapons){
     w.cd -= dt * p.fireRateMul;
     if(w.id==='drones'){
@@ -174,6 +184,10 @@ function updateWeapons(g,dt){
       continue;
     }
     if(w.cd>0) continue;
+    if(manualMode){
+      if(mouse.down) fireManualWeapon(g,w);
+      continue;
+    }
     if(w.id==='minigun'){
       const e=targetEnemy(g,620); if(!e) continue;
       w.cd=0.20/(1+w.level*0.07);
@@ -224,6 +238,66 @@ function updateWeapons(g,dt){
       shake=Math.max(shake,5);
       sfx('rail', 1.0);
     }
+  }
+}
+
+function manualAimPoint(g){
+  const m = mouseWorld(g);
+  const dx = m.x - g.player.x;
+  const dy = m.y - g.player.y;
+  const d = len(dx,dy);
+  return { x:g.player.x + dx / d * 1000, y:g.player.y + dy / d * 1000 };
+}
+
+function fireManualWeapon(g,w){
+  const p=g.player;
+  const target = manualAimPoint(g);
+  const manualColor = '#b46bff';
+  if(w.id==='minigun'){
+    w.cd=0.18/(1+w.level*0.07);
+    fireSpread(g,p,target,1+p.extraProjectiles,10+w.level*3,560,0.12,manualColor);
+    sfx('shoot', 0.75);
+  } else if(w.id==='carbine'){
+    w.cd=0.28/(1+w.level*0.08);
+    fireSpread(g,p,target,1+p.extraProjectiles,18+w.level*4,700,0.05,manualColor,1+w.level);
+    sfx('shoot', 0.65);
+  } else if(w.id==='flamer'){
+    w.cd=0.07;
+    const a=Math.atan2(target.y-p.y,target.x-p.x);
+    for(const enemy of g.enemies){
+      const d=Math.hypot(enemy.x-p.x,enemy.y-p.y);
+      if(d<210+w.level*18){
+        const aa=Math.atan2(enemy.y-p.y,enemy.x-p.x);
+        let da=Math.atan2(Math.sin(aa-a),Math.cos(aa-a));
+        if(Math.abs(da)<0.45+w.level*0.04) damageEnemy(g,enemy,(5+w.level*1.6),manualColor);
+      }
+    }
+    for(let k=0;k<3;k++) addParticle(g,p.x,p.y,Math.cos(a+rand(-0.35,0.35))*rand(170,270),Math.sin(a+rand(-0.35,0.35))*rand(170,270),manualColor,rand(0.16,0.28),rand(5,12));
+    sfx('flamer', 0.65);
+  } else if(w.id==='rail'){
+    w.cd=Math.max(1.0,2.6-w.level*0.18);
+    const a=Math.atan2(target.y-p.y,target.x-p.x);
+    g.bullets.push({x:p.x,y:p.y,vx:Math.cos(a)*960,vy:Math.sin(a)*960,r:5,life:0.85,damage:90+w.level*30,pierce:99,color:manualColor,rail:true,manual:true});
+    shake=Math.max(shake,5);
+    sfx('rail', 0.95);
+  } else if(w.id==='boomerang'){
+    const active = g.boomerangs.filter(b=>b.weaponId==='boomerang').length;
+    const maxActive = 1 + Math.floor(w.level/3);
+    if(active>=maxActive) return;
+    w.cd=Math.max(0.55,1.6-w.level*0.12);
+    launchBoomerang(g,p,target,w.level,manualColor);
+    sfx('shoot', 0.7);
+  } else if(w.id==='arc'){
+    const e=targetEnemy(g,560);
+    if(!e) return;
+    w.cd=Math.max(0.58,1.45-w.level*0.12);
+    fireArcChain(g,e,w.level);
+    sfx('arc', 0.9);
+  } else if(w.id==='satchel'){
+    const m = mouseWorld(g);
+    w.cd=Math.max(1.6,4.4-w.level*0.35);
+    explode(g,m.x,m.y,90+w.level*8,75+w.level*26,manualColor);
+    sfx('explosion', 1.05);
   }
 }
 
@@ -429,14 +503,14 @@ function fireSpread(g,p,target,count,damage,speed,spread,color,pierce=0){
   }
 }
 
-function launchBoomerang(g,p,target,level){
+function launchBoomerang(g,p,target,level,color='#ffd36b'){
   const a=Math.atan2(target.y-p.y,target.x-p.x);
   const speed = 420 + level*22;
   const outTime = 0.34 + level*0.03;
   g.boomerangs.push({
     weaponId:'boomerang', x:p.x+Math.cos(a)*p.r, y:p.y+Math.sin(a)*p.r,
     vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, r:13, age:0, life:1.65, outTime,
-    damage:(26+level*10)*p.damageMul, color:'#ffd36b', spin:0, hitSet:new WeakSet(), returning:false,
+    damage:(26+level*10)*p.damageMul, color, spin:0, hitSet:new WeakSet(), returning:false,
   });
 }
 

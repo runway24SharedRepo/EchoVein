@@ -33,6 +33,18 @@ addEventListener('mousemove',e=>{
   mouse.used=true;
   mouse.lastMove=game ? game.time : 0;
 });
+addEventListener('mousedown',e=>{
+  if(e.button===0){
+    mouse.down=true;
+    mouse.used=true;
+    mouse.lastMove=game ? game.time : 0;
+    if(game?.player?.mouseTargeting) e.preventDefault();
+  }
+});
+addEventListener('mouseup',e=>{
+  if(e.button===0) mouse.down=false;
+});
+addEventListener('blur',()=>{ mouse.down=false; });
 
 addEventListener('gamepadconnected',e=>{
   if(game) log(game, `${e.gamepad.id || 'Gamepad'} connected.`);

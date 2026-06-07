@@ -16,7 +16,7 @@ function updateUI(g){
   ui.depth.textContent=Math.floor(g.time*1.6)+' m';
   ui.gold.textContent=g.gold; ui.nitra.textContent=g.nitra; ui.kills.textContent=g.kills;
   const trapChip = g.player.canUseTraps ? `<div class="chip"><span>Pathfinder Trap Kit</span><b>${g.player.trapCd<=0?'READY':'CD '+g.player.trapCd.toFixed(1)+'s'}</b></div>` : '';
-  const cursorChip = g.player.mouseTargeting ? `<div class="chip"><span>Targeting Cursor</span><b>${mouseTargetActive(g)?'ACTIVE':'IDLE'}</b></div>` : '';
+  const cursorChip = g.player.mouseTargeting ? `<div class="chip"><span>Targeting Cursor</span><b>${mouseTargetActive(g)?'MANUAL':'AUTO'}</b></div>` : '';
   ui.weaponList.innerHTML=g.weapons.map(w=>`<div class="chip"><span>${weaponName(w.id)}</span><b>Mk ${w.level}</b></div>`).join('') + trapChip + cursorChip;
   ui.logList.innerHTML=g.log.slice(0,4).map((m,i)=>`<div class="chip"><span>${m}</span><b>${i===0?'NEW':''}</b></div>`).join('');
 }
