@@ -20,11 +20,18 @@ function updateUI(g){
   const arc = g.arcConnection;
   const arcChip = arc?.unlocked ? `<div class="chip"><span>Arc Connection</span><b>${arc.selectedEnemies.length}/${arcConnectionMaxTargets(g)}</b></div>` : '';
   ui.weaponList.innerHTML=g.weapons.map(w=>`<div class="chip"><span>${weaponName(w.id)}</span><b>Mk ${w.level}</b></div>`).join('') + trapChip + cursorChip + arcChip;
+  const resourceChips = RUN_RESOURCE_IDS.filter(id=>id!=='gild' && id!=='voltarite' && id!=='echo' && (g.resources?.[id] || 0)>0)
+    .map(id=>`<div class="chip"><span>${MINERALS[id].displayName}</span><b>${g.resources[id]}</b></div>`).join('');
+  const pressureChip=`<div class="chip ${g.pressureFlash>0?'danger':''}"><span>Hollow Pressure</span><b>${g.hollowPressure || 0}</b></div>`;
+  const perfState=g.performance?.state || '';
+  const perfChip=(perfState && perfState!==PERF_STATES.HEALTHY)
+    ? `<div class="chip ${perfState===PERF_STATES.CRITICAL?'danger':''}"><span>Swarm Stabiliser</span><b>${perfState.replace('PERF_','')}</b></div>`
+    : '';
   const objectiveChips=g.objectives.map(o=>`<div class="chip objective ${o.completed?'done':''}"><span>${o.displayName}</span><b>${Math.floor(o.currentAmount)}/${o.targetAmount}</b></div>`).join('');
   const bossChip=g.bossDefeated ? '<div class="chip done"><span>Sector Boss</span><b>DEFEATED</b></div>' : (g.bossSpawned ? '<div class="chip danger"><span>Sector Boss</span><b>ACTIVE</b></div>' : '<div class="chip"><span>Sector Boss</span><b>LOCKED</b></div>');
   const extractionChip=g.extraction ? `<div class="chip danger"><span>Extraction</span><b>${Math.max(0,g.extractionTimer).toFixed(1)}s</b></div>` : '';
   const missionChip=`<div class="chip"><span>Mission ${g.missionIndex}</span><b>Run ${g.runIndex}/${RUNS_PER_MISSION}</b></div>`;
-  ui.logList.innerHTML=missionChip + objectiveChips + bossChip + extractionChip + g.log.slice(0,3).map((m,i)=>`<div class="chip"><span>${m}</span><b>${i===0?'NEW':''}</b></div>`).join('');
+  ui.logList.innerHTML=missionChip + pressureChip + perfChip + resourceChips + objectiveChips + bossChip + extractionChip + g.log.slice(0,3).map((m,i)=>`<div class="chip"><span>${m}</span><b>${i===0?'NEW':''}</b></div>`).join('');
 }
 
 function render(g){
@@ -59,6 +66,7 @@ function render(g){
   drawTexts(g);
   ctx.restore();
   drawVignette();
+  drawEnemyBudgetOverlay(g);
   if(paused) drawPause();
 }
 
@@ -146,7 +154,8 @@ function drawTiles(g,cam){
       ctx.fillRect(px,py,TILE,TILE);
       if(Math.random()<0.0002){} // keeps cave still; no-op.
     } else {
-      const color = t===TILE_HARD?'#302b2a':t===TILE_LAVA_ROCK?'#4a1712':t===TILE_GOLD?'#6d5520':t===TILE_NITRA?'#5e2530':t===TILE_CRYSTAL?'#1e4d64':'#3a342f';
+      const data=TILE_DATA[t];
+      const color = t===TILE_EMPTY?'#151925':(data?.color || '#3a342f');
       ctx.fillStyle=color; ctx.fillRect(px,py,TILE,TILE);
       const tileInfo = TILE_DATA[t];
       const sprite = tileInfo?.sprite ? getSprite(tileInfo.sprite) : null;
@@ -555,7 +564,8 @@ function drawPickups(g){
       ctx.restore();
       continue;
     }
-    ctx.fillStyle=it.type==='xp'?MINERALS.echo.color:MINERALS.voltarite.color;
+    const res = it.type==='xp' ? MINERALS.echo : (MINERALS[it.type] || MINERALS.voltarite);
+    ctx.fillStyle=res.color;
     ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=10;
     ctx.beginPath(); ctx.moveTo(it.x,it.y-it.r); ctx.lineTo(it.x+it.r,it.y); ctx.lineTo(it.x,it.y+it.r); ctx.lineTo(it.x-it.r,it.y); ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
   }
@@ -624,6 +634,28 @@ function drawVignette(){
   grd.addColorStop(0,'rgba(0,0,0,0)'); grd.addColorStop(1,'rgba(0,0,0,0.58)');
   ctx.fillStyle=grd; ctx.fillRect(0,0,innerWidth,innerHeight);
 }
+
+function drawEnemyBudgetOverlay(g){
+  if(!g.debug?.showEnemyBudget || !g.performance) return;
+  const p=g.performance;
+  ctx.save();
+  ctx.font='12px Consolas, monospace';
+  ctx.textAlign='left';
+  ctx.fillStyle='rgba(0,0,0,0.68)';
+  ctx.fillRect(14, innerHeight-170, 310, 144);
+  ctx.fillStyle='#d7ecff';
+  const lines=[
+    `FPS ${p.currentFPS.toFixed(1)}  AVG ${p.averageFPS.toFixed(1)}  ${p.state.replace('PERF_','')}`,
+    `Enemies ${g.enemies.length}/${g.enemyBudget.currentMaxEnemies}  Bullets ${g.enemyBullets.length}/${getEnemyBulletCap(g)}`,
+    `Spawn x${p.spawnRateMultiplier.toFixed(2)}  Swarm x${p.swarmSizeMultiplier.toFixed(2)}`,
+    `Budget ${p.budgetFactor.toFixed(2)}  VFX ${p.vfxFactor.toFixed(2)}`,
+    `Skipped spawns ${p.skippedSpawns||0} bullets ${p.skippedBullets||0}`,
+    `Perf despawned ${p.enemiesDespawned||0}`
+  ];
+  for(let i=0;i<lines.length;i++) ctx.fillText(lines[i],24,innerHeight-144+i*20);
+  ctx.restore();
+}
+
 function drawPause(){
   ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(0,0,innerWidth,innerHeight);
   ctx.fillStyle='#fff'; ctx.font='900 42px Segoe UI'; ctx.textAlign='center'; ctx.fillText('PAUSED',innerWidth/2,innerHeight/2);

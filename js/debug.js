@@ -94,17 +94,25 @@ function debugAddXp(){ if(requireGame()){ gainXp(game, Math.max(10, Math.floor(g
 function debugForceLevelUp(){ if(requireGame()){ gainXp(game, game.xpNeed - game.xp + 1); debugLog('Forced level-up.'); updateGameAfterDebug(); } }
 function debugAddResource(resourceId, amount){
   if(!requireGame()) return;
-  if(resourceId === 'gild'){
-    game.gold += amount;
-    debugLog(`Added ${amount} Gild Shards.`);
-  } else if(resourceId === 'voltarite'){
-    game.nitra += amount;
-    debugLog(`Added ${amount} Voltarite.`);
-  }
+  collectRunResource(game, resourceId, amount, {asXp: resourceId==='echo'});
+  debugLog(`Added ${amount} ${MINERALS[resourceId]?.displayName || resourceId}.`);
   updateGameAfterDebug();
 }
 function debugAddGild(){ debugAddResource('gild',100); }
 function debugAddVoltarite(){ debugAddResource('voltarite',50); }
+function debugSpawnResource(resourceId, amount=8){
+  if(!requireGame()) return;
+  for(let i=0;i<amount;i++){
+    const a=rand(0,Math.PI*2), d=rand(40,170);
+    dropPickup(game, game.player.x+Math.cos(a)*d, game.player.y+Math.sin(a)*d, resourceId==='echo'?'xp':resourceId, resourceId==='echo'?randi(3,8):randi(1,4));
+  }
+  debugLog(`Spawned resource pickups: ${MINERALS[resourceId]?.displayName || resourceId}.`);
+}
+function debugUnlockVectorBurst(){ if(requireGame()){ addOrLevelWeapon(game,'vectorBurst'); debugLog('Vector Burst unlocked.'); updateGameAfterDebug(); } }
+function debugVectorBurstCount(){ if(requireGame()){ upgradeVectorBurst(game,'count'); updateGameAfterDebug(); } }
+function debugSetPressure(level){ if(requireGame()){ game.hollowPressure=Math.max(0,Math.floor(level)); game.nextPressureTime=(game.hollowPressure+1)*120; game.pressureFlash=2; debugLog(`Set Hollow Pressure to ${game.hollowPressure}.`); updateGameAfterDebug(); } }
+function debugForceElitePattern(){ if(requireGame()){ game.hollowPressure=Math.max(game.hollowPressure||0,4); debugSpawnEnemies('elite',1); debugLog('Spawned high-pressure multi-shot elite.'); updateGameAfterDebug(); } }
+function debugSpawnEscalatedBoss(){ if(requireGame()){ game.hollowPressure=Math.max(game.hollowPressure||0,5); debugSpawnEnemies('boss',1); debugLog('Spawned escalated boss profile.'); updateGameAfterDebug(); } }
 function debugResetCooldowns(){ if(requireGame()){ game.player.dashCd=0; game.player.trapCd=0; for(const w of game.weapons) w.cd=0; debugLog('Reset cooldowns.'); updateGameAfterDebug(); } }
 function debugToggleEnemyPaths(){ if(requireGame()){ game.debug.showEnemyPaths=!game.debug.showEnemyPaths; debugLog(`Enemy path debug ${game.debug.showEnemyPaths ? 'enabled' : 'disabled'}.`); updateGameAfterDebug(); } }
 
@@ -190,6 +198,61 @@ window.debugHammerfall = {
   fuel: debugHammerfallFuel,
   accuracy: debugHammerfallAccuracy,
   fire: debugHammerfallFireNow
+};
+
+
+function debugForcePerformanceState(state){
+  if(!requireGame()) return;
+  game.debug.forcePerformanceState = state;
+  if(game.performance) game.performance.state = state || PERF_STATES.HEALTHY;
+  debugLog(`Performance state ${state ? 'forced to '+state : 'force cleared'}.`);
+  updateGameAfterDebug();
+}
+function debugForcePerfHealthy(){ debugForcePerformanceState(PERF_STATES.HEALTHY); }
+function debugForcePerfWarning(){ debugForcePerformanceState(PERF_STATES.WARNING); }
+function debugForcePerfCritical(){ debugForcePerformanceState(PERF_STATES.CRITICAL); }
+function debugClearPerfForce(){ debugForcePerformanceState(null); }
+function debugStressSwarm(){
+  if(!requireGame()) return;
+  const p=game.player;
+  for(let i=0;i<150;i++){
+    const a=rand(0,Math.PI*2), d=rand(420,1050);
+    const e=new Enemy(clamp(p.x+Math.cos(a)*d,80,WORLD_W-80),clamp(p.y+Math.sin(a)*d,80,WORLD_H-80), i%4===0?'grunt':'swarmer');
+    game.enemies.push(e);
+  }
+  debugLog('Spawned performance stress swarm.');
+  updateGameAfterDebug();
+}
+function debugToggleEnemyBudgetOverlay(){
+  if(!requireGame()) return;
+  game.debug.showEnemyBudget=!game.debug.showEnemyBudget;
+  debugLog(`Enemy budget overlay ${game.debug.showEnemyBudget?'enabled':'disabled'}.`);
+  updateGameAfterDebug();
+}
+function debugTogglePerfDespawnLog(){
+  if(!requireGame()) return;
+  game.debug.perfDespawnLog=!game.debug.perfDespawnLog;
+  debugLog(`Performance despawn log ${game.debug.perfDespawnLog?'enabled':'disabled'}.`);
+  updateGameAfterDebug();
+}
+
+window.debugPerformance = {
+  healthy: debugForcePerfHealthy,
+  warning: debugForcePerfWarning,
+  critical: debugForcePerfCritical,
+  clear: debugClearPerfForce,
+  stress: debugStressSwarm,
+  overlay: debugToggleEnemyBudgetOverlay,
+  despawnLog: debugTogglePerfDespawnLog
+};
+
+window.debugCollectibles = {
+  spawn: debugSpawnResource,
+  vector: debugUnlockVectorBurst,
+  vectorCount: debugVectorBurstCount,
+  pressure: debugSetPressure,
+  elite: debugForceElitePattern,
+  boss: debugSpawnEscalatedBoss
 };
 
 window.debugMovement = {
@@ -282,6 +345,20 @@ function buildDebugPanel(){
     makeDebugButton('Spawn 16 Targets',()=>debugHammerfallSpawnTargets(16)),
     makeDebugButton('Spawn Elite Target',debugHammerfallSpawnElite)
   ]);
+  addDebugSection(panel,'Resources, Vector Burst & Pressure',[
+    makeDebugButton('Spawn Ferrite Bark',()=>debugSpawnResource('ferriteBark')),
+    makeDebugButton('Spawn Lumina Spores',()=>debugSpawnResource('luminaSpores')),
+    makeDebugButton('Spawn Aether Quartz',()=>debugSpawnResource('aetherQuartz',4)),
+    makeDebugButton('Spawn Crysalith',()=>debugSpawnResource('crysalith')),
+    makeDebugButton('Spawn Emberglass',()=>debugSpawnResource('emberglass')),
+    makeDebugButton('Unlock Vector Burst',debugUnlockVectorBurst),
+    makeDebugButton('+ Vector Directions',debugVectorBurstCount),
+    makeDebugButton('Pressure 0',()=>debugSetPressure(0)),
+    makeDebugButton('Pressure 3',()=>debugSetPressure(3)),
+    makeDebugButton('Pressure 6',()=>debugSetPressure(6)),
+    makeDebugButton('Spawn Multi-Shot Elite',debugForceElitePattern),
+    makeDebugButton('Spawn Escalated Boss',debugSpawnEscalatedBoss)
+  ]);
   addDebugSection(panel,'Spawns & Clears',[
     makeDebugButton('Spawn 5 weak enemies',()=>debugSpawnEnemies('grunt',5)),
     makeDebugButton('Spawn small ranged pack',debugSpawnSmallRanged),
@@ -306,6 +383,20 @@ function buildDebugPanel(){
   addDebugSection(panel,'Pathfinding',[
     makeDebugButton('Toggle Show Enemy Paths',debugToggleEnemyPaths)
   ]);
+  const perfSection = document.createElement('section');
+  perfSection.className = 'debugSection';
+  perfSection.innerHTML = '<h3>Adaptive Performance Metrics</h3><pre class="debugLog" id="debugPerfMetrics">Start a run to view metrics.</pre>';
+  panel.appendChild(perfSection);
+  addDebugSection(panel,'Adaptive Performance Tests',[
+    makeDebugButton('Force PERF_HEALTHY',debugForcePerfHealthy),
+    makeDebugButton('Force PERF_WARNING',debugForcePerfWarning),
+    makeDebugButton('Force PERF_CRITICAL',debugForcePerfCritical),
+    makeDebugButton('Clear Performance Force',debugClearPerfForce),
+    makeDebugButton('Spawn Stress Test Swarm',debugStressSwarm),
+    makeDebugButton('Toggle Enemy Budget Overlay',debugToggleEnemyBudgetOverlay),
+    makeDebugButton('Toggle Perf Despawn Log',debugTogglePerfDespawnLog)
+  ]);
+
   addDebugSection(panel,'Player State',[
     makeDebugButton('Heal player to full HP',debugHealPlayer),
     makeDebugButton('Add XP',debugAddXp),

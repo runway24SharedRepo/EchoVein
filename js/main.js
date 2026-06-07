@@ -3,7 +3,10 @@
 /* Main loop, browser input, buttons, polyfills, and startup. */
 
 function loop(t){
-  const dt=Math.min(0.033,(t-lastTime)/1000); lastTime=t;
+  const rawDt=Math.max(0.001,(t-lastTime)/1000);
+  const dt=Math.min(0.033,rawDt);
+  lastTime=t;
+  if(game && typeof updatePerformanceMonitor === 'function') updatePerformanceMonitor(game,rawDt);
   if(game) update(game,dt);
   render(game);
   requestAnimationFrame(loop);

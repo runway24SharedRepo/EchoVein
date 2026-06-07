@@ -6,8 +6,8 @@ function tileIdx(tx,ty){ return ty*MAP_W+tx; }
 function worldToTile(x,y){ return [Math.floor(x/TILE), Math.floor(y/TILE)]; }
 function inMap(tx,ty){ return tx>=0 && ty>=0 && tx<MAP_W && ty<MAP_H; }
 function tileAt(g,tx,ty){ if(!inMap(tx,ty)) return TILE_HARD; return g.tiles[tileIdx(tx,ty)]; }
-function isSolid(t){ return t===TILE_ROCK || t===TILE_HARD || t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL || t===TILE_LAVA_ROCK; }
-function isMineableTile(t){ return t===TILE_ROCK || t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL; }
+function isSolid(t){ return t===TILE_ROCK || t===TILE_HARD || t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL || t===TILE_FERRITE_BARK || t===TILE_LUMINA_SPORES || t===TILE_AETHER_QUARTZ || t===TILE_CRYSALITH || t===TILE_EMBERGLASS || t===TILE_LAVA_ROCK; }
+function isMineableTile(t){ return t===TILE_ROCK || t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL || t===TILE_FERRITE_BARK || t===TILE_LUMINA_SPORES || t===TILE_AETHER_QUARTZ || t===TILE_CRYSALITH || t===TILE_EMBERGLASS; }
 function isObstacleTile(t){ return t===TILE_LAVA_ROCK; }
 
 function generateCave(g){
@@ -31,19 +31,53 @@ function generateCave(g){
     }
     if(Math.random()<0.45){ px=cx+rand(-20,20); py=cy+rand(-20,20); }
   }
-  // Mineral veins in rock near caves.
-  for(let n=0;n<135;n++){
-    const type = Math.random()<0.55 ? TILE_GOLD : (Math.random()<0.78 ? TILE_NITRA : TILE_CRYSTAL);
-    const tx=randi(4,MAP_W-5), ty=randi(4,MAP_H-5);
-    const vein=randi(3,9);
-    for(let k=0;k<vein;k++){
-      const vx=clamp(tx+randi(-2,2),2,MAP_W-3), vy=clamp(ty+randi(-2,2),2,MAP_H-3);
-      const i=tileIdx(vx,vy);
-      if(g.tiles[i]===TILE_ROCK){ g.tiles[i]=type; g.tileHp[i]= type===TILE_CRYSTAL ? 45 : 32; }
-    }
-  }
+  // Resource veins in rock near caves. The set is data-driven so mission
+  // objectives can request more than only Gild/Echo resources.
+  for(let n=0;n<175;n++) placeResourceVein(g);
+
+  // A few exposed samples make cave chambers feel more useful before mining.
+  placeLooseResourcePickups(g, 34);
 
   placeLavaRockObstacles(g);
+}
+
+
+function chooseResourceTileType(){
+  const total=RESOURCE_TILE_TYPES.reduce((a,r)=>a+r.weight,0);
+  let roll=Math.random()*total;
+  for(const r of RESOURCE_TILE_TYPES){
+    roll-=r.weight;
+    if(roll<=0) return r;
+  }
+  return RESOURCE_TILE_TYPES[0];
+}
+
+function placeResourceVein(g){
+  const def=chooseResourceTileType();
+  const tx=randi(4,MAP_W-5), ty=randi(4,MAP_H-5);
+  const vein=randi(def.minCluster,def.maxCluster);
+  for(let k=0;k<vein;k++){
+    const vx=clamp(tx+randi(-2,2),2,MAP_W-3), vy=clamp(ty+randi(-2,2),2,MAP_H-3);
+    const i=tileIdx(vx,vy);
+    if(g.tiles[i]===TILE_ROCK){ g.tiles[i]=def.tile; g.tileHp[i]=def.hp; }
+  }
+}
+
+function placeLooseResourcePickups(g,count){
+  const eligible=RESOURCE_TILE_TYPES.filter(r=>r.resourceId!=='echo');
+  for(let n=0;n<count;n++){
+    let x=0,y=0,ok=false;
+    for(let tries=0;tries<80;tries++){
+      const tx=randi(5,MAP_W-6), ty=randi(5,MAP_H-6);
+      if(g.tiles[tileIdx(tx,ty)]!==TILE_EMPTY) continue;
+      const sx=Math.floor(MAP_W/2), sy=Math.floor(MAP_H/2);
+      if(Math.hypot(tx-sx,ty-sy)<8) continue;
+      x=tx*TILE+TILE/2; y=ty*TILE+TILE/2; ok=true; break;
+    }
+    if(!ok) continue;
+    const def=eligible[randi(0,eligible.length-1)];
+    dropPickup(g,x,y,def.resourceId, randi(1, def.resourceId==='aetherQuartz'?2:4));
+  }
 }
 
 function openNeighborCount(g,tx,ty,r=2){
@@ -148,6 +182,16 @@ function upgradeHammerfall(g,kind){
   log(g, `${weaponName('hammerfallSalvo')} ${kind} upgrade applied. Mk ${w.level}`);
 }
 
+function upgradeVectorBurst(g,kind){
+  const w=g.weapons.find(w=>w.id==='vectorBurst') || addOrLevelWeapon(g,'vectorBurst');
+  if(kind==='count') w.projectiles=(w.projectiles || 1)+1;
+  else if(kind==='damage') w.damage=(w.damage || 12)*1.15;
+  else if(kind==='speed'){ w.speed=(w.speed || 560)*1.12; w.lifetime=(w.lifetime || 1.25)*1.08; }
+  else if(kind==='rate') w.baseCooldown=Math.max(0.18,(w.baseCooldown || 0.92)/1.14);
+  w.level++;
+  log(g, `${weaponName('vectorBurst')} ${kind} upgrade applied. ${w.projectiles || 1} directions.`);
+}
+
 function addOrLevelWeapon(g,id){
   let w = g.weapons.find(w=>w.id===id);
   if(w){
@@ -157,6 +201,9 @@ function addOrLevelWeapon(g,id){
     return w;
   }
   w = { id, level:1, cd:0, angle:0 };
+  if(id==='vectorBurst'){
+    Object.assign(w,{projectiles:1, damage:12, speed:560, lifetime:1.25, spreadDeg:18, pierce:0, baseCooldown:0.92});
+  }
   if(id==='hammerfallSalvo'){
     Object.assign(w, hammerfallBaseState());
     // Short arming delay prevents immediate frame-0 salvo spam after unlock/debug unlock.
@@ -185,16 +232,28 @@ function spawnEnemy(g,type){
   }
   const e=new Enemy(x,y,type);
   const diff=g.missionDifficulty || missionDifficulty(1);
+  const pressure=g.hollowPressure || 0;
+  const threatScale=1+pressure*0.08;
   if(type==='boss'){
-    e.hp*=diff.bossHealthMultiplier;
+    e.hp*=diff.bossHealthMultiplier*(1+pressure*0.12);
     e.maxHp=e.hp;
-    e.damage=Math.round(e.damage*diff.bossDamageMultiplier);
+    e.damage=Math.round(e.damage*diff.bossDamageMultiplier*(1+pressure*0.06));
+    e.speed*=1+pressure*0.035;
   } else {
-    e.hp*=diff.enemyHealthMultiplier;
+    e.hp*=diff.enemyHealthMultiplier*threatScale;
     e.maxHp=e.hp;
-    e.damage=Math.round(e.damage*diff.enemyDamageMultiplier);
+    e.damage=Math.round(e.damage*diff.enemyDamageMultiplier*(1+pressure*0.045));
+    e.speed*=1+pressure*0.035;
   }
   g.enemies.push(e);
 }
 
-function spawnBurst(g,count,type){ for(let i=0;i<count;i++) spawnEnemy(g,type); }
+function spawnBurst(g,count,type){
+  let spawned=0;
+  for(let i=0;i<count;i++){
+    if(typeof canSpawnNormalEnemy === 'function' && !canSpawnNormalEnemy(g,type,1)) break;
+    spawnEnemy(g,type);
+    spawned++;
+  }
+  return spawned;
+}

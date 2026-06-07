@@ -2,9 +2,177 @@
 
 /* Gameplay update systems: movement, mining, weapons, enemies, drones, traps, pickups, XP, upgrades, and particles. */
 
+
+function updatePerformanceMonitor(g,rawDt){
+  if(!g || !g.performance) return;
+  const perf=g.performance;
+  const frameTimeMs=rawDt*1000;
+  const fps=rawDt>0 ? 1/rawDt : 60;
+  perf.currentFPS=fps;
+  perf.frameTimeMs=frameTimeMs;
+  perf.samples.push({dt:rawDt, ms:frameTimeMs});
+  perf.sampleTotal+=rawDt;
+  while(perf.samples.length && perf.sampleTotal>PERFORMANCE_CONFIG.sampleWindowSeconds){
+    const old=perf.samples.shift();
+    perf.sampleTotal-=old.dt;
+  }
+  if(perf.samples.length){
+    const avgDt=perf.samples.reduce((a,b)=>a+b.dt,0)/perf.samples.length;
+    perf.averageFrameTimeMs=avgDt*1000;
+    perf.averageFPS=avgDt>0 ? 1/avgDt : 60;
+  }
+}
+
+function updatePerformanceBudgets(g,dt){
+  const perf=g.performance;
+  if(!perf) return;
+  const forced=g.debug?.forcePerformanceState;
+  const avg=perf.averageFPS || 60;
+  perf.previousState=perf.state;
+  perf.forced=!!forced;
+  if(forced){
+    perf.state=forced;
+  } else if(perf.state===PERF_STATES.CRITICAL){
+    if(avg>=PERFORMANCE_CONFIG.recoveryFps){
+      perf.recoveryTimer+=dt;
+      if(perf.recoveryTimer>=PERFORMANCE_CONFIG.recoveryHoldSeconds){ perf.state=PERF_STATES.RECOVERING; perf.recoveryTimer=0; }
+    } else perf.recoveryTimer=0;
+  } else if(perf.state===PERF_STATES.RECOVERING){
+    if(avg>=PERFORMANCE_CONFIG.healthyFps){
+      perf.healthyTimer+=dt;
+      if(perf.healthyTimer>=PERFORMANCE_CONFIG.healthyHoldSeconds){ perf.state=PERF_STATES.HEALTHY; perf.healthyTimer=0; }
+    } else if(avg<PERFORMANCE_CONFIG.criticalFps){
+      perf.state=PERF_STATES.CRITICAL; perf.healthyTimer=0;
+    } else perf.healthyTimer=0;
+  } else if(avg<PERFORMANCE_CONFIG.criticalFps){
+    perf.state=PERF_STATES.CRITICAL;
+  } else if(avg<PERFORMANCE_CONFIG.healthyFps){
+    perf.state=PERF_STATES.WARNING;
+  } else {
+    perf.state=PERF_STATES.HEALTHY;
+  }
+
+  if(perf.state!==perf.previousState){
+    if(perf.state===PERF_STATES.WARNING) log(g,'Swarm pressure stabilising...');
+    else if(perf.state===PERF_STATES.CRITICAL) log(g,'Enemy pressure reduced for performance.');
+    else if(perf.state===PERF_STATES.RECOVERING) log(g,'Performance recovering; spawning resumes gradually.');
+    else if(perf.state===PERF_STATES.HEALTHY) log(g,'Performance recovered.');
+  }
+
+  if(perf.state===PERF_STATES.HEALTHY){
+    perf.budgetFactor=1; perf.vfxFactor=1; perf.spawnRateMultiplier=1; perf.swarmSizeMultiplier=1;
+  } else if(perf.state===PERF_STATES.WARNING){
+    perf.budgetFactor=0.70; perf.vfxFactor=0.70; perf.spawnRateMultiplier=0.70; perf.swarmSizeMultiplier=0.75;
+  } else if(perf.state===PERF_STATES.CRITICAL){
+    perf.budgetFactor=0.40; perf.vfxFactor=0.40; perf.spawnRateMultiplier=0; perf.swarmSizeMultiplier=0;
+  } else {
+    const t=clamp(perf.healthyTimer/PERFORMANCE_CONFIG.healthyHoldSeconds,0,1);
+    perf.budgetFactor=lerp(0.60,1.00,t); perf.vfxFactor=lerp(0.60,1.00,t); perf.spawnRateMultiplier=lerp(0.45,1.00,t); perf.swarmSizeMultiplier=lerp(0.55,1.00,t);
+  }
+  const pressure=g.hollowPressure || 0;
+  const mission=g.missionIndex || 1;
+  const timeScale=clamp(1+g.time/540,1,1.7);
+  const difficultyCap=PERFORMANCE_CONFIG.baseMaxEnemies + pressure*10 + (mission-1)*6;
+  const cap=Math.max(PERFORMANCE_CONFIG.minMaxEnemies, Math.floor(difficultyCap*timeScale*perf.budgetFactor));
+  g.enemyBudget.currentMaxEnemies=cap;
+  if(perf.state===PERF_STATES.CRITICAL) performanceDespawnLowPriorityEnemies(g,dt);
+  updatePerformanceDebugPanel(g);
+}
+
+function performanceDespawnLowPriorityEnemies(g,dt){
+  const perf=g.performance;
+  const cap=g.enemyBudget?.currentMaxEnemies || PERFORMANCE_CONFIG.minMaxEnemies;
+  if(g.enemies.length<=cap) return;
+  perf.despawnAccumulator=(perf.despawnAccumulator||0)+dt*PERFORMANCE_CONFIG.criticalDespawnPerSecond;
+  let quota=Math.floor(perf.despawnAccumulator);
+  if(quota<=0) return;
+  perf.despawnAccumulator-=quota;
+  const p=g.player;
+  const cam=g.camera || {x:0,y:0};
+  const candidates=[];
+  for(let i=0;i<g.enemies.length;i++){
+    const e=g.enemies[i];
+    if(!e || e.hp<=0 || e.type==='boss' || e.type==='elite') continue;
+    const d2=dist2(p.x,p.y,e.x,e.y);
+    if(d2<PERFORMANCE_CONFIG.despawnDistance*PERFORMANCE_CONFIG.despawnDistance) continue;
+    const margin=PERFORMANCE_CONFIG.cameraMargin;
+    const visible=e.x>cam.x-margin && e.x<cam.x+innerWidth+margin && e.y>cam.y-margin && e.y<cam.y+innerHeight+margin;
+    if(visible) continue;
+    candidates.push({i,d2,type:e.type});
+  }
+  candidates.sort((a,b)=>b.d2-a.d2);
+  let removed=0;
+  for(const c of candidates){
+    if(removed>=quota || g.enemies.length<=cap) break;
+    g.enemies.splice(c.i-removed,1);
+    removed++;
+  }
+  if(removed){
+    perf.enemiesDespawned+=removed;
+    if(g.debug?.perfDespawnLog) log(g,`Performance despawned ${removed} distant enemies.`);
+  }
+}
+
+function getEnemyBulletCap(g){
+  const state=g.performance?.state || PERF_STATES.HEALTHY;
+  if(state===PERF_STATES.CRITICAL) return PERFORMANCE_CONFIG.maxEnemyBulletsCritical;
+  if(state===PERF_STATES.WARNING) return PERFORMANCE_CONFIG.maxEnemyBulletsWarning;
+  if(state===PERF_STATES.RECOVERING) return PERFORMANCE_CONFIG.maxEnemyBulletsRecovering;
+  return PERFORMANCE_CONFIG.maxEnemyBulletsHealthy;
+}
+
+function canSpawnNormalEnemy(g,type,count=1){
+  const perf=g.performance;
+  if(!perf) return true;
+  const important=type==='boss';
+  if(important) return true;
+  if(perf.state===PERF_STATES.CRITICAL){ perf.skippedSpawns=(perf.skippedSpawns||0)+count; return false; }
+  const cap=g.enemyBudget?.currentMaxEnemies || PERFORMANCE_CONFIG.baseMaxEnemies;
+  if(g.enemies.length>=cap){ perf.skippedSpawns=(perf.skippedSpawns||0)+count; return false; }
+  if(type==='elite' && perf.state===PERF_STATES.WARNING && g.enemies.length>cap*0.85){ perf.skippedSpawns=(perf.skippedSpawns||0)+count; return false; }
+  return true;
+}
+
+function performanceAdjustedCount(g,count,swarm=false){
+  const perf=g.performance;
+  if(!perf) return Math.max(0,Math.floor(count));
+  const mul=swarm ? perf.swarmSizeMultiplier : perf.spawnRateMultiplier;
+  return Math.max(0,Math.floor(count*mul));
+}
+
+function shouldEmitVfx(g,important=false){
+  if(important || !g?.performance) return true;
+  return Math.random() <= (g.performance.vfxFactor ?? 1);
+}
+
+function updatePerformanceDebugPanel(g){
+  const box=document.getElementById('debugPerfMetrics');
+  if(!box || !g?.performance) return;
+  const p=g.performance;
+  box.textContent = [
+    `Current FPS: ${p.currentFPS.toFixed(1)}`,
+    `Average FPS: ${p.averageFPS.toFixed(1)}`,
+    `Frame time: ${p.frameTimeMs.toFixed(1)} ms`,
+    `Avg frame: ${p.averageFrameTimeMs.toFixed(1)} ms`,
+    `Performance: ${p.state}${p.forced?' (forced)':''}`,
+    `Enemies: ${g.enemies.length}/${g.enemyBudget.currentMaxEnemies}`,
+    `Enemy bullets: ${g.enemyBullets.length}/${getEnemyBulletCap(g)}`,
+    `Spawn x: ${p.spawnRateMultiplier.toFixed(2)}`,
+    `Swarm x: ${p.swarmSizeMultiplier.toFixed(2)}`,
+    `Budget factor: ${p.budgetFactor.toFixed(2)}`,
+    `VFX factor: ${p.vfxFactor.toFixed(2)}`,
+    `Skipped spawns: ${p.skippedSpawns||0}`,
+    `Skipped bullets: ${p.skippedBullets||0}`,
+    `Perf despawned: ${p.enemiesDespawned||0}`
+  ].join('\n');
+}
+
+
 function update(g,dt){
   if(g.state !== 'playing' || paused || awaitingUpgrade) return;
   g.time += dt;
+  updatePerformanceBudgets(g,dt);
+  updateHollowPressure(g,dt);
   shake = Math.max(0, shake - dt*18);
   logTimeout = Math.max(0, logTimeout-dt);
   updateGamepadActions(g);
@@ -26,6 +194,20 @@ function update(g,dt){
   updateParticles(g,dt);
   updateSpawning(g,dt);
   updateUI(g);
+}
+
+function updateHollowPressure(g,dt){
+  const old=g.hollowPressure || 0;
+  const newLevel=Math.floor(g.time/120);
+  if(newLevel>old){
+    g.hollowPressure=newLevel;
+    g.pressureFlash=2.4;
+    log(g, `Hollow Pressure Rising: ${newLevel}`);
+    sfx('wave',0.95);
+    const burst=performanceAdjustedCount(g,Math.min(4+newLevel*2,18),true);
+    if(burst>0 && canSpawnNormalEnemy(g,newLevel>2?'grunt':'swarmer',burst)) spawnBurst(g,burst,newLevel>2?'grunt':'swarmer');
+  }
+  g.pressureFlash=Math.max(0,(g.pressureFlash || 0)-dt);
 }
 
 function updateGamepadActions(g){
@@ -105,7 +287,7 @@ function updatePlayer(g,dt){
 }
 
 function isMineableForPlayer(t){
-  return typeof isMineableTile === 'function' ? isMineableTile(t) : (t===TILE_ROCK || t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL);
+  return typeof isMineableTile === 'function' ? isMineableTile(t) : (t===TILE_ROCK || t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL || t===TILE_FERRITE_BARK || t===TILE_LUMINA_SPORES || t===TILE_AETHER_QUARTZ || t===TILE_CRYSALITH || t===TILE_EMBERGLASS);
 }
 
 function findMiningTarget(g,p,dx,dy,options={}){
@@ -296,7 +478,8 @@ function mineTile(g,p,tx,ty,dt){
   g.tileHp[i] -= miningPower;
   p.heat += dt * 32 * p.heatEfficiency;
   const cx=tx*TILE+TILE/2, cy=ty*TILE+TILE/2;
-  if(Math.random()<0.55) addParticle(g, cx, cy, rand(-55,55), rand(-55,55), t===TILE_GOLD?'#ffcc4d':t===TILE_NITRA?'#ff5b5b':t===TILE_CRYSTAL?'#42d6ff':'#b48a61', rand(0.12,0.30), rand(2,5),'spark');
+  const minedData=TILE_DATA[t] || MINERALS.crust;
+  if(Math.random()<0.55) addParticle(g, cx, cy, rand(-55,55), rand(-55,55), minedData.color || '#b48a61', rand(0.12,0.30), rand(2,5),'spark');
   sfx('mine', 0.65);
   if(g.tileHp[i]<=0){
     g.tiles[i]=TILE_EMPTY;
@@ -308,10 +491,43 @@ function mineTile(g,p,tx,ty,dt){
     shake = Math.max(shake, 2.5);
     sfx('rockBreak', 0.85);
     for(let k=0;k<10;k++) addParticle(g, cx, cy, rand(-120,120), rand(-120,120), '#8b735e', rand(0.28,0.6), rand(2,6));
-    if(t===TILE_GOLD){ const amount=randi(2,5); g.gold += amount; addObjectiveProgress(g,'mine_gild_shards',amount); saveProfile.statistics.totalOreMined+=amount; floating(g,tx*TILE+18,ty*TILE+12,'+Gild Shards',MINERALS.gild.color); sfx('mineral'); }
-    if(t===TILE_NITRA){ g.nitra += randi(1,3); floating(g,tx*TILE+18,ty*TILE+12,'+Voltarite',MINERALS.voltarite.color); sfx('mineral'); }
-    if(t===TILE_CRYSTAL){ dropPickup(g,tx*TILE+18,ty*TILE+18,'xp',12); floating(g,tx*TILE+18,ty*TILE+12,'+Echo Shards',MINERALS.echo.color); sfx('mineral'); }
+    const resourceId=resourceIdForTile(t);
+    if(resourceId){
+      const amount=resourceAmountForTile(t);
+      if(resourceId==='echo'){
+        dropPickup(g,tx*TILE+18,ty*TILE+18,'xp',12);
+        floating(g,tx*TILE+18,ty*TILE+12,'+Echo Shards',MINERALS.echo.color);
+      } else {
+        collectRunResource(g,resourceId,amount);
+        floating(g,tx*TILE+18,ty*TILE+12,`+${MINERALS[resourceId].displayName}`,MINERALS[resourceId].color);
+      }
+      if(saveProfile?.statistics) saveProfile.statistics.totalOreMined+=amount;
+      sfx('mineral');
+    }
   }
+}
+
+function resourceIdForTile(t){
+  if(t===TILE_GOLD) return 'gild';
+  if(t===TILE_NITRA) return 'voltarite';
+  if(t===TILE_CRYSTAL) return 'echo';
+  if(t===TILE_FERRITE_BARK) return 'ferriteBark';
+  if(t===TILE_LUMINA_SPORES) return 'luminaSpores';
+  if(t===TILE_AETHER_QUARTZ) return 'aetherQuartz';
+  if(t===TILE_CRYSALITH) return 'crysalith';
+  if(t===TILE_EMBERGLASS) return 'emberglass';
+  return null;
+}
+
+function resourceAmountForTile(t){
+  if(t===TILE_GOLD) return randi(2,5);
+  if(t===TILE_NITRA) return randi(1,3);
+  if(t===TILE_AETHER_QUARTZ) return randi(1,2);
+  if(t===TILE_LUMINA_SPORES) return randi(2,4);
+  if(t===TILE_FERRITE_BARK) return randi(3,6);
+  if(t===TILE_CRYSALITH) return randi(2,4);
+  if(t===TILE_EMBERGLASS) return randi(2,4);
+  return 1;
 }
 
 function moveCircle(g,obj,dx,dy){
@@ -532,16 +748,21 @@ function updateSpawning(g,dt){
   const minute = Math.floor(g.time/60);
   const stage = Math.max(0, g.time/60);
   g.spawnTimer -= dt;
-  const spawnMul=g.missionDifficulty?.enemySpawnRateMultiplier || 1;
+  const spawnMul=(g.missionDifficulty?.enemySpawnRateMultiplier || 1) * (g.performance?.spawnRateMultiplier ?? 1);
+  if(spawnMul<=0){ g.spawnTimer=Math.max(g.spawnTimer,0.35); return; }
+  const enemyCap=g.enemyBudget?.currentMaxEnemies || PERFORMANCE_CONFIG.baseMaxEnemies;
+  if(g.enemies.length>=enemyCap){ g.spawnTimer=Math.max(g.spawnTimer,0.45); return; }
 
   // Gentler early-game ramp: first minute is sparse, then the cadence and
   // group size increase smoothly. Later stages still become intense.
   const baseRate = g.time<30 ? 2.45 : g.time<60 ? 1.85 : g.time<150 ? 1.28 : 0.92;
-  const rate = Math.max(0.22, (baseRate - minute*0.075)/spawnMul);
+  const pressure=g.hollowPressure || 0;
+  const rate = Math.max(0.16, (baseRate - minute*0.075)/(spawnMul*(1+pressure*0.08)));
   if(g.spawnTimer<=0){
     g.spawnTimer=rate*rand(0.82,1.22);
     const roll=Math.random();
-    const amount = Math.max(1, Math.floor(1 + stage*0.55 + g.level*0.10));
+    const rawAmount = Math.max(1, Math.floor(1 + stage*0.55 + g.level*0.10 + (g.hollowPressure||0)*0.65));
+    const amount = Math.max(1, performanceAdjustedCount(g, rawAmount, false));
     if(g.time<35){
       if(roll<0.75) spawnBurst(g,1,'grunt');
       else spawnBurst(g,2,'swarmer');
@@ -557,17 +778,22 @@ function updateSpawning(g,dt){
     }
   }
   if(g.time > g.eliteTimer){
-    g.eliteTimer += Math.max(54, 82 - minute*3);
-    spawnBurst(g,1,'elite');
-    log(g,'Hollow Tyrant detected!');
-    sfx('elite');
+    g.eliteTimer += Math.max(38, 82 - minute*3 - (g.hollowPressure||0)*4);
+    if(canSpawnNormalEnemy(g,'elite',1)){
+      spawnBurst(g,1,'elite');
+      log(g,'Hollow Tyrant detected!');
+      sfx('elite');
+    }
   }
   if(g.time > g.nextWave){
     g.nextWave += Math.max(34, 52 - minute*2);
-    const waveCount = g.time<70 ? 4+minute*2 : 8+minute*3;
-    spawnBurst(g,waveCount,'swarmer');
-    log(g,'Swarm wave incoming!');
-    sfx('wave');
+    const rawWaveCount = (g.time<70 ? 4+minute*2 : 8+minute*3) + (g.hollowPressure||0)*3;
+    const waveCount = performanceAdjustedCount(g, rawWaveCount, true);
+    if(waveCount>0 && canSpawnNormalEnemy(g,'swarmer',waveCount)){
+      spawnBurst(g,waveCount,'swarmer');
+      log(g,'Swarm wave incoming!');
+      sfx('wave');
+    }
   }
 }
 
@@ -971,6 +1197,11 @@ function updateWeapons(g,dt){
       continue;
     }
     if(pauseAutoTargeting) continue;
+    if(w.id==='vectorBurst'){
+      const e=targetEnemy(g,760); if(!e) continue;
+      fireVectorBurst(g,w,e);
+      continue;
+    }
     if(w.id==='minigun'){
       const e=targetEnemy(g,620); if(!e) continue;
       w.cd=0.20/(1+w.level*0.07);
@@ -1193,7 +1424,7 @@ function nearestXpPickup(g,x,y,maxD){
 
 function collectPickupBySifter(g,it,sw){
   if(!it || it.life<=0) return;
-  if(it.type==='xp'){ gainXp(g,it.value); g.objectiveEchoCollected+=it.value; addObjectiveProgress(g,'collect_echo_shards',it.value); }
+  if(it.type==='xp'){ collectRunResource(g,'echo',it.value); }
   it.life=0;
   floating(g,sw.x,sw.y-18,'Echo sifted','#7df9ff');
   sfx('pickup',0.45);
@@ -1280,6 +1511,25 @@ function fireArcChain(g,start,level){
     }
     current=next;
   }
+}
+
+function fireVectorBurst(g,w,target){
+  const p=g.player;
+  const count=Math.max(1,Math.floor(w.projectiles || 1));
+  const base=Math.atan2(target.y-p.y,target.x-p.x);
+  const spread=(w.spreadDeg || 18)*Math.PI/180;
+  const center=(count-1)/2;
+  w.cd=(w.baseCooldown || 0.92)/(p.fireRateMul || 1);
+  for(let i=0;i<count;i++){
+    const a=base+(i-center)*spread;
+    const speed=w.speed || 560;
+    g.bullets.push({
+      x:p.x+Math.cos(a)*p.r,y:p.y+Math.sin(a)*p.r,
+      vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,
+      r:4.3,life:w.lifetime || 1.25,damage:(w.damage || 12)*p.damageMul,pierce:w.pierce || 0,color:'#9dfcff',vector:true
+    });
+  }
+  sfx('shoot',0.72);
 }
 
 function fireSpread(g,p,target,count,damage,speed,spread,color,pierce=0){
@@ -1370,6 +1620,9 @@ function updateEnemies(g,dt){
     const [ptx,pty]=worldToTile(p.x,p.y);
     const [etx,ety]=worldToTile(e.x,e.y);
     const closeToPlayer=dist2(e.x,e.y,p.x,p.y)<420*420;
+    const perfState=g.performance?.state || PERF_STATES.HEALTHY;
+    const farPathSlow=(perfState===PERF_STATES.WARNING && !closeToPlayer && e.type!=='elite' && e.type!=='boss') ? 1.8 :
+      (perfState===PERF_STATES.CRITICAL && !closeToPlayer && e.type!=='elite' && e.type!=='boss') ? 3.2 : 1.0;
     const hasLos=lineOfSightClear(g,e.x,e.y,p.x,p.y);
     const needsPath=!hasLos && (
       !e.path.length ||
@@ -1386,7 +1639,7 @@ function updateEnemies(g,dt){
       e.pathIndex=0;
       e.pathVersion=g.navigationVersion;
       e.lastPlayerTileX=ptx; e.lastPlayerTileY=pty;
-      e.pathTimer=rand(closeToPlayer?0.25:0.55, closeToPlayer?0.55:1.05);
+      e.pathTimer=rand(closeToPlayer?0.25:0.55*farPathSlow, closeToPlayer?0.55:1.05*farPathSlow);
       if(!e.path.length) e.noPathTimer=0.55;
     }
     let targetX=p.x, targetY=p.y;
@@ -1448,10 +1701,10 @@ function smallEnemyProjectileConfig(g,e){
   const earlyFactor = g.time<60 ? 0.55 : g.time<150 ? 0.82 : 1.0;
   const typeMul = e.type==='swarmer' ? 0.78 : e.type==='guard' ? 1.15 : 1.0;
   return {
-    cooldown:(7.2/(typeMul*earlyFactor))/(1+stage*0.13+runLevel*0.05+(mission-1)*0.025),
-    speed:(205 + stage*9 + runLevel*6) * (e.type==='swarmer'?0.92:1),
-    damage:Math.round(clamp(3 + stage*0.75 + (mission-1)*0.45 + (e.type==='guard'?2:0),3,8)),
-    fireChance:clamp(0.18 + stage*0.045 + g.level*0.012,0.18,0.58),
+    cooldown:(7.2/(typeMul*earlyFactor))/(1+stage*0.13+runLevel*0.05+(mission-1)*0.025+(g.hollowPressure||0)*0.10),
+    speed:(205 + stage*9 + runLevel*6) * (e.type==='swarmer'?0.92:1) * (1+(g.hollowPressure||0)*0.04),
+    damage:Math.round(clamp(3 + stage*0.75 + (mission-1)*0.45 + (e.type==='guard'?2:0) + (g.hollowPressure||0)*0.6,3,11)),
+    fireChance:clamp(0.18 + stage*0.045 + g.level*0.012 + (g.hollowPressure||0)*0.035,0.18,0.72),
     color:'#ff2f2f',
     radius:e.type==='guard'?4.5:3.5
   };
@@ -1463,10 +1716,12 @@ function eliteProjectileConfig(g,e){
   const runLevel=g.runIndex || 1;
   const mission=g.missionIndex || 1;
   const destructive=e.type==='boss' || runLevel>=3;
+  const pressure=g.hollowPressure || 0;
   return {
-    cooldown:(e.type==='boss'?1.75:3.8)/(1+runLevel*0.12+(mission-1)*0.05),
-    speed:(e.type==='boss'?360:300)*(1+runLevel*0.05),
-    damage:Math.round((e.type==='boss'?18:12)*(1+(mission-1)*0.08)),
+    cooldown:(e.type==='boss'?1.75:3.8)/(1+runLevel*0.12+(mission-1)*0.05+pressure*0.12),
+    speed:(e.type==='boss'?360:300)*(1+runLevel*0.05+pressure*0.045),
+    damage:Math.round((e.type==='boss'?18:12)*(1+(mission-1)*0.08+pressure*0.06)),
+    projectileCount:e.type==='boss' ? Math.max(3,5+pressure) : Math.max(1,1+pressure),
     destructive,
     color:destructive?'#ff7038':'#ff3636',
     radius:destructive?7:5
@@ -1482,20 +1737,43 @@ function updateEnemyRangedAttack(g,e,dt){
   const minRange=(e.type==='elite'||e.type==='boss')?190:150;
   const maxRange=(e.type==='elite'||e.type==='boss')?850:620;
   if(d<minRange || d>maxRange || e.rangedCd>0) return;
+  const bulletCap=getEnemyBulletCap(g);
+  if(g.enemyBullets.length>=bulletCap){
+    if(g.performance) g.performance.skippedBullets=(g.performance.skippedBullets||0)+1;
+    e.rangedCd=rand(cfg.cooldown*0.85,cfg.cooldown*1.35);
+    return;
+  }
+  const perfState=g.performance?.state || PERF_STATES.HEALTHY;
+  if(perfState===PERF_STATES.CRITICAL && e.type!=='boss' && !(e.type==='elite' && d<460)){
+    if(g.performance) g.performance.skippedBullets=(g.performance.skippedBullets||0)+1;
+    e.rangedCd=rand(cfg.cooldown*1.2,cfg.cooldown*1.8);
+    return;
+  }
+  if(perfState===PERF_STATES.WARNING && e.type!=='elite' && e.type!=='boss' && Math.random()<0.45){
+    if(g.performance) g.performance.skippedBullets=(g.performance.skippedBullets||0)+1;
+    e.rangedCd=rand(cfg.cooldown*0.9,cfg.cooldown*1.45);
+    return;
+  }
   if(e.type!=='elite' && e.type!=='boss' && Math.random()>cfg.fireChance){
     e.rangedCd=rand(cfg.cooldown*0.65,cfg.cooldown*1.15);
     return;
   }
   e.rangedCd=rand(cfg.cooldown*0.82,cfg.cooldown*1.28);
-  const spread=(e.type==='elite'||e.type==='boss')?0.10:0.18;
-  const a=Math.atan2(p.y-e.y,p.x-e.x)+rand(-spread,spread);
-  g.enemyBullets.push({
-    x:e.x+Math.cos(a)*(e.r+8), y:e.y+Math.sin(a)*(e.r+8),
-    vx:Math.cos(a)*cfg.speed, vy:Math.sin(a)*cfg.speed,
-    r:cfg.radius, life:e.type==='boss'?3.4:(e.type==='elite'?2.8:2.4), damage:cfg.damage,
-    destructive:!!cfg.destructive, color:cfg.color,
-    small:e.type!=='elite' && e.type!=='boss'
-  });
+  const spread=(e.type==='elite'||e.type==='boss')?0.16:0.18;
+  const baseA=Math.atan2(p.y-e.y,p.x-e.x)+rand(-spread*0.35,spread*0.35);
+  const count=cfg.projectileCount || 1;
+  const center=(count-1)/2;
+  for(let i=0;i<count;i++){
+    let a=baseA+(i-center)*spread;
+    if(e.type==='boss' && (g.hollowPressure||0)>=3 && i>0) a=baseA+(i-center)*(Math.PI*2/count); // escalated radial boss pressure
+    g.enemyBullets.push({
+      x:e.x+Math.cos(a)*(e.r+8), y:e.y+Math.sin(a)*(e.r+8),
+      vx:Math.cos(a)*cfg.speed, vy:Math.sin(a)*cfg.speed,
+      r:cfg.radius, life:e.type==='boss'?3.4:(e.type==='elite'?2.8:2.4), damage:cfg.damage,
+      destructive:!!cfg.destructive, color:cfg.color,
+      small:e.type!=='elite' && e.type!=='boss'
+    });
+  }
   addRing(g,e.x,e.y,cfg.destructive?'rgba(255,112,56,0.72)':'rgba(255,54,54,0.52)',0.14,e.r,e.r+(cfg.small?13:22),cfg.small?2:3);
   sfx('shoot',cfg.small?0.28:0.45);
 }
@@ -1523,7 +1801,7 @@ function updateEnemyBullets(g,dt){
   const p=g.player;
   for(const b of g.enemyBullets){
     b.x+=b.vx*dt; b.y+=b.vy*dt; b.life-=dt;
-    addParticle(g,b.x,b.y,-b.vx*0.02+rand(-10,10),-b.vy*0.02+rand(-10,10),b.color,b.destructive?0.16:0.11,b.destructive?4:2,'spark');
+    if(shouldEmitVfx(g,b.destructive)) addParticle(g,b.x,b.y,-b.vx*0.02+rand(-10,10),-b.vy*0.02+rand(-10,10),b.color,b.destructive?0.16:0.11,b.destructive?4:2,'spark');
     const [tx,ty]=worldToTile(b.x,b.y);
     const t=tileAt(g,tx,ty);
     if(isSolid(t)){
@@ -1556,7 +1834,8 @@ function killEnemy(g,e){
     sfx('explosion',1.2);
     addRing(g,e.x,e.y,'rgba(255,79,216,0.9)',0.42,e.r,e.r+95,8);
   }
-  if(Math.random()<0.06) dropPickup(g,e.x+rand(-8,8),e.y+rand(-8,8),'nitra',1);
+  if(Math.random()<0.06) dropPickup(g,e.x+rand(-8,8),e.y+rand(-8,8),'voltarite',1);
+  if(Math.random()<0.025) dropPickup(g,e.x+rand(-12,12),e.y+rand(-12,12),MISSION_RESOURCE_IDS[randi(2,MISSION_RESOURCE_IDS.length-1)],1);
   for(let k=0;k<10;k++) addParticle(g,e.x,e.y,rand(-100,100),rand(-100,100),e.color,rand(0.22,0.55),rand(2,6));
   if(g.player.vampire>0){
     g.player.vampCounter++;
@@ -1611,6 +1890,21 @@ function explode(g,x,y,r,damage,color,noShake=false){
   }
 }
 
+function collectRunResource(g,resourceId,amount,options={}){
+  if(!g.resources) g.resources={};
+  g.resources[resourceId]=(g.resources[resourceId] || 0)+amount;
+  if(resourceId==='gild') g.gold=(g.resources.gild || 0);
+  if(resourceId==='voltarite') g.nitra=(g.resources.voltarite || 0);
+  if(resourceId==='echo' && options.asXp!==false){
+    gainXp(g,amount);
+    g.objectiveEchoCollected=(g.objectiveEchoCollected || 0)+amount;
+  }
+  addObjectiveProgress(g,`collect_${resourceId}`,amount);
+  // compatibility with older objective IDs
+  if(resourceId==='gild') addObjectiveProgress(g,'mine_gild_shards',amount);
+  if(resourceId==='echo') addObjectiveProgress(g,'collect_echo_shards',amount);
+}
+
 function dropPickup(g,x,y,type,value){
   g.pickups.push({x:x+rand(-10,10),y:y+rand(-10,10),type,value,r:type==='xp'?7:8,life:999});
 }
@@ -1625,9 +1919,10 @@ function updatePickups(g,dt){
       it.y=lerp(it.y,p.y,dt*(2+pull*8));
     }
     if(d<p.r+it.r+4){
-      if(it.type==='xp'){ gainXp(g,it.value); g.objectiveEchoCollected+=it.value; addObjectiveProgress(g,'collect_echo_shards',it.value); }
-      if(it.type==='nitra') g.nitra+=it.value;
-      sfx('pickup', it.type==='nitra' ? 1.0 : 0.6);
+      if(it.type==='xp'){ collectRunResource(g,'echo',it.value); }
+      else if(MINERALS[it.type]){ collectRunResource(g,it.type,it.value); }
+      else if(it.type==='nitra') collectRunResource(g,'voltarite',it.value);
+      sfx('pickup', it.type==='nitra' || it.type==='voltarite' ? 1.0 : 0.6);
       it.life=0;
     }
   }
@@ -1664,6 +1959,8 @@ function openUpgrade(g){
 }
 
 function updateParticles(g,dt){
+  const particleCap = g.performance?.state===PERF_STATES.CRITICAL ? 260 : g.performance?.state===PERF_STATES.WARNING ? 420 : 720;
+  if(g.particles.length>particleCap) g.particles.splice(0,g.particles.length-particleCap);
   for(const p of g.particles){
     p.x+=p.vx*dt; p.y+=p.vy*dt; p.vx*=Math.pow(0.02,dt); p.vy*=Math.pow(0.02,dt); p.life-=dt;
     if(p.shape==='ring') p.size = lerp(p.size, p.targetSize || p.size, dt*10);
@@ -1674,7 +1971,11 @@ function updateParticles(g,dt){
   for(const t of g.texts){ t.y-=34*dt; t.life-=dt; }
   g.texts=g.texts.filter(t=>t.life>0);
 }
-function addParticle(g,x,y,vx,vy,color,life,size,shape='circle'){ g.particles.push({x,y,vx,vy,color,life,maxLife:life,size,shape}); }
+function addParticle(g,x,y,vx,vy,color,life,size,shape='circle'){
+  const important = shape==='ring' || life<=0.12;
+  if(!shouldEmitVfx(g,important)) return;
+  g.particles.push({x,y,vx,vy,color,life,maxLife:life,size,shape});
+}
 function addRing(g,x,y,color,life,size,targetSize,lineWidth=4){ g.particles.push({x,y,vx:0,vy:0,color,life,maxLife:life,size,targetSize,shape:'ring',lineWidth}); }
 function floating(g,x,y,text,color){ g.texts.push({x,y,text,color,life:0.9,maxLife:0.9}); }
 function flashDamage(){ ui.damageFlash.classList.add('on'); setTimeout(()=>ui.damageFlash.classList.remove('on'),90); }

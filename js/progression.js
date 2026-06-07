@@ -5,7 +5,7 @@
 const SAVE_KEY = 'echoVeinSaveV1';
 const RUNS_PER_MISSION = 5;
 const EXTRACTION_SECONDS = 30;
-const SPECIAL_ORES = ['voltarite','echoQuartz','ferronRoot','lumicite','pyroclastCore','umbralAlloy'];
+const SPECIAL_ORES = ['voltarite','echoQuartz','ferronRoot','lumicite','pyroclastCore','umbralAlloy','ferriteBark','luminaSpores','aetherQuartz','crysalith','emberglass'];
 
 let appState = 'STARTUP';
 let saveProfile = null;
@@ -24,7 +24,7 @@ const PERMANENT_UPGRADES = [
 ];
 
 function defaultResources(){
-  return { gildShards:0, voltarite:0, echoQuartz:0, ferronRoot:0, lumicite:0, pyroclastCore:0, umbralAlloy:0 };
+  return { gildShards:0, voltarite:0, echoQuartz:0, ferronRoot:0, lumicite:0, pyroclastCore:0, umbralAlloy:0, ferriteBark:0, luminaSpores:0, aetherQuartz:0, crysalith:0, emberglass:0 };
 }
 
 function defaultPermanentUpgrades(){
@@ -108,8 +108,15 @@ function resourceLabel(id){
     ferronRoot:'Ferron Root',
     lumicite:'Lumicite',
     pyroclastCore:'Pyroclast Core',
-    umbralAlloy:'Umbral Alloy'
-  })[id] || id;
+    umbralAlloy:'Umbral Alloy',
+    ferriteBark:'Ferrite Bark',
+    luminaSpores:'Lumina Spores',
+    aetherQuartz:'Aether Quartz',
+    crysalith:'Crysalith',
+    emberglass:'Emberglass',
+    gild:'Gild Shards',
+    echo:'Echo Shards'
+  })[id] || MINERALS[id]?.displayName || id;
 }
 
 function missionDifficulty(missionIndex){
@@ -176,22 +183,41 @@ function applyPermanentUpgrades(g){
 function currentRunObjectives(){
   const diff=missionDifficulty(saveProfile.missionIndex);
   const run=saveProfile.runIndex;
-  return [
-    { id:'collect_echo_shards', displayName:'Collect Echo Shards', targetAmount:Math.floor((35+run*10)*diff.objectiveMultiplier), currentAmount:0, completed:false },
-    { id:'mine_gild_shards', displayName:'Mine Gild Shards', targetAmount:Math.floor((18+run*5)*diff.objectiveMultiplier), currentAmount:0, completed:false }
-  ];
+  const mission=saveProfile.missionIndex;
+  const choices=[...MISSION_RESOURCE_IDS];
+  const result=[];
+  const addResourceObjective=(resourceId,base,perRun)=>{
+    const mineral=MINERALS[resourceId];
+    const target=Math.floor((base+run*perRun+mission*1.5)*diff.objectiveMultiplier);
+    result.push({ id:`collect_${resourceId}`, type:'collectResource', resourceId, displayName:`Collect ${target} ${mineral.displayName}`, targetAmount:target, currentAmount:0, completed:false });
+  };
+  addResourceObjective('gild',18,5);
+  addResourceObjective('echo',35,10);
+  // Add one or two rotating ore objectives so the mission is not always Gild/Echo.
+  const pool=choices.filter(id=>id!=='gild');
+  const first=pool[(mission+run-2)%pool.length];
+  addResourceObjective(first, first==='aetherQuartz'?3:8, first==='aetherQuartz'?1:3);
+  if(run>=3){
+    const second=pool[(mission*2+run)%pool.length];
+    if(second!==first) addResourceObjective(second, second==='aetherQuartz'?2:6, second==='aetherQuartz'?1:2);
+  }
+  return result;
 }
 
 function bankRunRewards(g){
   const diff=missionDifficulty(saveProfile.missionIndex);
   const rewardMul=diff.rewardMultiplier;
   const resources=saveProfile.resources;
-  resources.gildShards += Math.floor((g.gold + 35 + saveProfile.runIndex*10)*rewardMul);
-  resources.voltarite += Math.floor((g.nitra + 4)*rewardMul);
-  resources.echoQuartz += Math.max(1, Math.floor((g.objectiveEchoCollected || 0)/35));
+  const runRes=g.resources || {};
+  resources.gildShards += Math.floor(((runRes.gild || g.gold || 0) + 35 + saveProfile.runIndex*10)*rewardMul);
+  resources.voltarite += Math.floor(((runRes.voltarite || g.nitra || 0) + 4)*rewardMul);
+  resources.echoQuartz += Math.max(1, Math.floor((runRes.echo || g.objectiveEchoCollected || 0)/35));
+  for(const id of ['ferriteBark','luminaSpores','aetherQuartz','crysalith','emberglass']){
+    resources[id]=(resources[id] || 0)+Math.floor((runRes[id] || 0)*rewardMul);
+  }
   const bonusOre=SPECIAL_ORES[(saveProfile.missionIndex + saveProfile.runIndex - 2) % SPECIAL_ORES.length];
-  resources[bonusOre] += 1 + Math.floor(saveProfile.missionIndex/3);
-  if(Math.random()<0.35) resources[SPECIAL_ORES[randi(0,SPECIAL_ORES.length-1)]] += 1;
+  resources[bonusOre] = (resources[bonusOre] || 0) + 1 + Math.floor(saveProfile.missionIndex/3);
+  if(Math.random()<0.35){ const ore=SPECIAL_ORES[randi(0,SPECIAL_ORES.length-1)]; resources[ore]=(resources[ore] || 0)+1; }
 }
 
 function completeRun(g){

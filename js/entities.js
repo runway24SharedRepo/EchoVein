@@ -96,7 +96,29 @@ function makeGame(cls){
     weapons:[],
     arcConnection:{ unlocked:false, level:0, maxTargets:0, selectedEnemies:[], flash:0 },
     navigationVersion:0,
-    debug:{ showEnemyPaths:false, enemyBulletsEnabled:true, showEnemyBulletHitboxes:false, showMiningArc:false, lowSpeedMiningTest:false, showMiningCandidates:true },
+    debug:{ showEnemyPaths:false, enemyBulletsEnabled:true, showEnemyBulletHitboxes:false, showMiningArc:false, lowSpeedMiningTest:false, showMiningCandidates:true, showEnemyBudget:false, forcePerformanceState:null, perfDespawnLog:false },
+    performance:{
+      currentFPS:60,
+      averageFPS:60,
+      frameTimeMs:16.7,
+      averageFrameTimeMs:16.7,
+      samples:[],
+      sampleTotal:0,
+      state:PERF_STATES.HEALTHY,
+      previousState:PERF_STATES.HEALTHY,
+      budgetFactor:1,
+      vfxFactor:1,
+      spawnRateMultiplier:1,
+      swarmSizeMultiplier:1,
+      recoveryTimer:0,
+      healthyTimer:0,
+      despawnAccumulator:0,
+      enemiesDespawned:0,
+      skippedSpawns:0,
+      skippedBullets:0,
+      forced:false
+    },
+    enemyBudget:{ baseMaxEnemies:PERFORMANCE_CONFIG.baseMaxEnemies, currentMaxEnemies:PERFORMANCE_CONFIG.baseMaxEnemies, minMaxEnemies:PERFORMANCE_CONFIG.minMaxEnemies },
     missionIndex:saveProfile?.missionIndex || 1,
     runIndex:saveProfile?.runIndex || 1,
     missionDifficulty:saveProfile ? missionDifficulty(saveProfile.missionIndex) : missionDifficulty(1),
@@ -107,7 +129,9 @@ function makeGame(cls){
     extractionTimer:0,
     runResolved:false,
     objectiveEchoCollected:0,
+    resources:{ gild:0, voltarite:0, echo:0, ferriteBark:0, luminaSpores:0, aetherQuartz:0, crysalith:0, emberglass:0 },
     time:0, kills:0, level:1, xp:0, xpNeed:28, gold:0, nitra:0,
+    hollowPressure:0, nextPressureTime:120, pressureFlash:0,
     spawnTimer:2.2, eliteTimer:90, nextWave:55,
     camera:{x:0,y:0},
     log:['Mission started. Descend, extract, survive.'],
@@ -116,6 +140,7 @@ function makeGame(cls){
   generateCave(g);
   applyPermanentUpgrades(g);
   addOrLevelWeapon(g, cls.weapon);
+  addOrLevelWeapon(g, 'vectorBurst');
   if(cls.id === 'pathfinder'){
     g.player.dashCd = -1;
     log(g, 'Pathfinder Trap Kit ready. Press E to place seismic traps.');
