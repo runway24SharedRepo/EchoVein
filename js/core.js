@@ -69,6 +69,8 @@ const ui = {
   weaponList: document.getElementById('weaponList'), logList: document.getElementById('logList'),
   startOverlay: document.getElementById('startOverlay'), upgradeOverlay: document.getElementById('upgradeOverlay'),
   gameOverOverlay: document.getElementById('gameOverOverlay'),
+  startTitle: document.getElementById('startTitle'), startText: document.getElementById('startText'),
+  menuMeta: document.getElementById('menuMeta'), menuButtons: document.getElementById('menuButtons'), menuContent: document.getElementById('menuContent'),
   classCards: document.getElementById('classCards'), upgradeCards: document.getElementById('upgradeCards'),
   gameOverText: document.getElementById('gameOverText'), damageFlash: document.getElementById('damageFlash'),
   soundBtn: document.getElementById('soundBtn'), volumeSlider: document.getElementById('volumeSlider')

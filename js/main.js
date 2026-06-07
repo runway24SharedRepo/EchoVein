@@ -21,7 +21,7 @@ addEventListener('keydown',e=>{
   }
   if(e.code==='KeyP'){ paused=!paused; }
   if(e.code==='KeyM'){ toggleMute(); }
-  if(e.code==='KeyR'){ restartGame(); }
+  if(e.code==='KeyR' && game){ restartGame(); }
   if(e.code==='KeyE' && game && typeof placeTrap === 'function'){
     if(placeTrap(game)) e.preventDefault();
   }
@@ -70,5 +70,5 @@ if(!CanvasRenderingContext2D.prototype.roundRect){
   };
 }
 
-setupClassCards();
 bindStartCardInput();
+startupFlow();

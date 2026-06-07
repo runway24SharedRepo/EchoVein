@@ -78,7 +78,18 @@ function spawnEnemy(g,type){
     const [tx,ty]=worldToTile(x,y);
     if(!isSolid(tileAt(g,tx,ty))) break;
   }
-  g.enemies.push(new Enemy(x,y,type));
+  const e=new Enemy(x,y,type);
+  const diff=g.missionDifficulty || missionDifficulty(1);
+  if(type==='boss'){
+    e.hp*=diff.bossHealthMultiplier;
+    e.maxHp=e.hp;
+    e.damage=Math.round(e.damage*diff.bossDamageMultiplier);
+  } else {
+    e.hp*=diff.enemyHealthMultiplier;
+    e.maxHp=e.hp;
+    e.damage=Math.round(e.damage*diff.enemyDamageMultiplier);
+  }
+  g.enemies.push(e);
 }
 
 function spawnBurst(g,count,type){ for(let i=0;i<count;i++) spawnEnemy(g,type); }

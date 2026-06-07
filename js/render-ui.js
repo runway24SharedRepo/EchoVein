@@ -20,7 +20,11 @@ function updateUI(g){
   const arc = g.arcConnection;
   const arcChip = arc?.unlocked ? `<div class="chip"><span>Arc Connection</span><b>${arc.selectedEnemies.length}/${arcConnectionMaxTargets(g)}</b></div>` : '';
   ui.weaponList.innerHTML=g.weapons.map(w=>`<div class="chip"><span>${weaponName(w.id)}</span><b>Mk ${w.level}</b></div>`).join('') + trapChip + cursorChip + arcChip;
-  ui.logList.innerHTML=g.log.slice(0,4).map((m,i)=>`<div class="chip"><span>${m}</span><b>${i===0?'NEW':''}</b></div>`).join('');
+  const objectiveChips=g.objectives.map(o=>`<div class="chip objective ${o.completed?'done':''}"><span>${o.displayName}</span><b>${Math.floor(o.currentAmount)}/${o.targetAmount}</b></div>`).join('');
+  const bossChip=g.bossDefeated ? '<div class="chip done"><span>Sector Boss</span><b>DEFEATED</b></div>' : (g.bossSpawned ? '<div class="chip danger"><span>Sector Boss</span><b>ACTIVE</b></div>' : '<div class="chip"><span>Sector Boss</span><b>LOCKED</b></div>');
+  const extractionChip=g.extraction ? `<div class="chip danger"><span>Extraction</span><b>${Math.max(0,g.extractionTimer).toFixed(1)}s</b></div>` : '';
+  const missionChip=`<div class="chip"><span>Mission ${g.missionIndex}</span><b>Run ${g.runIndex}/${RUNS_PER_MISSION}</b></div>`;
+  ui.logList.innerHTML=missionChip + objectiveChips + bossChip + extractionChip + g.log.slice(0,3).map((m,i)=>`<div class="chip"><span>${m}</span><b>${i===0?'NEW':''}</b></div>`).join('');
 }
 
 function render(g){
@@ -35,6 +39,7 @@ function render(g){
   ctx.save(); ctx.translate(-cam.x+sx,-cam.y+sy);
   drawTiles(g,cam);
   drawTraps(g);
+  drawExtractionCraft(g);
   drawPickups(g);
   drawBullets(g);
   drawBoomerangs(g);
@@ -175,7 +180,7 @@ function drawEnemies(g){
   for(const e of g.enemies){
     ctx.save(); ctx.translate(e.x,e.y);
     ctx.fillStyle=e.hitFlash>0?'#fff':e.color;
-    ctx.shadowColor=e.color; ctx.shadowBlur=e.type==='elite'?18:6;
+    ctx.shadowColor=e.color; ctx.shadowBlur=e.type==='boss'?28:(e.type==='elite'?18:6);
     ctx.beginPath();
     for(let i=0;i<8;i++){
       const a=i*Math.PI*2/8;
@@ -185,8 +190,39 @@ function drawEnemies(g){
     ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
     ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(-e.r,-e.r-10,e.r*2,4);
     ctx.fillStyle='#ff5b5b'; ctx.fillRect(-e.r,-e.r-10,e.r*2*clamp(e.hp/e.maxHp,0,1),4);
+    if(e.type==='boss'){
+      ctx.strokeStyle='rgba(255,255,255,0.75)';
+      ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(0,0,e.r+8+Math.sin(g.time*5)*3,0,Math.PI*2); ctx.stroke();
+    }
     ctx.restore();
   }
+}
+
+function drawExtractionCraft(g){
+  if(!g.extraction) return;
+  const ex=g.extraction;
+  const pulse=0.5+0.5*Math.sin(g.time*8);
+  ctx.save();
+  ctx.translate(ex.x,ex.y);
+  ctx.shadowColor='#5dff9a';
+  ctx.shadowBlur=22;
+  ctx.strokeStyle=`rgba(93,255,154,${0.45+0.35*pulse})`;
+  ctx.fillStyle='rgba(93,255,154,0.16)';
+  ctx.lineWidth=4;
+  ctx.beginPath(); ctx.arc(0,0,ex.r+14+8*pulse,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#d9ffe7';
+  ctx.beginPath();
+  ctx.moveTo(0,-30); ctx.lineTo(28,14); ctx.lineTo(10,26); ctx.lineTo(-10,26); ctx.lineTo(-28,14);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#15251f';
+  ctx.fillRect(-11,3,22,12);
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#fff';
+  ctx.font='900 13px Segoe UI, Arial';
+  ctx.textAlign='center';
+  ctx.fillText('EXTRACTION',0,-45);
+  ctx.restore();
 }
 
 function drawEnemyPaths(g){
@@ -408,6 +444,10 @@ function drawPause(){
 
 function gameOver(g){
   if(g.state==='dead') return;
+  if(typeof failRun === 'function'){
+    failRun(g,'Operator vitals collapsed before extraction.');
+    return;
+  }
   g.state='dead';
   sfx('gameover');
   ui.gameOverText.innerHTML=`You survived <b>${ui.timer.textContent}</b>, reached <b>Level ${g.level}</b>, mined <b>${g.gold} Gild Shards</b> and <b>${g.nitra} Voltarite</b>, and killed <b>${g.kills}</b> Hollowborn.`;
@@ -446,17 +486,9 @@ function showDebugError(title, err){
 
 function startGame(clsOrId){
   try{
-    const cls = typeof clsOrId === 'string' ? getClassById(clsOrId) : clsOrId;
-    resumeAudio();
-    game=makeGame(cls);
-    sfx('start');
-    paused=false; awaitingUpgrade=false;
-    ui.startOverlay.classList.remove('show');
-    ui.gameOverOverlay.classList.remove('show');
-    ui.upgradeOverlay.classList.remove('show');
+    startRunWithClass(clsOrId);
     const box=document.getElementById('debugBox');
     if(box) box.remove();
-    updateUI(game);
   }catch(err){
     showDebugError('Failed to start mission after class selection.', err);
   }
@@ -477,4 +509,4 @@ function bindStartCardInput(){
 
 window.startGame=startGame;
 window.restartGame=function(){ startGame(game?.selectedClass || CLASSES[0]); };
-window.showStart=function(){ game=null; ui.gameOverOverlay.classList.remove('show'); ui.startOverlay.classList.add('show'); };
+window.showStart=function(){ showClassSelect(); };

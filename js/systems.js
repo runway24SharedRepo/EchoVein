@@ -18,6 +18,8 @@ function update(g,dt){
   updateBoomerangs(g,dt);
   updateTraps(g,dt);
   updatePickups(g,dt);
+  updateRunProgress(g,dt);
+  if(g.state !== 'playing') return;
   updateParticles(g,dt);
   updateSpawning(g,dt);
   updateUI(g);
@@ -81,7 +83,7 @@ function mineAhead(g,p,dx,dy,dt){
     shake = Math.max(shake, 2.5);
     sfx('rockBreak', 0.85);
     for(let k=0;k<10;k++) addParticle(g, tx*TILE+TILE/2, ty*TILE+TILE/2, rand(-120,120), rand(-120,120), '#8b735e', rand(0.28,0.6), rand(2,6));
-    if(t===TILE_GOLD){ g.gold += randi(2,5); floating(g,tx*TILE+18,ty*TILE+12,'+Gild Shards',MINERALS.gild.color); sfx('mineral'); }
+    if(t===TILE_GOLD){ const amount=randi(2,5); g.gold += amount; addObjectiveProgress(g,'mine_gild_shards',amount); saveProfile.statistics.totalOreMined+=amount; floating(g,tx*TILE+18,ty*TILE+12,'+Gild Shards',MINERALS.gild.color); sfx('mineral'); }
     if(t===TILE_NITRA){ g.nitra += randi(1,3); floating(g,tx*TILE+18,ty*TILE+12,'+Voltarite',MINERALS.voltarite.color); sfx('mineral'); }
     if(t===TILE_CRYSTAL){ dropPickup(g,tx*TILE+18,ty*TILE+18,'xp',12); floating(g,tx*TILE+18,ty*TILE+12,'+Echo Shards',MINERALS.echo.color); sfx('mineral'); }
   }
@@ -209,7 +211,8 @@ function findPathAStar(g,startTx,startTy,goalTx,goalTy,maxNodes=900){
 function updateSpawning(g,dt){
   const minute = Math.floor(g.time/60);
   g.spawnTimer -= dt;
-  const rate = Math.max(0.16, 1.15 - minute*0.11);
+  const spawnMul=g.missionDifficulty?.enemySpawnRateMultiplier || 1;
+  const rate = Math.max(0.16, (1.15 - minute*0.11)/spawnMul);
   if(g.spawnTimer<=0){
     g.spawnTimer=rate;
     const roll=Math.random();
@@ -230,6 +233,64 @@ function updateSpawning(g,dt){
     spawnBurst(g,8+minute*3,'swarmer');
     log(g,'Swarm wave incoming!');
     sfx('wave');
+  }
+}
+
+function addObjectiveProgress(g,id,amount){
+  const obj=g.objectives.find(o=>o.id===id);
+  if(!obj || obj.completed) return;
+  obj.currentAmount=clamp(obj.currentAmount+amount,0,obj.targetAmount);
+  if(obj.currentAmount>=obj.targetAmount){
+    obj.completed=true;
+    log(g, `${obj.displayName} complete.`);
+    sfx('level',0.75);
+  }
+}
+
+function allObjectivesComplete(g){
+  return g.objectives.length>0 && g.objectives.every(o=>o.completed);
+}
+
+function spawnRunBoss(g){
+  if(g.bossSpawned) return;
+  g.bossSpawned=true;
+  spawnEnemy(g,'boss');
+  log(g,'Sector boss incoming. Clear it to call extraction.');
+  sfx('elite',1.2);
+  shake=Math.max(shake,9);
+}
+
+function spawnExtractionCraft(g){
+  if(g.extraction) return;
+  const p=g.player;
+  let x=p.x+520, y=p.y;
+  for(let tries=0;tries<80;tries++){
+    const a=rand(0,Math.PI*2), d=rand(360,720);
+    const cx=clamp(p.x+Math.cos(a)*d,TILE*3,WORLD_W-TILE*3);
+    const cy=clamp(p.y+Math.sin(a)*d,TILE*3,WORLD_H-TILE*3);
+    const [tx,ty]=worldToTile(cx,cy);
+    if(!isSolid(tileAt(g,tx,ty))){ x=cx; y=cy; break; }
+  }
+  g.extraction={x,y,r:34,pulse:0};
+  g.extractionTimer=EXTRACTION_SECONDS;
+  log(g,'Extraction craft inbound. Reach it before the timer expires.');
+  sfx('wave',1.1);
+}
+
+function updateRunProgress(g,dt){
+  if(allObjectivesComplete(g) && !g.bossSpawned) spawnRunBoss(g);
+  if(g.bossDefeated && !g.extraction) spawnExtractionCraft(g);
+  if(!g.extraction) return;
+  g.extraction.pulse+=dt;
+  g.extractionTimer-=dt;
+  const p=g.player;
+  if(dist2(p.x,p.y,g.extraction.x,g.extraction.y)<(p.r+g.extraction.r)*(p.r+g.extraction.r)){
+    g.state='extracted';
+    completeRun(g);
+    return;
+  }
+  if(g.extractionTimer<=0){
+    failRun(g,'Extraction timer expired.');
   }
 }
 
@@ -594,7 +655,7 @@ function nearestXpPickup(g,x,y,maxD){
 
 function collectPickupBySifter(g,it,sw){
   if(!it || it.life<=0) return;
-  if(it.type==='xp') gainXp(g,it.value);
+  if(it.type==='xp'){ gainXp(g,it.value); g.objectiveEchoCollected+=it.value; addObjectiveProgress(g,'collect_echo_shards',it.value); }
   it.life=0;
   floating(g,sw.x,sw.y-18,'Echo sifted','#7df9ff');
   sfx('pickup',0.45);
@@ -822,8 +883,9 @@ function updateEnemies(g,dt){
     const touch = p.r+e.r;
     if(dist2(p.x,p.y,e.x,e.y)<touch*touch){
       if(p.iframes<=0){
-        p.hp-=e.damage; p.iframes=0.65; flashDamage(); shake=Math.max(shake,8);
-        floating(g,p.x,p.y-25,`-${e.damage}`,'#ff5b5b'); sfx('hit', 1.0);
+        const damage=Math.max(1,Math.round(e.damage*(p.armourMul || 1)));
+        p.hp-=damage; p.iframes=0.65; flashDamage(); shake=Math.max(shake,8);
+        floating(g,p.x,p.y-25,`-${damage}`,'#ff5b5b'); sfx('hit', 1.0);
         if(p.hp<=0) gameOver(g);
       }
       if(e.type==='exploder'){
@@ -839,6 +901,13 @@ function updateEnemies(g,dt){
 
 function killEnemy(g,e){
   g.kills++; sfx('kill', 0.55); dropPickup(g,e.x,e.y,'xp',e.xp);
+  if(e.type==='boss'){
+    g.bossDefeated=true;
+    saveProfile.statistics.totalBossesKilled++;
+    log(g,'Sector boss defeated. Extraction signal locked.');
+    sfx('explosion',1.2);
+    addRing(g,e.x,e.y,'rgba(255,79,216,0.9)',0.42,e.r,e.r+95,8);
+  }
   if(Math.random()<0.06) dropPickup(g,e.x+rand(-8,8),e.y+rand(-8,8),'nitra',1);
   for(let k=0;k<10;k++) addParticle(g,e.x,e.y,rand(-100,100),rand(-100,100),e.color,rand(0.22,0.55),rand(2,6));
   if(g.player.vampire>0){
@@ -866,6 +935,7 @@ function updateBullets(g,dt){
 }
 
 function damageEnemy(g,e,amount,color){
+  if((color==='#7df9ff' || color==='#5dff9a') && g.player.arcDamageMul) amount*=g.player.arcDamageMul;
   e.hp-=amount; e.hitFlash=0.08; e.slow=Math.max(e.slow,0.05);
   if(Math.random()<0.25) addParticle(g,e.x,e.y,rand(-70,70),rand(-70,70),color,rand(0.18,0.35),rand(2,5));
 }
@@ -907,7 +977,7 @@ function updatePickups(g,dt){
       it.y=lerp(it.y,p.y,dt*(2+pull*8));
     }
     if(d<p.r+it.r+4){
-      if(it.type==='xp') gainXp(g,it.value);
+      if(it.type==='xp'){ gainXp(g,it.value); g.objectiveEchoCollected+=it.value; addObjectiveProgress(g,'collect_echo_shards',it.value); }
       if(it.type==='nitra') g.nitra+=it.value;
       sfx('pickup', it.type==='nitra' ? 1.0 : 0.6);
       it.life=0;

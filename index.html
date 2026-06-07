@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="css/style.css" />
   <link rel="stylesheet" href="css/debug.css" />
   <script defer src="js/core.js"></script>
+  <script defer src="js/progression.js"></script>
   <script defer src="js/assets.js"></script>
   <script defer src="js/audio.js"></script>
   <script defer src="js/entities.js"></script>
@@ -58,10 +59,12 @@
 
 <div class="overlay show" id="startOverlay">
   <div class="modal">
-    <h1>Echo Vein</h1>
-    <p>A roguelike survivor prototype about Hollowshift Guild subsurface operators descending into unstable alien caverns for volatile resonance minerals.</p>
-    <p><b>Goal:</b> survive as long as possible. The mission escalates every minute. Hollowborn drop Echo Shards; mineral veins feed your economy. Boring through rock is powerful, but tool heat can stall excavation.</p>
+    <h1 id="startTitle">Echo Vein</h1>
+    <p id="startText">Initializing Hollowshift profile...</p>
+    <div id="menuMeta" class="menuMeta"></div>
+    <div class="buttonColumn" id="menuButtons"></div>
     <div class="cards" id="classCards"></div>
+    <div id="menuContent" class="menuContent"></div>
   </div>
 </div>
 
@@ -78,8 +81,8 @@
     <h1 id="gameOverTitle">Mission Failed</h1>
     <p id="gameOverText"></p>
     <div class="buttonRow">
-      <button onclick="restartGame()">Restart Mission</button>
-      <button onclick="showStart()">Choose Operator</button>
+      <button onclick="restartGame()">Retry Run</button>
+      <button onclick="showMainMenu()">Main Menu</button>
     </div>
   </div>
 </div>
