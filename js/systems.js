@@ -28,7 +28,13 @@ function updatePlayer(g,dt){
   if(keys.has('KeyS')||keys.has('ArrowDown')) dy++;
   if(keys.has('KeyA')||keys.has('ArrowLeft')) dx--;
   if(keys.has('KeyD')||keys.has('ArrowRight')) dx++;
-  const l=len(dx,dy); dx/=l; dy/=l;
+  const pad = gamepadVector();
+  if(pad.active){
+    dx = pad.dx;
+    dy = pad.dy;
+  } else {
+    const l=len(dx,dy); dx/=l; dy/=l;
+  }
   if(dx||dy){ p.lastDx=dx; p.lastDy=dy; }
 
   p.iframes=Math.max(0,p.iframes-dt);
@@ -132,6 +138,29 @@ function nearestEnemy(g,x,y,maxD=999999){
   return best;
 }
 
+function mouseWorld(g){
+  return { x:g.camera.x + mouse.x, y:g.camera.y + mouse.y };
+}
+
+function mouseTargetActive(g){
+  return g.player.mouseTargeting && mouse.used && g.time - mouse.lastMove < 3.2;
+}
+
+function targetEnemy(g,range,mouseBiasRadius=180){
+  const p=g.player;
+  if(mouseTargetActive(g)){
+    const m = mouseWorld(g);
+    let best=null, bd=mouseBiasRadius*mouseBiasRadius;
+    for(const e of g.enemies){
+      if(dist2(p.x,p.y,e.x,e.y) > range*range) continue;
+      const d=dist2(m.x,m.y,e.x,e.y);
+      if(d<bd){ bd=d; best=e; }
+    }
+    if(best) return best;
+  }
+  return nearestEnemy(g,p.x,p.y,range);
+}
+
 function updateWeapons(g,dt){
   const p=g.player;
   for(const w of g.weapons){
@@ -146,18 +175,18 @@ function updateWeapons(g,dt){
     }
     if(w.cd>0) continue;
     if(w.id==='minigun'){
-      const e=nearestEnemy(g,p.x,p.y,620); if(!e) continue;
+      const e=targetEnemy(g,620); if(!e) continue;
       w.cd=0.20/(1+w.level*0.07);
       fireSpread(g,p,e,1+p.extraProjectiles,9+w.level*3,520,0.18,'#ffdd80');
       sfx('shoot', 0.8);
     } else if(w.id==='carbine'){
-      const e=nearestEnemy(g,p.x,p.y,700); if(!e) continue;
+      const e=targetEnemy(g,700); if(!e) continue;
       w.cd=0.34/(1+w.level*0.08);
       fireSpread(g,p,e,1+p.extraProjectiles,17+w.level*4,640,0.08,'#42d6ff',1+w.level);
       sfx('shoot', 0.65);
     } else if(w.id==='flamer'){
       w.cd=0.08;
-      const e=nearestEnemy(g,p.x,p.y,250); if(!e) continue;
+      const e=targetEnemy(g,250,130); if(!e) continue;
       const a=Math.atan2(e.y-p.y,e.x-p.x);
       for(const enemy of g.enemies){
         const d=Math.hypot(enemy.x-p.x,enemy.y-p.y);
@@ -170,12 +199,12 @@ function updateWeapons(g,dt){
       for(let k=0;k<3;k++) addParticle(g,p.x,p.y,Math.cos(a+rand(-0.45,0.45))*rand(160,260),Math.sin(a+rand(-0.45,0.45))*rand(160,260),'#ff9f43',rand(0.18,0.32),rand(5,12));
       sfx('flamer', 0.75);
     } else if(w.id==='satchel'){
-      const e=nearestEnemy(g,p.x,p.y,650); if(!e) continue;
+      const e=targetEnemy(g,650); if(!e) continue;
       w.cd=Math.max(2.0,5.2-w.level*0.35);
       explode(g,e.x,e.y,90+w.level*8,75+w.level*26,'#ff9f43');
       sfx('explosion', 1.15);
     } else if(w.id==='boomerang'){
-      const e=nearestEnemy(g,p.x,p.y,700); if(!e) continue;
+      const e=targetEnemy(g,700); if(!e) continue;
       const active = g.boomerangs.filter(b=>b.weaponId==='boomerang').length;
       const maxActive = 1 + Math.floor(w.level/3);
       if(active>=maxActive) continue;
@@ -183,12 +212,12 @@ function updateWeapons(g,dt){
       launchBoomerang(g,p,e,w.level);
       sfx('shoot', 0.7);
     } else if(w.id==='arc'){
-      const e=nearestEnemy(g,p.x,p.y,560); if(!e) continue;
+      const e=targetEnemy(g,560); if(!e) continue;
       w.cd=Math.max(0.58,1.75-w.level*0.12);
       fireArcChain(g,e,w.level);
       sfx('arc', 0.9);
     } else if(w.id==='rail'){
-      const e=nearestEnemy(g,p.x,p.y,850); if(!e) continue;
+      const e=targetEnemy(g,850,210); if(!e) continue;
       w.cd=Math.max(1.1,3.0-w.level*0.18);
       const a=Math.atan2(e.y-p.y,e.x-p.x);
       g.bullets.push({x:p.x,y:p.y,vx:Math.cos(a)*920,vy:Math.sin(a)*920,r:5,life:0.85,damage:85+w.level*30,pierce:99,color:'#ffffff',rail:true});
@@ -587,7 +616,7 @@ function openUpgrade(g){
   awaitingUpgrade=true;
   ui.upgradeCards.innerHTML='';
   const choices=[];
-  const pool=[...UPGRADE_POOL];
+  const pool=UPGRADE_POOL.filter(up=>!up.available || up.available(g));
   while(choices.length<3 && pool.length){
     const idx=randi(0,pool.length-1);
     choices.push(pool.splice(idx,1)[0]);

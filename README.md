@@ -38,6 +38,12 @@ js/main.js              requestAnimationFrame loop, keyboard/mouse input, startu
 - Visible weapons now use original names such as Rotary Mauler, Vector Carbine, Thermal Lance, Warden Drones, Sifter Drone, Storm Lattice, Bore Rail, and Return Disc.
 - Optional sprite loading supports mineral nodes, Echo Shard pickups, Warden Drones, and Sifter Drones while preserving procedural fallbacks.
 
+## Current Additions
+
+- Gamepad movement support uses the first connected controller's left analogue stick.
+- Upgrade cards use pictorial icons again instead of acronym-only labels.
+- Targeting Cursor is a one-time upgrade that lets recent mouse movement bias player-fired weapons toward enemies near the cursor while preserving normal auto-targeting when the mouse is idle.
+
 ## Development Notes
 
 The scripts are loaded in dependency order using normal browser scripts, not a bundler. This keeps the game very easy to open locally. Later, this can be converted to ES modules with `import`/`export` once the project grows further.

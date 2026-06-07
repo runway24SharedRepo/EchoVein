@@ -29,6 +29,7 @@ class Player {
     this.sweeperRangeMul = 1;
     this.sweeperSpeedMul = 1;
     this.sweeperCollectMul = 1;
+    this.mouseTargeting = false;
     this.canUseTraps = cls.id === 'pathfinder';
     this.trapCd = 0;
     this.trapMaxCd = cls.id === 'pathfinder' ? 2.6 : 4.5;

@@ -27,7 +27,16 @@ addEventListener('keydown',e=>{
   }
 });
 addEventListener('keyup',e=>keys.delete(e.code));
-addEventListener('mousemove',e=>{ mouse.x=e.clientX; mouse.y=e.clientY; });
+addEventListener('mousemove',e=>{
+  mouse.x=e.clientX;
+  mouse.y=e.clientY;
+  mouse.used=true;
+  mouse.lastMove=game ? game.time : 0;
+});
+
+addEventListener('gamepadconnected',e=>{
+  if(game) log(game, `${e.gamepad.id || 'Gamepad'} connected.`);
+});
 ui.soundBtn.addEventListener('click',()=>{ resumeAudio(); toggleMute(); });
 ui.volumeSlider.addEventListener('input',e=>{ resumeAudio(); setAudioVolume(Number(e.target.value)/100); });
 

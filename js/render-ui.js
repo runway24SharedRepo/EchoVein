@@ -16,7 +16,8 @@ function updateUI(g){
   ui.depth.textContent=Math.floor(g.time*1.6)+' m';
   ui.gold.textContent=g.gold; ui.nitra.textContent=g.nitra; ui.kills.textContent=g.kills;
   const trapChip = g.player.canUseTraps ? `<div class="chip"><span>Pathfinder Trap Kit</span><b>${g.player.trapCd<=0?'READY':'CD '+g.player.trapCd.toFixed(1)+'s'}</b></div>` : '';
-  ui.weaponList.innerHTML=g.weapons.map(w=>`<div class="chip"><span>${weaponName(w.id)}</span><b>Mk ${w.level}</b></div>`).join('') + trapChip;
+  const cursorChip = g.player.mouseTargeting ? `<div class="chip"><span>Targeting Cursor</span><b>${mouseTargetActive(g)?'ACTIVE':'IDLE'}</b></div>` : '';
+  ui.weaponList.innerHTML=g.weapons.map(w=>`<div class="chip"><span>${weaponName(w.id)}</span><b>Mk ${w.level}</b></div>`).join('') + trapChip + cursorChip;
   ui.logList.innerHTML=g.log.slice(0,4).map((m,i)=>`<div class="chip"><span>${m}</span><b>${i===0?'NEW':''}</b></div>`).join('');
 }
 
@@ -41,10 +42,31 @@ function render(g){
   drawPlayer(g);
   drawParticles(g);
   drawArcs(g);
+  drawTargetingCursor(g);
   drawTexts(g);
   ctx.restore();
   drawVignette();
   if(paused) drawPause();
+}
+
+function drawTargetingCursor(g){
+  if(!mouseTargetActive(g)) return;
+  const m = mouseWorld(g);
+  ctx.save();
+  ctx.translate(m.x,m.y);
+  const pulse = 0.5 + 0.5*Math.sin(g.time*10);
+  ctx.strokeStyle=`rgba(66,214,255,${0.45+0.35*pulse})`;
+  ctx.shadowColor='#42d6ff';
+  ctx.shadowBlur=10;
+  ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(0,0,20+3*pulse,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-28,0); ctx.lineTo(-12,0);
+  ctx.moveTo(12,0); ctx.lineTo(28,0);
+  ctx.moveTo(0,-28); ctx.lineTo(0,-12);
+  ctx.moveTo(0,12); ctx.lineTo(0,28);
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawBackdrop(){
