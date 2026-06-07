@@ -17,7 +17,9 @@ function updateUI(g){
   ui.gold.textContent=g.gold; ui.nitra.textContent=g.nitra; ui.kills.textContent=g.kills;
   const trapChip = g.player.canUseTraps ? `<div class="chip"><span>Pathfinder Trap Kit</span><b>${g.player.trapCd<=0?'READY':'CD '+g.player.trapCd.toFixed(1)+'s'}</b></div>` : '';
   const cursorChip = g.player.mouseTargeting ? `<div class="chip"><span>Targeting Cursor</span><b>${mouseTargetActive(g)?'MANUAL':'AUTO'}</b></div>` : '';
-  ui.weaponList.innerHTML=g.weapons.map(w=>`<div class="chip"><span>${weaponName(w.id)}</span><b>Mk ${w.level}</b></div>`).join('') + trapChip + cursorChip;
+  const arc = g.arcConnection;
+  const arcChip = arc?.unlocked ? `<div class="chip"><span>Arc Connection</span><b>${arc.selectedEnemies.length}/${arcConnectionMaxTargets(g)}</b></div>` : '';
+  ui.weaponList.innerHTML=g.weapons.map(w=>`<div class="chip"><span>${weaponName(w.id)}</span><b>Mk ${w.level}</b></div>`).join('') + trapChip + cursorChip + arcChip;
   ui.logList.innerHTML=g.log.slice(0,4).map((m,i)=>`<div class="chip"><span>${m}</span><b>${i===0?'NEW':''}</b></div>`).join('');
 }
 
@@ -36,6 +38,7 @@ function render(g){
   drawPickups(g);
   drawBullets(g);
   drawBoomerangs(g);
+  drawArcConnection(g);
   drawEnemies(g);
   drawWardenDrones(g);
   drawSifterDrones(g);
@@ -66,6 +69,54 @@ function drawTargetingCursor(g){
   ctx.moveTo(0,-28); ctx.lineTo(0,-12);
   ctx.moveTo(0,12); ctx.lineTo(0,28);
   ctx.stroke();
+  ctx.restore();
+}
+
+function drawArcConnection(g){
+  const arc = g.arcConnection;
+  if(!arc?.unlocked) return;
+  const selected = arc.selectedEnemies.filter(e=>e && e.hp>0);
+  if(!selected.length) return;
+  ctx.save();
+  ctx.lineCap='round';
+  ctx.lineJoin='round';
+  for(let i=1;i<selected.length;i++){
+    const a=selected[i-1], b=selected[i];
+    const pulse = 0.55 + 0.45*Math.sin(g.time*12+i);
+    ctx.strokeStyle=`rgba(93,255,154,${0.48+0.35*pulse})`;
+    ctx.shadowColor='#5dff9a';
+    ctx.shadowBlur=10;
+    ctx.lineWidth=4;
+    ctx.beginPath();
+    ctx.moveTo(a.x,a.y);
+    const segments=5;
+    for(let s=1;s<=segments;s++){
+      const t=s/segments;
+      const jitter=(1-Math.abs(0.5-t)*1.7);
+      ctx.lineTo(lerp(a.x,b.x,t)+rand(-3,3)*jitter, lerp(a.y,b.y,t)+rand(-3,3)*jitter);
+    }
+    ctx.stroke();
+  }
+  for(let i=0;i<selected.length;i++){
+    const e=selected[i];
+    const pulse = 0.5 + 0.5*Math.sin(g.time*9+i);
+    ctx.strokeStyle=`rgba(93,255,154,${0.65+0.30*pulse})`;
+    ctx.shadowColor='#5dff9a';
+    ctx.shadowBlur=12;
+    ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.arc(e.x,e.y,e.r+8+3*pulse,0,Math.PI*2);
+    ctx.stroke();
+    ctx.fillStyle='rgba(93,255,154,0.22)';
+    ctx.beginPath();
+    ctx.arc(e.x,e.y,e.r+3,0,Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.fillStyle='#d9ffe7';
+    ctx.font='bold 12px Segoe UI, Arial';
+    ctx.textAlign='center';
+    ctx.fillText(String(i+1),e.x,e.y-e.r-13);
+  }
   ctx.restore();
 }
 

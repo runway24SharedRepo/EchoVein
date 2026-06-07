@@ -73,6 +73,7 @@ function makeGame(cls){
     tileHp:new Float32Array(MAP_W*MAP_H),
     enemies:[], bullets:[], boomerangs:[], wardenDrones:[], sifterDrones:[], traps:[], arcs:[], pickups:[], particles:[], texts:[], waves:[],
     weapons:[],
+    arcConnection:{ unlocked:false, level:0, maxTargets:0, selectedEnemies:[], flash:0 },
     time:0, kills:0, level:1, xp:0, xpNeed:28, gold:0, nitra:0,
     spawnTimer:0, eliteTimer:75, nextWave:0,
     camera:{x:0,y:0},

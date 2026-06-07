@@ -13,6 +13,7 @@ function update(g,dt){
   updateWardenDrones(g,dt);
   updateSifterDrones(g,dt);
   updateEnemies(g,dt);
+  updateArcConnection(g,dt);
   updateBullets(g,dt);
   updateBoomerangs(g,dt);
   updateTraps(g,dt);
@@ -148,11 +149,15 @@ function mouseWorld(g){
 }
 
 function mouseTargetActive(g){
-  return g.player.mouseTargeting && mouse.used && g.time - mouse.lastMove < 3.2;
+  return g.player.mouseTargeting && mouse.used && g.time - mouse.lastMove < 2;
 }
 
 function mouseManualFireActive(g){
   return mouseTargetActive(g);
+}
+
+function arcMouseAutoDisabled(g){
+  return g.arcConnection?.unlocked && mouse.used && g.time - mouse.lastMove < 2;
 }
 
 function targetEnemy(g,range,mouseBiasRadius=180){
@@ -170,9 +175,94 @@ function targetEnemy(g,range,mouseBiasRadius=180){
   return nearestEnemy(g,p.x,p.y,range);
 }
 
+function arcConnectionMaxTargets(g){
+  const arc = g.arcConnection;
+  return arc?.unlocked ? 1 + arc.level : 0;
+}
+
+function liveArcSelections(g){
+  const arc = g.arcConnection;
+  if(!arc?.unlocked) return [];
+  arc.selectedEnemies = arc.selectedEnemies.filter(e=>e && e.hp>0 && g.enemies.includes(e));
+  arc.maxTargets = arcConnectionMaxTargets(g);
+  return arc.selectedEnemies;
+}
+
+function enemyAtWorldPoint(g,x,y){
+  let best=null, bd=Infinity;
+  for(const e of g.enemies){
+    const r=e.r+16;
+    const d=dist2(x,y,e.x,e.y);
+    if(d<r*r && d<bd){ best=e; bd=d; }
+  }
+  return best;
+}
+
+function handleArcConnectionRightClick(g){
+  const arc = g.arcConnection;
+  if(!arc?.unlocked || g.state!=='playing' || awaitingUpgrade) return false;
+  const selections = liveArcSelections(g);
+  const m = mouseWorld(g);
+  const target = enemyAtWorldPoint(g,m.x,m.y);
+  if(target){
+    if(selections.includes(target)){
+      floating(g,target.x,target.y-24,'Linked','#5dff9a');
+      addRing(g,target.x,target.y,'rgba(93,255,154,0.65)',0.18,target.r,target.r+14,3);
+      return true;
+    }
+    if(selections.length >= arcConnectionMaxTargets(g)){
+      floating(g,m.x,m.y-18,'Chain full','#5dff9a');
+      addRing(g,m.x,m.y,'rgba(93,255,154,0.45)',0.20,8,30,3);
+      return true;
+    }
+    selections.push(target);
+    arc.flash = 0.22;
+    floating(g,target.x,target.y-24,`Linked ${selections.length}/${arcConnectionMaxTargets(g)}`,'#5dff9a');
+    addRing(g,target.x,target.y,'rgba(93,255,154,0.85)',0.25,target.r+4,target.r+20,4);
+    sfx('arc',0.45);
+    return true;
+  }
+  if(selections.length >= 2){
+    detonateArcConnection(g);
+  } else if(selections.length === 1){
+    floating(g,selections[0].x,selections[0].y-28,'Need 2 links','#5dff9a');
+  }
+  return true;
+}
+
+function detonateArcConnection(g){
+  const arc = g.arcConnection;
+  const chain = liveArcSelections(g).slice();
+  if(chain.length < 2) return;
+  const dmg = 42 + arc.level * 16;
+  shake = Math.max(shake, 8);
+  for(let i=0;i<chain.length;i++){
+    const e = chain[i];
+    damageEnemy(g,e,dmg,'#7df9ff');
+    explode(g,e.x,e.y,42+arc.level*5,18+arc.level*5,'#5dff9a',true);
+    addRing(g,e.x,e.y,'rgba(125,249,255,0.95)',0.24,e.r+8,e.r+42,4);
+    if(i>0){
+      const prev=chain[i-1];
+      g.arcs.push({x1:prev.x,y1:prev.y,x2:e.x,y2:e.y,life:0.24,maxLife:0.24,color:'#5dff9a',width:5});
+      g.arcs.push({x1:prev.x,y1:prev.y,x2:e.x,y2:e.y,life:0.16,maxLife:0.16,color:'#7df9ff',width:2});
+    }
+  }
+  arc.selectedEnemies = [];
+  arc.flash = 0;
+  log(g, `Arc Connection detonated through ${chain.length} targets.`);
+  sfx('arc',1.2);
+}
+
+function updateArcConnection(g,dt){
+  if(!g.arcConnection?.unlocked) return;
+  g.arcConnection.flash=Math.max(0,g.arcConnection.flash-dt);
+  liveArcSelections(g);
+}
+
 function updateWeapons(g,dt){
   const p=g.player;
   const manualMode = mouseManualFireActive(g);
+  const pauseAutoTargeting = !manualMode && arcMouseAutoDisabled(g);
   for(const w of g.weapons){
     w.cd -= dt * p.fireRateMul;
     if(w.id==='drones'){
@@ -188,6 +278,7 @@ function updateWeapons(g,dt){
       if(mouse.down) fireManualWeapon(g,w);
       continue;
     }
+    if(pauseAutoTargeting) continue;
     if(w.id==='minigun'){
       const e=targetEnemy(g,620); if(!e) continue;
       w.cd=0.20/(1+w.level*0.07);

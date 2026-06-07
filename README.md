@@ -44,6 +44,7 @@ js/main.js              requestAnimationFrame loop, keyboard/mouse input, startu
 - Upgrade cards use pictorial icons again instead of acronym-only labels.
 - Targeting Cursor is a one-time upgrade that switches player weapons into manual mouse fire while the mouse is active; left click shoots purple projectiles, and auto-fire resumes when the mouse goes idle.
 - Pathfinder traps can be placed with `E` on keyboard or the Xbox controller `A` button.
+- Arc Connection is a repeatable power-up. Right-click enemies to build an ordered green chain, then right-click empty space with two or more linked enemies to detonate electric/fire arc damage. Each upgrade adds one more selectable target.
 
 ## Development Notes
 

@@ -34,15 +34,22 @@ addEventListener('mousemove',e=>{
   mouse.lastMove=game ? game.time : 0;
 });
 addEventListener('mousedown',e=>{
+  mouse.x=e.clientX;
+  mouse.y=e.clientY;
+  mouse.used=true;
+  mouse.lastMove=game ? game.time : 0;
   if(e.button===0){
     mouse.down=true;
-    mouse.used=true;
-    mouse.lastMove=game ? game.time : 0;
     if(game?.player?.mouseTargeting) e.preventDefault();
+  } else if(e.button===2 && game && typeof handleArcConnectionRightClick === 'function'){
+    if(handleArcConnectionRightClick(game)) e.preventDefault();
   }
 });
 addEventListener('mouseup',e=>{
   if(e.button===0) mouse.down=false;
+});
+addEventListener('contextmenu',e=>{
+  if(game?.arcConnection?.unlocked) e.preventDefault();
 });
 addEventListener('blur',()=>{ mouse.down=false; });
 
