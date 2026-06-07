@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rockfall Survivor - Modular HTML Roguelike Prototype</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="css/style.css" />
+  <script defer src="js/core.js"></script>
+  <script defer src="js/audio.js"></script>
+  <script defer src="js/entities.js"></script>
+  <script defer src="js/world.js"></script>
+  <script defer src="js/systems.js"></script>
+  <script defer src="js/render-ui.js"></script>
+  <script defer src="js/main.js"></script>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud">
+  <div class="topbar">
+    <div class="panel stats">
+      <div class="line"><span>⛏️ <strong>Rockfall Survivor</strong></span><span id="timer">00:00</span></div>
+      <div class="bars">
+        <div class="bar health"><div id="hpFill"></div><span class="label" id="hpLabel">HP</span></div>
+        <div class="bar xp"><div id="xpFill"></div><span class="label" id="xpLabel">XP</span></div>
+        <div class="bar overheat"><div id="heatFill"></div><span class="label" id="heatLabel">DRILL HEAT</span></div>
+      </div>
+      <div class="line">
+        <span>Level <strong id="level">1</strong> · Depth <strong id="depth">0 m</strong></span>
+        <span>Gold <strong id="gold">0</strong> · Nitra <strong id="nitra">0</strong> · Kills <strong id="kills">0</strong></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="rightbar panel">
+    <div>
+      <div class="title">Mission Status</div>
+      <div class="subtitle">Mine minerals, survive the swarm, and build a ridiculous auto-firing dwarf loadout.</div>
+    </div>
+    <div class="weaponList" id="weaponList"></div>
+    <div class="logList" id="logList"></div>
+  </div>
+
+  <div class="bottomHelp panel">
+    <span class="soundControls">
+      <button id="soundBtn" title="Toggle sound. Shortcut: M">🔊 Sound</button>
+      <label>Vol <input id="volumeSlider" type="range" min="0" max="100" value="42"></label>
+    </span>
+    Move <kbd>WASD</kbd>/<kbd>Arrows</kbd> · Drill rock by walking into it · Dash <kbd>Space</kbd> · Scout trap <kbd>E</kbd> · Pause <kbd>P</kbd> · Restart <kbd>R</kbd> · Mute <kbd>M</kbd>
+  </div>
+</div>
+
+<div class="damageFlash" id="damageFlash"></div>
+
+<div class="overlay show" id="startOverlay">
+  <div class="modal">
+    <h1>⛏️ Rockfall Survivor</h1>
+    <p>A modular HTML roguelike survivor prototype inspired by cave-mining auto-shooters. It has procedural destructible caves, minerals, auto weapons, XP gems, upgrades, swarms, elites, and extraction-style survival.</p>
+    <p><b>Goal:</b> survive as long as possible. The game escalates every minute. Enemies drop XP; minerals give economy. Drilling is useful but overheating slows excavation.</p>
+    <div class="cards" id="classCards"></div>
+  </div>
+</div>
+
+<div class="overlay" id="upgradeOverlay">
+  <div class="modal">
+    <h2>Level Up - Choose an Upgrade</h2>
+    <p>Pick one upgrade. Weapon stacks are intentionally strong, because roguelike survivor games should become chaotic.</p>
+    <div class="cards" id="upgradeCards"></div>
+  </div>
+</div>
+
+<div class="overlay" id="gameOverOverlay">
+  <div class="modal">
+    <h1 id="gameOverTitle">Mission Failed</h1>
+    <p id="gameOverText"></p>
+    <div class="buttonRow">
+      <button onclick="restartGame()">Restart Mission</button>
+      <button onclick="showStart()">Choose Class</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
