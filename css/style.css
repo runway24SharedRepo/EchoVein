@@ -290,3 +290,71 @@
     outline: 3px solid var(--cyan);
     outline-offset: 3px;
   }
+
+
+  /* Permanent upgrade table / affordability states */
+  .upgradeTableWrap {
+    display: grid;
+    gap: 18px;
+    margin-top: 16px;
+  }
+  .upgradeCategorySection {
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 16px;
+    background: rgba(255,255,255,0.035);
+    overflow: hidden;
+  }
+  .upgradeCategorySection > h3 {
+    margin: 0;
+    padding: 11px 13px;
+    background: rgba(66,214,255,0.08);
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+    color: #fff;
+  }
+  .upgradeTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .upgradeTable th,
+  .upgradeTable td {
+    padding: 9px 10px;
+    vertical-align: top;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+  .upgradeTable th {
+    text-align: left;
+    color: var(--cyan);
+    background: rgba(0,0,0,0.16);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .upgradeTable tr.affordable { background: rgba(93,255,154,0.025); }
+  .upgradeTable tr.locked { background: rgba(255,255,255,0.018); }
+  .upgradeTable tr.maxed { opacity: 0.72; }
+  .upgradeTable td b { color: #fff; }
+  .upgradeTable td small {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+  }
+  .costLine {
+    display: block;
+    white-space: nowrap;
+  }
+  .costLine.ok { color: #a7f7c6; }
+  .costLine.missing { color: #ff8f8f; font-weight: 900; }
+  button:disabled,
+  button.disabled,
+  .buyBtn:disabled {
+    background: rgba(120,128,145,0.22) !important;
+    border-color: rgba(255,255,255,0.08) !important;
+    color: rgba(238,243,255,0.52) !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+  }
+  .buyBtn {
+    min-width: 122px;
+    padding: 8px 10px;
+  }

@@ -6,7 +6,9 @@ function tileIdx(tx,ty){ return ty*MAP_W+tx; }
 function worldToTile(x,y){ return [Math.floor(x/TILE), Math.floor(y/TILE)]; }
 function inMap(tx,ty){ return tx>=0 && ty>=0 && tx<MAP_W && ty<MAP_H; }
 function tileAt(g,tx,ty){ if(!inMap(tx,ty)) return TILE_HARD; return g.tiles[tileIdx(tx,ty)]; }
-function isSolid(t){ return t===TILE_ROCK || t===TILE_HARD || t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL; }
+function isSolid(t){ return t===TILE_ROCK || t===TILE_HARD || t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL || t===TILE_LAVA_ROCK; }
+function isMineableTile(t){ return t===TILE_ROCK || t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL; }
+function isObstacleTile(t){ return t===TILE_LAVA_ROCK; }
 
 function generateCave(g){
   for(let y=0;y<MAP_H;y++) for(let x=0;x<MAP_W;x++) {
@@ -40,7 +42,48 @@ function generateCave(g){
       if(g.tiles[i]===TILE_ROCK){ g.tiles[i]=type; g.tileHp[i]= type===TILE_CRYSTAL ? 45 : 32; }
     }
   }
+
+  placeLavaRockObstacles(g);
 }
+
+function openNeighborCount(g,tx,ty,r=2){
+  let count=0;
+  for(let y=ty-r;y<=ty+r;y++) for(let x=tx-r;x<=tx+r;x++){
+    if(inMap(x,y) && g.tiles[tileIdx(x,y)]===TILE_EMPTY) count++;
+  }
+  return count;
+}
+
+function canPlaceLavaRock(g,tx,ty){
+  if(!inMap(tx,ty) || g.tiles[tileIdx(tx,ty)]!==TILE_EMPTY) return false;
+  const sx=Math.floor(MAP_W/2), sy=Math.floor(MAP_H/2);
+  if(Math.hypot(tx-sx,ty-sy)<9) return false;
+  // Avoid sealing narrow routes: lava is only placed in already-open pockets.
+  return openNeighborCount(g,tx,ty,2)>=14;
+}
+
+function placeLavaRockObstacles(g){
+  const clusters=20;
+  for(let c=0;c<clusters;c++){
+    let cx=0, cy=0, ok=false;
+    for(let tries=0;tries<80;tries++){
+      cx=randi(6,MAP_W-7); cy=randi(6,MAP_H-7);
+      if(canPlaceLavaRock(g,cx,cy)){ ok=true; break; }
+    }
+    if(!ok) continue;
+    const radius=rand(1.2,2.5);
+    for(let y=Math.floor(cy-radius-1);y<=Math.ceil(cy+radius+1);y++) for(let x=Math.floor(cx-radius-1);x<=Math.ceil(cx+radius+1);x++){
+      if(!canPlaceLavaRock(g,x,y)) continue;
+      const d=Math.hypot(x-cx,y-cy);
+      if(d<radius+rand(-0.35,0.25)){
+        const i=tileIdx(x,y);
+        g.tiles[i]=TILE_LAVA_ROCK;
+        g.tileHp[i]=9999;
+      }
+    }
+  }
+}
+
 
 function carveCircle(g,cx,cy,r){
   const minx=Math.floor(cx-r-1), maxx=Math.ceil(cx+r+1);

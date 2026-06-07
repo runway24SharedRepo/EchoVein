@@ -6,6 +6,8 @@ class Player {
   constructor(cls){
     this.x = WORLD_W/2; this.y = WORLD_H/2;
     this.r = 15;
+    // Smaller collision radius than visual body makes mined tunnels and block corners feel less sticky.
+    this.collisionR = 12;
     this.classId = cls.id;
     this.hp = cls.hp; this.maxHp = cls.hp;
     this.baseSpeed = cls.speed;
@@ -41,6 +43,10 @@ class Player {
     this.lastDx = 1; this.lastDy = 0;
     this.miningProgress = 0;
     this.miningTile = -1;
+    // v2 mining contact model: short lock/stickiness keeps drilling stable
+    // when the collision solver slides around tile corners at low speed.
+    this.miningLock = null;       // { tx, ty, timer }
+    this.drillPressure = 0;       // rises while pressing into mineable terrain
   }
 }
 
@@ -66,6 +72,7 @@ class Enemy {
     this.unstickAngle=Math.random()*Math.PI*2;
     this.noPathTimer=0;
     this.rangedCd=rand(1.2,3.0);
+    this.smallShotCd=rand(2.8,6.0);
     this.burstShots=0;
   }
 }
@@ -89,7 +96,7 @@ function makeGame(cls){
     weapons:[],
     arcConnection:{ unlocked:false, level:0, maxTargets:0, selectedEnemies:[], flash:0 },
     navigationVersion:0,
-    debug:{ showEnemyPaths:false },
+    debug:{ showEnemyPaths:false, enemyBulletsEnabled:true, showEnemyBulletHitboxes:false, showMiningArc:false, lowSpeedMiningTest:false, showMiningCandidates:true },
     missionIndex:saveProfile?.missionIndex || 1,
     runIndex:saveProfile?.runIndex || 1,
     missionDifficulty:saveProfile ? missionDifficulty(saveProfile.missionIndex) : missionDifficulty(1),
@@ -101,7 +108,7 @@ function makeGame(cls){
     runResolved:false,
     objectiveEchoCollected:0,
     time:0, kills:0, level:1, xp:0, xpNeed:28, gold:0, nitra:0,
-    spawnTimer:0, eliteTimer:75, nextWave:0,
+    spawnTimer:2.2, eliteTimer:90, nextWave:55,
     camera:{x:0,y:0},
     log:['Mission started. Descend, extract, survive.'],
     selectedClass:cls

@@ -10,7 +10,8 @@ const SPRITE_PATHS = {
   steamVent: 'assets/sprites/steam_vent.png',
   machineRuin: 'assets/sprites/broken_machine_ruin.png',
   sifterDrone: 'assets/sprites/sifter_drone.png',
-  wardenDrone: 'assets/sprites/warden_drone.png'
+  wardenDrone: 'assets/sprites/warden_drone.png',
+  lavaRock: 'assets/sprites/lava_rock.png'
 };
 
 const sprites = Object.create(null);

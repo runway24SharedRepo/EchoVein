@@ -20,13 +20,15 @@ const TILE_HARD = 2;
 const TILE_GOLD = 3;
 const TILE_NITRA = 4;
 const TILE_CRYSTAL = 5;
+const TILE_LAVA_ROCK = 6;
 
 const MINERALS = {
   gild: { id: 'gild', displayName: 'Gild Shards', shortName: 'Gild', color: '#ffcc4d', sprite: 'gildShard' },
   voltarite: { id: 'voltarite', displayName: 'Voltarite', shortName: 'Voltarite', color: '#ff5b5b', sprite: 'voltariteOre' },
   echo: { id: 'echo', displayName: 'Echo Shards', shortName: 'Echo', color: '#42d6ff', sprite: 'echoShard' },
   crust: { id: 'crust', displayName: 'Crust Stone', shortName: 'Crust', color: '#3a342f' },
-  ironbasalt: { id: 'ironbasalt', displayName: 'Ironbasalt', shortName: 'Ironbasalt', color: '#302b2a' }
+  ironbasalt: { id: 'ironbasalt', displayName: 'Ironbasalt', shortName: 'Ironbasalt', color: '#302b2a' },
+  lavaRock: { id: 'lavaRock', displayName: 'Lava Rock', shortName: 'Lava Rock', color: '#7a2417', sprite: 'lavaRock' }
 };
 
 const TILE_DATA = {
@@ -34,7 +36,21 @@ const TILE_DATA = {
   [TILE_HARD]: MINERALS.ironbasalt,
   [TILE_GOLD]: MINERALS.gild,
   [TILE_NITRA]: MINERALS.voltarite,
-  [TILE_CRYSTAL]: MINERALS.echo
+  [TILE_CRYSTAL]: MINERALS.echo,
+  [TILE_LAVA_ROCK]: MINERALS.lavaRock
+};
+
+const OBSTACLE_TYPES = {
+  lavaRock: {
+    id: 'lavaRock',
+    displayName: 'Lava Rock',
+    tile: TILE_LAVA_ROCK,
+    mineable: false,
+    blocksMovement: true,
+    blocksProjectiles: true,
+    blocksPathfinding: true,
+    sprite: 'lavaRock'
+  }
 };
 
 const WEAPON_DATA = {

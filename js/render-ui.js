@@ -52,6 +52,7 @@ function render(g){
   drawWardenDrones(g);
   drawSifterDrones(g);
   drawPlayer(g);
+  drawMiningDebug(g);
   drawParticles(g);
   drawArcs(g);
   drawTargetingCursor(g);
@@ -145,12 +146,16 @@ function drawTiles(g,cam){
       ctx.fillRect(px,py,TILE,TILE);
       if(Math.random()<0.0002){} // keeps cave still; no-op.
     } else {
-      const color = t===TILE_HARD?'#302b2a':t===TILE_GOLD?'#6d5520':t===TILE_NITRA?'#5e2530':t===TILE_CRYSTAL?'#1e4d64':'#3a342f';
+      const color = t===TILE_HARD?'#302b2a':t===TILE_LAVA_ROCK?'#4a1712':t===TILE_GOLD?'#6d5520':t===TILE_NITRA?'#5e2530':t===TILE_CRYSTAL?'#1e4d64':'#3a342f';
       ctx.fillStyle=color; ctx.fillRect(px,py,TILE,TILE);
       const tileInfo = TILE_DATA[t];
       const sprite = tileInfo?.sprite ? getSprite(tileInfo.sprite) : null;
       if(sprite){
         ctx.drawImage(sprite, px+3, py+3, TILE-6, TILE-6);
+      }
+      if(t===TILE_LAVA_ROCK){
+        ctx.fillStyle='rgba(255,96,24,0.18)';
+        ctx.beginPath(); ctx.arc(px+TILE/2,py+TILE/2,TILE*0.42,0,Math.PI*2); ctx.fill();
       }
       ctx.fillStyle='rgba(255,255,255,0.04)'; ctx.fillRect(px+2,py+2,TILE-4,3);
       ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.fillRect(px,py+TILE-4,TILE,4);
@@ -263,23 +268,119 @@ function drawBullets(g){
 function drawEnemyBullets(g){
   for(const b of g.enemyBullets){
     ctx.save();
-    ctx.fillStyle=b.color;
-    ctx.strokeStyle=b.destructive?'rgba(255,235,190,0.9)':'rgba(255,255,255,0.55)';
-    ctx.shadowColor=b.color;
-    ctx.shadowBlur=b.destructive?18:11;
-    ctx.lineWidth=b.destructive?3:2;
+    ctx.fillStyle=b.color || '#ff3030';
+    ctx.strokeStyle=b.destructive?'rgba(255,220,180,0.92)':'rgba(255,210,210,0.72)';
+    ctx.shadowColor=b.color || '#ff3030';
+    ctx.shadowBlur=b.destructive?18:(b.small?8:12);
+    ctx.lineWidth=b.destructive?3:(b.small?1.5:2);
     ctx.beginPath();
     ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
     ctx.fill();
     ctx.stroke();
-    if(b.destructive){
-      ctx.beginPath();
-      ctx.moveTo(b.x-b.vx*0.035,b.y-b.vy*0.035);
-      ctx.lineTo(b.x+b.vx*0.010,b.y+b.vy*0.010);
-      ctx.stroke();
+    // All hostile bullets get a red trail for readability. Elite/boss shots are
+    // larger and brighter; small-enemy shots stay small but still readable.
+    ctx.beginPath();
+    ctx.moveTo(b.x-b.vx*(b.destructive?0.040:0.030),b.y-b.vy*(b.destructive?0.040:0.030));
+    ctx.lineTo(b.x+b.vx*0.008,b.y+b.vy*0.008);
+    ctx.stroke();
+    if(g.debug?.showEnemyBulletHitboxes){
+      ctx.shadowBlur=0;
+      ctx.strokeStyle='rgba(255,255,255,0.85)';
+      ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.stroke();
     }
     ctx.restore();
   }
+}
+
+function drawMiningDebug(g){
+  if(!g.debug?.showMiningArc || !g.debug.miningIntent) return;
+  const d=g.debug.miningIntent;
+  const p=g.player;
+  ctx.save();
+
+  // Intended movement vector: what the player asked for before collision.
+  ctx.strokeStyle='rgba(66,214,255,0.85)';
+  ctx.lineWidth=3;
+  ctx.beginPath();
+  ctx.moveTo(d.x,d.y);
+  ctx.lineTo(d.x+d.dx*58,d.y+d.dy*58);
+  ctx.stroke();
+
+  // Actual resolved movement vector: what collision permitted this frame.
+  if(g.debug.actualMovement){
+    const m=g.debug.actualMovement;
+    ctx.strokeStyle='rgba(255,255,255,0.72)';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(m.x,m.y);
+    ctx.lineTo(m.x+m.dx*14,m.y+m.dy*14);
+    ctx.stroke();
+  }
+
+  // Mining fan/contact area.
+  ctx.strokeStyle=g.debug.lowSpeedMiningActive?'rgba(255,204,77,0.72)':'rgba(66,214,255,0.45)';
+  ctx.fillStyle=g.debug.lowSpeedMiningActive?'rgba(255,204,77,0.13)':'rgba(66,214,255,0.12)';
+  ctx.lineWidth=2;
+  const half=Math.PI*0.50;
+  const base=Math.atan2(d.dy,d.dx);
+  const r=(p.collisionR||p.r)+(g.debug.lowSpeedMiningActive?34:28);
+  ctx.beginPath();
+  ctx.moveTo(d.x,d.y);
+  ctx.arc(d.x,d.y,r,base-half,base+half);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  if(g.debug.miningSamples){
+    ctx.fillStyle='rgba(255,255,255,0.85)';
+    for(const smp of g.debug.miningSamples){ ctx.beginPath(); ctx.arc(smp.x,smp.y,2.2,0,Math.PI*2); ctx.fill(); }
+  }
+  if(g.debug.miningSamplesPost){
+    ctx.fillStyle='rgba(125,249,255,0.65)';
+    for(const smp of g.debug.miningSamplesPost){ ctx.beginPath(); ctx.arc(smp.x,smp.y,1.7,0,Math.PI*2); ctx.fill(); }
+  }
+
+  // Candidate mineable tiles: cyan before collision, blue after collision.
+  if(g.debug.showMiningCandidates!==false){
+    if(g.debug.miningCandidates){
+      ctx.lineWidth=1.5;
+      for(const c of g.debug.miningCandidates){
+        ctx.strokeStyle=c.touching?'rgba(255,204,77,0.65)':'rgba(66,214,255,0.45)';
+        ctx.strokeRect(c.tx*TILE+5,c.ty*TILE+5,TILE-10,TILE-10);
+      }
+    }
+    if(g.debug.miningCandidatesPost){
+      ctx.lineWidth=1.25;
+      for(const c of g.debug.miningCandidatesPost){
+        ctx.strokeStyle='rgba(125,249,255,0.38)';
+        ctx.strokeRect(c.tx*TILE+8,c.ty*TILE+8,TILE-16,TILE-16);
+      }
+    }
+  }
+
+  if(g.debug.currentMiningLock){
+    const t=g.debug.currentMiningLock;
+    ctx.strokeStyle='rgba(255,112,67,0.95)';
+    ctx.lineWidth=4;
+    ctx.setLineDash([6,4]);
+    ctx.strokeRect(t.tx*TILE+2,t.ty*TILE+2,TILE-4,TILE-4);
+    ctx.setLineDash([]);
+  }
+  if(g.debug.currentMiningTarget){
+    const t=g.debug.currentMiningTarget;
+    ctx.strokeStyle='rgba(255,255,255,0.95)';
+    ctx.lineWidth=3;
+    ctx.strokeRect(t.tx*TILE+3,t.ty*TILE+3,TILE-6,TILE-6);
+  }
+
+  ctx.fillStyle='rgba(255,255,255,0.88)';
+  ctx.font='bold 12px Segoe UI, Arial';
+  ctx.textAlign='left';
+  const status=[];
+  if(g.debug.lowSpeedMiningActive) status.push('LOW SPEED');
+  if(g.debug.miningStickinessActive) status.push('STICKY LOCK');
+  if(status.length) ctx.fillText(status.join(' · '), d.x+14, d.y-18);
+  ctx.restore();
 }
 
 function drawTargetLocks(g){

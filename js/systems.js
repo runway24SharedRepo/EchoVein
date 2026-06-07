@@ -46,46 +46,268 @@ function updatePlayer(g,dt){
   } else {
     const l=len(dx,dy); dx/=l; dy/=l;
   }
-  if(dx||dy){ p.lastDx=dx; p.lastDy=dy; }
+  const hasInput = !!(dx||dy);
+  if(hasInput){ p.lastDx=dx; p.lastDy=dy; }
 
   p.iframes=Math.max(0,p.iframes-dt);
   p.dashCd=Math.max(0,p.dashCd-dt);
   p.dashT=Math.max(0,p.dashT-dt);
   p.trapCd=Math.max(0,p.trapCd-dt);
   p.heat=Math.max(0,p.heat - dt*22*p.coolMul);
+  p.drillPressure = Math.max(0, (p.drillPressure || 0) - dt*2.4);
+  if(p.miningLock) p.miningLock.timer = Math.max(0, p.miningLock.timer - dt);
+
   const dashBoost = p.dashT>0 ? 3.4 : 1;
   const overheatSlow = p.heat >= p.maxHeat ? 0.72 : 1;
-  const spd=p.baseSpeed*p.speedMul*dashBoost*overheatSlow;
-  moveCircle(g,p,dx*spd*dt,dy*spd*dt);
-  if((dx||dy) && blockedAhead(g,p,dx,dy)) mineAhead(g,p,dx,dy,dt);
+  const lowSpeedDebug = g.debug?.lowSpeedMiningTest ? 0.42 : 1;
+  const spd=p.baseSpeed*p.speedMul*dashBoost*overheatSlow*lowSpeedDebug;
+  const intendedDx = dx*spd*dt;
+  const intendedDy = dy*spd*dt;
+  const intendedDisp = Math.hypot(intendedDx,intendedDy);
+  const lowSpeedMining = hasInput && (intendedDisp < 4.0 || g.debug?.lowSpeedMiningTest);
+
+  const oldX=p.x, oldY=p.y;
+
+  // v2: evaluate mining intent before collision resolution. This is the
+  // important part for low speed: even if collision later slides the player
+  // along a wall, the rock the player was trying to push into is still known.
+  const preMining = hasInput ? findMiningTarget(g,p,dx,dy,{x:oldX,y:oldY,lowSpeed:lowSpeedMining,phase:'pre'}) : null;
+
+  moveCircle(g,p,intendedDx,intendedDy);
+
+  // Evaluate again after movement because the collision solver may have placed
+  // the player near a corner contact that was not quite reachable pre-solve.
+  const postMining = hasInput ? findMiningTarget(g,p,dx,dy,{x:p.x,y:p.y,lowSpeed:lowSpeedMining,phase:'post',previous:preMining}) : null;
+  const miningTarget = chooseMiningTarget(g,p,dx,dy,preMining,postMining,lowSpeedMining);
+
+  if(g.debug){
+    g.debug.currentMiningTarget = miningTarget ? {tx:miningTarget.tx, ty:miningTarget.ty, score:miningTarget.score||0} : null;
+    g.debug.currentMiningLock = p.miningLock ? {tx:p.miningLock.tx, ty:p.miningLock.ty, timer:p.miningLock.timer} : null;
+    g.debug.miningIntent = hasInput ? {x:oldX,y:oldY,dx,dy} : null;
+    g.debug.actualMovement = hasInput ? {x:oldX,y:oldY,dx:p.x-oldX,dy:p.y-oldY} : null;
+    g.debug.lowSpeedMiningActive = !!lowSpeedMining;
+    g.debug.miningStickinessActive = !!(p.miningLock && p.miningLock.timer>0);
+  }
+
+  if(miningTarget){
+    refreshMiningLock(p,miningTarget);
+    p.drillPressure = Math.min(1.25, (p.drillPressure || 0) + dt*5.0);
+
+    // v2: if we are drilling, do not let a tile-corner collision turn forward
+    // intent into backward drift or excessive tangential skating. We preserve a
+    // little slide so the operator still feels smooth, but strongly damp it at
+    // low speed and while the drill has pressure on the rock.
+    applyMiningContactDamping(g,p,oldX,oldY,dx,dy,lowSpeedMining);
+    mineTile(g,p,miningTarget.tx,miningTarget.ty,dt);
+  } else if(!hasInput || !isMiningLockStillUseful(g,p,dx,dy,p.miningLock,lowSpeedMining)){
+    if(p.miningLock && p.miningLock.timer<=0) p.miningLock=null;
+  }
 }
 
-function blockedAhead(g,p,dx,dy){
-  const tx=Math.floor((p.x+dx*(p.r+8))/TILE), ty=Math.floor((p.y+dy*(p.r+8))/TILE);
-  return isSolid(tileAt(g,tx,ty));
+function isMineableForPlayer(t){
+  return typeof isMineableTile === 'function' ? isMineableTile(t) : (t===TILE_ROCK || t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL);
 }
 
-function mineAhead(g,p,dx,dy,dt){
-  if(p.heat >= p.maxHeat) return;
-  const tx=Math.floor((p.x+dx*(p.r+10))/TILE), ty=Math.floor((p.y+dy*(p.r+10))/TILE);
-  if(!inMap(tx,ty)) return;
+function findMiningTarget(g,p,dx,dy,options={}){
+  const l=len(dx,dy); dx/=l; dy/=l;
+  const originX = options.x ?? p.x;
+  const originY = options.y ?? p.y;
+  const lowSpeed = !!options.lowSpeed;
+  const r=p.collisionR || p.r;
+
+  // v2 tuning: this is still short-range contact mining, not global long-range
+  // mining. Low-speed mode adds a little tolerance because per-frame movement
+  // can be too small to create a strong collision signal.
+  const reach = r + (lowSpeed ? 32 : 26);
+  const contactMargin = lowSpeed ? 16 : 10;
+  const halfAngle=Math.PI*0.50; // 100 degree total fan.
+  const sampleAngles=[0, -Math.PI/9, Math.PI/9, -Math.PI/4.5, Math.PI/4.5, -Math.PI/3.9, Math.PI/3.9];
+  const sampleRanges=[r+3, r+10, r+18, reach];
+  const samples=[];
+
+  for(const range of sampleRanges){
+    for(const off of sampleAngles){
+      const ca=Math.cos(off), sa=Math.sin(off);
+      const sx=dx*ca - dy*sa;
+      const sy=dy*ca + dx*sa;
+      samples.push({x:originX+sx*range,y:originY+sy*range,dx:sx,dy:sy,range,off});
+    }
+  }
+
+  const candidates=new Map();
+  const addCandidate=(tx,ty,sourceBonus=0,sample=null)=>{
+    if(!inMap(tx,ty)) return;
+    const t=tileAt(g,tx,ty);
+    if(!isMineableForPlayer(t)) return;
+
+    const left=tx*TILE, top=ty*TILE, right=left+TILE, bottom=top+TILE;
+    const center=tileCenter(tx,ty);
+    const vx=center.x-originX, vy=center.y-originY;
+    const dist=Math.hypot(vx,vy) || 1;
+    const align=(vx/dist)*dx+(vy/dist)*dy;
+
+    // Circle-to-rect distance gives true corner contact behaviour. This catches
+    // the case where the player circle touches a tile corner even though the
+    // tile centre is not well aligned.
+    const nearestX=clamp(originX,left,right), nearestY=clamp(originY,top,bottom);
+    const edgeDistance=Math.max(0, Math.hypot(originX-nearestX, originY-nearestY) - r);
+    const touching = edgeDistance <= contactMargin;
+
+    // Direction gate: strict for centre/ray candidates, forgiving for physical
+    // corner contact. This prevents mining behind the player while allowing the
+    // intended corner-mining behaviour.
+    const minAlign = touching ? (lowSpeed ? 0.18 : 0.24) : 0.42;
+    if(align < minAlign) return;
+
+    const along = vx*dx + vy*dy;
+    const perpendicular = Math.abs(vx*dy - vy*dx);
+    const rayReachOk = along > -r*0.25 && along < reach + TILE*0.95 && perpendicular < TILE*1.18;
+    if(!touching && !rayReachOk) return;
+
+    let sampleHit=false;
+    if(sample){
+      const sx=clamp(sample.x,left,right), sy=clamp(sample.y,top,bottom);
+      sampleHit = Math.hypot(sample.x-sx,sample.y-sy) <= (lowSpeed ? 15 : 10);
+    }
+
+    const forwardPointX=originX+dx*reach, forwardPointY=originY+dy*reach;
+    const forwardDistance=Math.hypot(center.x-forwardPointX,center.y-forwardPointY)/TILE;
+    const rayDistance=perpendicular/TILE;
+    const edgeScore=1-clamp(edgeDistance/(contactMargin+12),0,1);
+    const locked = p.miningLock && p.miningLock.tx===tx && p.miningLock.ty===ty && p.miningLock.timer>0;
+    const score =
+      align*4.4 +
+      edgeScore*2.6 +
+      (touching?1.45:0) +
+      (sampleHit?0.95:0) +
+      sourceBonus +
+      (locked?5.0:0) -
+      rayDistance*1.55 -
+      forwardDistance*0.45 -
+      dist/(TILE*5);
+
+    const key=tileIdx(tx,ty);
+    const candidate={tx,ty,score,dist,align,edgeDistance,touching,rayDistance,source:sample?'fan':'scan'};
+    const old=candidates.get(key);
+    if(!old || candidate.score>old.score) candidates.set(key,candidate);
+  };
+
+  // Fan samples catch intended direction and wider side/corner contacts.
+  for(const smp of samples){
+    const tx=Math.floor(smp.x/TILE), ty=Math.floor(smp.y/TILE);
+    for(let oy=-1;oy<=1;oy++) for(let ox=-1;ox<=1;ox++) addCandidate(tx+ox,ty+oy,0.5-Math.abs(smp.off)*0.35,smp);
+  }
+
+  // Nearby circle scan catches true tile-corner overlap where no sample lands
+  // cleanly inside the tile. This is essential for low-speed corner mining.
+  const scanReach=reach+TILE*0.75;
+  const minx=Math.floor((originX-r-scanReach)/TILE), maxx=Math.floor((originX+r+scanReach)/TILE);
+  const miny=Math.floor((originY-r-scanReach)/TILE), maxy=Math.floor((originY+r+scanReach)/TILE);
+  for(let ty=miny;ty<=maxy;ty++) for(let tx=minx;tx<=maxx;tx++) addCandidate(tx,ty,0,null);
+
+  let best=null;
+  for(const c of candidates.values()){
+    if(!best || c.score>best.score || (Math.abs(c.score-best.score)<0.001 && c.edgeDistance<best.edgeDistance)) best=c;
+  }
+
+  if(g.debug){
+    // Merge rather than overwrite so the post-pass can display all candidates.
+    const list=[...candidates.values()].map(c=>({tx:c.tx,ty:c.ty,score:c.score,touching:c.touching,source:c.source}));
+    if(options.phase==='pre'){
+      g.debug.miningSamples=samples;
+      g.debug.miningCandidates=list;
+    } else {
+      g.debug.miningSamplesPost=samples;
+      g.debug.miningCandidatesPost=list;
+    }
+  }
+  return best;
+}
+
+function chooseMiningTarget(g,p,dx,dy,preTarget,postTarget,lowSpeed){
+  // First priority: locked target if still valid. This prevents flicker between
+  // adjacent corner tiles while the player holds the same mining direction.
+  if(isMiningLockStillUseful(g,p,dx,dy,p.miningLock,lowSpeed)){
+    const locked={tx:p.miningLock.tx,ty:p.miningLock.ty,score:999,locked:true};
+    return locked;
+  }
+  if(preTarget && postTarget){
+    // If both exist, choose by score but give pre-collision intent a small bias:
+    // it is what the player tried to drill before collision altered the motion.
+    const preScore=preTarget.score+0.7;
+    const postScore=postTarget.score;
+    return preScore>=postScore ? preTarget : postTarget;
+  }
+  return preTarget || postTarget || null;
+}
+
+function refreshMiningLock(p,target){
+  if(!target) return;
+  p.miningLock = { tx:target.tx, ty:target.ty, timer:0.28 };
+  p.miningTile = tileIdx(target.tx,target.ty);
+}
+
+function isMiningLockStillUseful(g,p,dx,dy,lock,lowSpeed=false){
+  if(!lock || lock.timer<=0 || !(dx||dy)) return false;
+  if(!inMap(lock.tx,lock.ty) || !isMineableForPlayer(tileAt(g,lock.tx,lock.ty))) return false;
+  const r=p.collisionR || p.r;
+  const reach=r+(lowSpeed?34:28);
+  const c=tileCenter(lock.tx,lock.ty);
+  const vx=c.x-p.x, vy=c.y-p.y;
+  const d=Math.hypot(vx,vy) || 1;
+  const align=(vx/d)*dx+(vy/d)*dy;
+  const left=lock.tx*TILE, top=lock.ty*TILE;
+  const nx=clamp(p.x,left,left+TILE), ny=clamp(p.y,top,top+TILE);
+  const edgeDistance=Math.max(0,Math.hypot(p.x-nx,p.y-ny)-r);
+  const touching=edgeDistance <= (lowSpeed?18:12);
+  return (touching && align>0.10) || (d<reach+TILE*0.85 && align>0.28);
+}
+
+function applyMiningContactDamping(g,p,oldX,oldY,dx,dy,lowSpeed){
+  const movedX=p.x-oldX, movedY=p.y-oldY;
+  const forward=movedX*dx + movedY*dy;
+  const lateralX=movedX - dx*forward;
+  const lateralY=movedY - dy*forward;
+
+  // Drill pressure makes sustained contact more sticky. At very low speed we
+  // strongly reduce tangential motion, which stops the character from skating
+  // across several blocks without mining.
+  const pressure=clamp(p.drillPressure || 0,0,1.25);
+  const slideDamp = lowSpeed ? 0.18 : clamp(0.58 - pressure*0.18, 0.28, 0.58);
+  const forwardKeep = Math.max(0, forward); // never preserve backward drift while drilling.
+  const candidateX=oldX + dx*forwardKeep + lateralX*slideDamp;
+  const candidateY=oldY + dy*forwardKeep + lateralY*slideDamp;
+  const r=p.collisionR || p.r;
+  if(circleClearOfSolids(g,candidateX,candidateY,r)){
+    p.x=candidateX; p.y=candidateY;
+  } else if(lowSpeed && circleClearOfSolids(g,oldX,oldY,r)){
+    // If the damped slide would still collide, stay braced at the previous
+    // valid position instead of being pushed sideways/backwards by the corner.
+    p.x=oldX; p.y=oldY;
+  }
+}
+
+function mineTile(g,p,tx,ty,dt){
+  if(p.heat >= p.maxHeat || !inMap(tx,ty)) return;
   const i=tileIdx(tx,ty), t=g.tiles[i];
-  if(!isSolid(t) || t===TILE_HARD) return;
-  const miningPower = 55 * p.mineMul * dt;
+  if(!isMineableForPlayer(t)) return;
+  const pressureBonus = 1 + Math.min(0.35, (p.drillPressure || 0) * 0.25);
+  const miningPower = 55 * p.mineMul * pressureBonus * dt;
   g.tileHp[i] -= miningPower;
   p.heat += dt * 32 * p.heatEfficiency;
-  if(Math.random()<0.35) addParticle(g, tx*TILE+TILE/2, ty*TILE+TILE/2, rand(-30,30), rand(-30,30), t===TILE_GOLD?'#ffcc4d':t===TILE_NITRA?'#ff5b5b':t===TILE_CRYSTAL?'#42d6ff':'#7c6654', rand(0.18,0.36), rand(2,5));
+  const cx=tx*TILE+TILE/2, cy=ty*TILE+TILE/2;
+  if(Math.random()<0.55) addParticle(g, cx, cy, rand(-55,55), rand(-55,55), t===TILE_GOLD?'#ffcc4d':t===TILE_NITRA?'#ff5b5b':t===TILE_CRYSTAL?'#42d6ff':'#b48a61', rand(0.12,0.30), rand(2,5),'spark');
   sfx('mine', 0.65);
   if(g.tileHp[i]<=0){
     g.tiles[i]=TILE_EMPTY;
     g.tileHp[i]=0;
     g.navigationVersion++;
     for(const e of g.enemies){
-      if(dist2(e.x,e.y,tx*TILE+TILE/2,ty*TILE+TILE/2)<520*520) e.pathTimer=0;
+      if(dist2(e.x,e.y,cx,cy)<520*520) e.pathTimer=0;
     }
     shake = Math.max(shake, 2.5);
     sfx('rockBreak', 0.85);
-    for(let k=0;k<10;k++) addParticle(g, tx*TILE+TILE/2, ty*TILE+TILE/2, rand(-120,120), rand(-120,120), '#8b735e', rand(0.28,0.6), rand(2,6));
+    for(let k=0;k<10;k++) addParticle(g, cx, cy, rand(-120,120), rand(-120,120), '#8b735e', rand(0.28,0.6), rand(2,6));
     if(t===TILE_GOLD){ const amount=randi(2,5); g.gold += amount; addObjectiveProgress(g,'mine_gild_shards',amount); saveProfile.statistics.totalOreMined+=amount; floating(g,tx*TILE+18,ty*TILE+12,'+Gild Shards',MINERALS.gild.color); sfx('mineral'); }
     if(t===TILE_NITRA){ g.nitra += randi(1,3); floating(g,tx*TILE+18,ty*TILE+12,'+Voltarite',MINERALS.voltarite.color); sfx('mineral'); }
     if(t===TILE_CRYSTAL){ dropPickup(g,tx*TILE+18,ty*TILE+18,'xp',12); floating(g,tx*TILE+18,ty*TILE+12,'+Echo Shards',MINERALS.echo.color); sfx('mineral'); }
@@ -93,24 +315,48 @@ function mineAhead(g,p,dx,dy,dt){
 }
 
 function moveCircle(g,obj,dx,dy){
-  obj.x = tryMoveAxis(g,obj,dx,0).x;
-  obj.y = tryMoveAxis(g,obj,0,dy).y;
-  obj.x=clamp(obj.x,obj.r+TILE,WORLD_W-obj.r-TILE);
-  obj.y=clamp(obj.y,obj.r+TILE,WORLD_H-obj.r-TILE);
+  const oldX=obj.x, oldY=obj.y;
+  const movedX = tryMoveAxis(g,obj,dx,0);
+  obj.x = movedX.x;
+  const movedY = tryMoveAxis(g,obj,0,dy);
+  obj.y = movedY.y;
+
+  // Subtle corner push assist: if diagonal motion was blocked by a tile corner,
+  // nudge toward nearby open clearance without allowing wall penetration.
+  if(obj===g.player && dx && dy && (Math.abs(obj.x-(oldX+dx))>0.5 || Math.abs(obj.y-(oldY+dy))>0.5)){
+    applyCornerPushAssist(g,obj,dx,dy);
+  }
+  const r=obj.collisionR || obj.r;
+  obj.x=clamp(obj.x,r+TILE,WORLD_W-r-TILE);
+  obj.y=clamp(obj.y,r+TILE,WORLD_H-r-TILE);
 }
+
+function applyCornerPushAssist(g,obj,dx,dy){
+  const r=obj.collisionR || obj.r;
+  const tries=[
+    {x:0,y:Math.sign(dy)*5},{x:Math.sign(dx)*5,y:0},
+    {x:0,y:-Math.sign(dy)*5},{x:-Math.sign(dx)*5,y:0}
+  ];
+  for(const n of tries){
+    const nx=obj.x+n.x, ny=obj.y+n.y;
+    if(circleClearOfSolids(g,nx,ny,r)){ obj.x=nx; obj.y=ny; return; }
+  }
+}
+
 function tryMoveAxis(g,obj,dx,dy){
   let nx=obj.x+dx, ny=obj.y+dy;
-  const minx=Math.floor((nx-obj.r)/TILE), maxx=Math.floor((nx+obj.r)/TILE);
-  const miny=Math.floor((ny-obj.r)/TILE), maxy=Math.floor((ny+obj.r)/TILE);
+  const r=obj.collisionR || obj.r;
+  const minx=Math.floor((nx-r)/TILE), maxx=Math.floor((nx+r)/TILE);
+  const miny=Math.floor((ny-r)/TILE), maxy=Math.floor((ny+r)/TILE);
   for(let ty=miny;ty<=maxy;ty++) for(let tx=minx;tx<=maxx;tx++){
     if(isSolid(tileAt(g,tx,ty))){
       const rx=tx*TILE, ry=ty*TILE;
       const cx=clamp(nx,rx,rx+TILE), cy=clamp(ny,ry,ry+TILE);
-      if(dist2(nx,ny,cx,cy)<obj.r*obj.r){
-        if(dx>0) nx=rx-obj.r-0.1;
-        if(dx<0) nx=rx+TILE+obj.r+0.1;
-        if(dy>0) ny=ry-obj.r-0.1;
-        if(dy<0) ny=ry+TILE+obj.r+0.1;
+      if(dist2(nx,ny,cx,cy)<r*r){
+        if(dx>0) nx=rx-r-0.1;
+        if(dx<0) nx=rx+TILE+r+0.1;
+        if(dy>0) ny=ry-r-0.1;
+        if(dy<0) ny=ry+TILE+r+0.1;
       }
     }
   }
@@ -284,27 +530,42 @@ function ensureBossSpawnPocket(g,x,y){
 
 function updateSpawning(g,dt){
   const minute = Math.floor(g.time/60);
+  const stage = Math.max(0, g.time/60);
   g.spawnTimer -= dt;
   const spawnMul=g.missionDifficulty?.enemySpawnRateMultiplier || 1;
-  const rate = Math.max(0.16, (1.15 - minute*0.11)/spawnMul);
+
+  // Gentler early-game ramp: first minute is sparse, then the cadence and
+  // group size increase smoothly. Later stages still become intense.
+  const baseRate = g.time<30 ? 2.45 : g.time<60 ? 1.85 : g.time<150 ? 1.28 : 0.92;
+  const rate = Math.max(0.22, (baseRate - minute*0.075)/spawnMul);
   if(g.spawnTimer<=0){
-    g.spawnTimer=rate;
+    g.spawnTimer=rate*rand(0.82,1.22);
     const roll=Math.random();
-    const amount = 1 + Math.floor(minute*0.7);
-    if(roll<0.45) spawnBurst(g,amount,'grunt');
-    else if(roll<0.70) spawnBurst(g,amount+2,'swarmer');
-    else if(roll<0.88) spawnBurst(g,Math.max(1,Math.floor(amount/2)),'guard');
-    else spawnBurst(g,Math.max(1,Math.floor(amount/2)),'exploder');
+    const amount = Math.max(1, Math.floor(1 + stage*0.55 + g.level*0.10));
+    if(g.time<35){
+      if(roll<0.75) spawnBurst(g,1,'grunt');
+      else spawnBurst(g,2,'swarmer');
+    } else if(g.time<90){
+      if(roll<0.52) spawnBurst(g,amount,'grunt');
+      else if(roll<0.82) spawnBurst(g,amount+1,'swarmer');
+      else spawnBurst(g,1,'guard');
+    } else {
+      if(roll<0.42) spawnBurst(g,amount,'grunt');
+      else if(roll<0.68) spawnBurst(g,amount+2,'swarmer');
+      else if(roll<0.88) spawnBurst(g,Math.max(1,Math.floor(amount/2)),'guard');
+      else spawnBurst(g,Math.max(1,Math.floor(amount/2)),'exploder');
+    }
   }
   if(g.time > g.eliteTimer){
-    g.eliteTimer += 75;
+    g.eliteTimer += Math.max(54, 82 - minute*3);
     spawnBurst(g,1,'elite');
     log(g,'Hollow Tyrant detected!');
     sfx('elite');
   }
   if(g.time > g.nextWave){
-    g.nextWave += 45;
-    spawnBurst(g,8+minute*3,'swarmer');
+    g.nextWave += Math.max(34, 52 - minute*2);
+    const waveCount = g.time<70 ? 4+minute*2 : 8+minute*3;
+    spawnBurst(g,waveCount,'swarmer');
     log(g,'Swarm wave incoming!');
     sfx('wave');
   }
@@ -1102,7 +1363,7 @@ function updateEnemies(g,dt){
   for(const e of g.enemies){
     e.hitFlash=Math.max(0,e.hitFlash-dt);
     e.slow=Math.max(0,e.slow-dt);
-    updateEliteRangedAttack(g,e,dt);
+    updateEnemyRangedAttack(g,e,dt);
     const moved=Math.hypot(e.x-e.lastX,e.y-e.lastY);
     if(moved<4) e.stuckTimer+=dt; else { e.stuckTimer=0; e.lastX=e.x; e.lastY=e.y; }
     e.pathTimer-=dt;
@@ -1177,8 +1438,28 @@ function updateEnemies(g,dt){
   }
 }
 
+function smallEnemyProjectileConfig(g,e){
+  if(e.type==='elite' || e.type==='boss') return null;
+  if(e.type==='exploder') return null;
+  if(g.debug && g.debug.enemyBulletsEnabled===false) return null;
+  const stage=Math.max(0,g.time/60);
+  const runLevel=g.runIndex || 1;
+  const mission=g.missionIndex || 1;
+  const earlyFactor = g.time<60 ? 0.55 : g.time<150 ? 0.82 : 1.0;
+  const typeMul = e.type==='swarmer' ? 0.78 : e.type==='guard' ? 1.15 : 1.0;
+  return {
+    cooldown:(7.2/(typeMul*earlyFactor))/(1+stage*0.13+runLevel*0.05+(mission-1)*0.025),
+    speed:(205 + stage*9 + runLevel*6) * (e.type==='swarmer'?0.92:1),
+    damage:Math.round(clamp(3 + stage*0.75 + (mission-1)*0.45 + (e.type==='guard'?2:0),3,8)),
+    fireChance:clamp(0.18 + stage*0.045 + g.level*0.012,0.18,0.58),
+    color:'#ff2f2f',
+    radius:e.type==='guard'?4.5:3.5
+  };
+}
+
 function eliteProjectileConfig(g,e){
   if(e.type!=='elite' && e.type!=='boss') return null;
+  if(g.debug && g.debug.enemyBulletsEnabled===false) return null;
   const runLevel=g.runIndex || 1;
   const mission=g.missionIndex || 1;
   const destructive=e.type==='boss' || runLevel>=3;
@@ -1187,36 +1468,44 @@ function eliteProjectileConfig(g,e){
     speed:(e.type==='boss'?360:300)*(1+runLevel*0.05),
     damage:Math.round((e.type==='boss'?18:12)*(1+(mission-1)*0.08)),
     destructive,
-    color:destructive?'#ff9f43':'#ff4fd8',
+    color:destructive?'#ff7038':'#ff3636',
     radius:destructive?7:5
   };
 }
 
-function updateEliteRangedAttack(g,e,dt){
-  const cfg=eliteProjectileConfig(g,e);
+function updateEnemyRangedAttack(g,e,dt){
+  const cfg = eliteProjectileConfig(g,e) || smallEnemyProjectileConfig(g,e);
   if(!cfg || e.hp<=0) return;
   e.rangedCd-=dt;
   const p=g.player;
   const d=Math.hypot(p.x-e.x,p.y-e.y);
-  if(d<190 || d>850 || e.rangedCd>0) return;
-  e.rangedCd=rand(cfg.cooldown*0.75,cfg.cooldown*1.25);
-  const a=Math.atan2(p.y-e.y,p.x-e.x)+rand(-0.10,0.10);
+  const minRange=(e.type==='elite'||e.type==='boss')?190:150;
+  const maxRange=(e.type==='elite'||e.type==='boss')?850:620;
+  if(d<minRange || d>maxRange || e.rangedCd>0) return;
+  if(e.type!=='elite' && e.type!=='boss' && Math.random()>cfg.fireChance){
+    e.rangedCd=rand(cfg.cooldown*0.65,cfg.cooldown*1.15);
+    return;
+  }
+  e.rangedCd=rand(cfg.cooldown*0.82,cfg.cooldown*1.28);
+  const spread=(e.type==='elite'||e.type==='boss')?0.10:0.18;
+  const a=Math.atan2(p.y-e.y,p.x-e.x)+rand(-spread,spread);
   g.enemyBullets.push({
     x:e.x+Math.cos(a)*(e.r+8), y:e.y+Math.sin(a)*(e.r+8),
     vx:Math.cos(a)*cfg.speed, vy:Math.sin(a)*cfg.speed,
-    r:cfg.radius, life:e.type==='boss'?3.4:2.8, damage:cfg.damage,
-    destructive:cfg.destructive, color:cfg.color
+    r:cfg.radius, life:e.type==='boss'?3.4:(e.type==='elite'?2.8:2.4), damage:cfg.damage,
+    destructive:!!cfg.destructive, color:cfg.color,
+    small:e.type!=='elite' && e.type!=='boss'
   });
-  addRing(g,e.x,e.y,cfg.destructive?'rgba(255,159,67,0.75)':'rgba(255,79,216,0.65)',0.18,e.r,e.r+22,3);
-  sfx('shoot',0.45);
+  addRing(g,e.x,e.y,cfg.destructive?'rgba(255,112,56,0.72)':'rgba(255,54,54,0.52)',0.14,e.r,e.r+(cfg.small?13:22),cfg.small?2:3);
+  sfx('shoot',cfg.small?0.28:0.45);
 }
 
 function destroyTileByEnemyProjectile(g,tx,ty){
   if(!inMap(tx,ty)) return false;
   const i=tileIdx(tx,ty);
   const t=g.tiles[i];
-  if(t===TILE_HARD || t===TILE_EMPTY) return false;
-  if(!isSolid(t)) return false;
+  if(t===TILE_HARD || t===TILE_EMPTY || t===TILE_LAVA_ROCK) return false;
+  if(!isMineableForPlayer(t)) return false;
   const wasOre=t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL;
   g.tiles[i]=TILE_EMPTY;
   g.tileHp[i]=0;

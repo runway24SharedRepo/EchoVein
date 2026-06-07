@@ -108,6 +108,55 @@ function debugAddVoltarite(){ debugAddResource('voltarite',50); }
 function debugResetCooldowns(){ if(requireGame()){ game.player.dashCd=0; game.player.trapCd=0; for(const w of game.weapons) w.cd=0; debugLog('Reset cooldowns.'); updateGameAfterDebug(); } }
 function debugToggleEnemyPaths(){ if(requireGame()){ game.debug.showEnemyPaths=!game.debug.showEnemyPaths; debugLog(`Enemy path debug ${game.debug.showEnemyPaths ? 'enabled' : 'disabled'}.`); updateGameAfterDebug(); } }
 
+function debugToggleEnemyBullets(){ if(requireGame()){ game.debug.enemyBulletsEnabled = game.debug.enemyBulletsEnabled===false ? true : false; debugLog(`Enemy bullets ${game.debug.enemyBulletsEnabled ? 'enabled' : 'disabled'}.`); updateGameAfterDebug(); } }
+function debugToggleEnemyBulletHitboxes(){ if(requireGame()){ game.debug.showEnemyBulletHitboxes=!game.debug.showEnemyBulletHitboxes; debugLog(`Enemy bullet hitboxes ${game.debug.showEnemyBulletHitboxes ? 'enabled' : 'disabled'}.`); updateGameAfterDebug(); } }
+function debugToggleMiningArc(){ if(requireGame()){ game.debug.showMiningArc=!game.debug.showMiningArc; debugLog(`Mining contact arc debug ${game.debug.showMiningArc ? 'enabled' : 'disabled'}.`); updateGameAfterDebug(); } }
+function debugToggleLowSpeedMining(){ if(requireGame()){ game.debug.lowSpeedMiningTest=!game.debug.lowSpeedMiningTest; debugLog(`Low-speed mining test ${game.debug.lowSpeedMiningTest ? 'enabled' : 'disabled'}.`); updateGameAfterDebug(); } }
+function debugSpawnSmallRanged(){ debugSpawnEnemies('grunt',8); debugLog('Spawned small ranged test enemies.'); }
+function debugSpawnManySmall(){ debugSpawnEnemies('swarmer',24); debugLog('Spawned many small enemies.'); }
+
+
+function debugMiningTestArea(kind='corner'){
+  if(!requireGame()) return;
+  const p=game.player;
+  const cx=Math.floor(p.x/TILE), cy=Math.floor(p.y/TILE);
+  // Clear a small lab pocket around the player first.
+  for(let y=cy-5;y<=cy+5;y++) for(let x=cx-5;x<=cx+7;x++){
+    if(!inMap(x,y)) continue;
+    const i=tileIdx(x,y);
+    if(game.tiles[i]!==TILE_HARD){ game.tiles[i]=TILE_EMPTY; game.tileHp[i]=0; }
+  }
+  const putRock=(x,y,type=TILE_ROCK,hp=24)=>{ if(inMap(x,y)){ const i=tileIdx(x,y); game.tiles[i]=type; game.tileHp[i]=hp; } };
+
+  if(kind==='corner'){
+    putRock(cx+3,cy-1); putRock(cx+3,cy); putRock(cx+4,cy); putRock(cx+4,cy+1);
+    p.x=(cx+0.5)*TILE; p.y=(cy+0.5)*TILE;
+    debugLog('Mining test: low-speed block corner. Move diagonally/right into the corner.');
+  } else if(kind==='wall'){
+    for(let y=cy-3;y<=cy+3;y++) putRock(cx+3,y);
+    p.x=(cx+0.5)*TILE; p.y=(cy+0.5)*TILE;
+    debugLog('Mining test: scrape along mineable wall while holding input toward it.');
+  } else if(kind==='tunnel'){
+    for(let x=cx+2;x<=cx+8;x++) for(let y=cy-1;y<=cy+1;y++) putRock(x,y);
+    p.x=(cx+0.5)*TILE; p.y=(cy+0.5)*TILE;
+    debugLog('Mining test: one-tile tunnel start. Push right and observe sticky mining.');
+  } else if(kind==='lava'){
+    for(let y=cy-2;y<=cy+2;y++) putRock(cx+3,y,TILE_LAVA_ROCK,9999);
+    p.x=(cx+0.5)*TILE; p.y=(cy+0.5)*TILE;
+    debugLog('Mining test: non-mineable Lava Rock. It should slide, not mine.');
+  }
+  game.navigationVersion++;
+  game.debug.showMiningArc=true;
+  game.debug.lowSpeedMiningTest=true;
+  p.miningLock=null;
+  p.drillPressure=0;
+  updateGameAfterDebug();
+}
+function debugMiningCornerTest(){ debugMiningTestArea('corner'); }
+function debugMiningWallTest(){ debugMiningTestArea('wall'); }
+function debugMiningTunnelTest(){ debugMiningTestArea('tunnel'); }
+function debugMiningLavaTest(){ debugMiningTestArea('lava'); }
+
 function debugHammerfallWeapon(create=false){
   if(!requireGame()) return null;
   let w=game.weapons.find(w=>w.id==='hammerfallSalvo');
@@ -141,6 +190,19 @@ window.debugHammerfall = {
   fuel: debugHammerfallFuel,
   accuracy: debugHammerfallAccuracy,
   fire: debugHammerfallFireNow
+};
+
+window.debugMovement = {
+  miningArc: debugToggleMiningArc,
+  lowSpeed: debugToggleLowSpeedMining,
+  bullets: debugToggleEnemyBullets,
+  bulletHitboxes: debugToggleEnemyBulletHitboxes,
+  spawnSmallRanged: debugSpawnSmallRanged,
+  spawnManySmall: debugSpawnManySmall,
+  testCorner: debugMiningCornerTest,
+  testWall: debugMiningWallTest,
+  testTunnel: debugMiningTunnelTest,
+  testLava: debugMiningLavaTest
 };
 
 function debugResetAbilities(){
@@ -222,12 +284,24 @@ function buildDebugPanel(){
   ]);
   addDebugSection(panel,'Spawns & Clears',[
     makeDebugButton('Spawn 5 weak enemies',()=>debugSpawnEnemies('grunt',5)),
+    makeDebugButton('Spawn small ranged pack',debugSpawnSmallRanged),
+    makeDebugButton('Spawn many small enemies',debugSpawnManySmall),
     makeDebugButton('Spawn 1 elite enemy',()=>debugSpawnEnemies('elite',1)),
     makeDebugButton('Spawn XP cluster',debugSpawnXpCluster),
     makeDebugButton('Spawn Voltarite node',debugSpawnVoltariteNode),
     makeDebugButton('Clear enemies',debugClearEnemies),
     makeDebugButton('Clear pickups',debugClearPickups),
     makeDebugButton('Clear projectiles',debugClearProjectiles)
+  ]);
+  addDebugSection(panel,'Movement, Mining & Enemy Bullets',[
+    makeDebugButton('Toggle Mining Contact Arc',debugToggleMiningArc),
+    makeDebugButton('Toggle Low-Speed Mining Test',debugToggleLowSpeedMining),
+    makeDebugButton('Mining Test: Corner',debugMiningCornerTest),
+    makeDebugButton('Mining Test: Wall Scrape',debugMiningWallTest),
+    makeDebugButton('Mining Test: One-Tile Tunnel',debugMiningTunnelTest),
+    makeDebugButton('Mining Test: Lava Rock Slide',debugMiningLavaTest),
+    makeDebugButton('Toggle Enemy Bullets',debugToggleEnemyBullets),
+    makeDebugButton('Toggle Enemy Bullet Hitboxes',debugToggleEnemyBulletHitboxes)
   ]);
   addDebugSection(panel,'Pathfinding',[
     makeDebugButton('Toggle Show Enemy Paths',debugToggleEnemyPaths)

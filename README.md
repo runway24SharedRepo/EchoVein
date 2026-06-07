@@ -59,3 +59,22 @@ The scripts are loaded in dependency order using normal browser scripts, not a b
 ## Hammerfall Salvo
 
 Bulwark can unlock Hammerfall Salvo, a guided missile salvo weapon with target locks, curved flight, retargeting, and upgrade cards for damage, speed, fuel, missile count, and accuracy.
+
+
+## Upgrade menu and lava obstacles update
+
+- Permanent upgrades are now grouped by category in a table layout.
+- Buy buttons are disabled and greyed out when resources are insufficient.
+- Mining uses a forward assist cone so corner mining feels smoother.
+- Player collision uses a smaller collision radius and corner push assist for smoother tunnel movement.
+- Lava Rock is a non-mineable, blocking obstacle tile placed inside open cave areas.
+
+## Movement / Mining / Enemy Bullet update
+
+This build improves low-speed mining contact by evaluating the player's intended input direction before collision sliding. Mining uses a wider forward contact fan, stores optional debug samples, and reduces tangential wall-skating while drilling into mineable blocks.
+
+Enemy pressure now ramps up more gradually during the first minutes of a run. Small enemies can fire low-damage red bullets at low frequency, while elite and boss bullets remain larger, brighter red/red-orange projectiles. Debug tools can toggle enemy bullets, show enemy bullet hitboxes, show the mining contact arc, and enable a low-speed mining test mode.
+
+## v2 Low-Speed Mining Contact Update
+
+This build improves mining contact at low movement speeds. Mining now uses the intended input direction before collision resolution, a wider fan/contact candidate scan, true circle-to-tile-corner contact checks, and a short sticky mining lock so the active rock target does not flicker while pushing into corners. Debug tools include mining arc visualisation and repeatable corner/wall/tunnel/lava test pockets.

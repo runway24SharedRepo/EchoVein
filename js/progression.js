@@ -11,16 +11,16 @@ let appState = 'STARTUP';
 let saveProfile = null;
 
 const PERMANENT_UPGRADES = [
-  { id:'maxHealth', name:'Reinforced Suit', desc:'+5% max HP per level.', ore:'ferronRoot', max:20 },
-  { id:'armour', name:'Impact Weave', desc:'Reduces contact damage by 2% per level.', ore:'ferronRoot', max:15 },
-  { id:'moveSpeed', name:'Vector Servos', desc:'+2.5% movement speed per level.', ore:'lumicite', max:15 },
-  { id:'miningSpeed', name:'Bore Calibration', desc:'+4% mining speed per level.', ore:'echoQuartz', max:15 },
-  { id:'weaponDamage', name:'Weapon Harmonics', desc:'+3% weapon damage per level.', ore:'umbralAlloy', max:20 },
-  { id:'fireRate', name:'Trigger Relays', desc:'+2% fire rate per level.', ore:'voltarite', max:15 },
-  { id:'pickupRadius', name:'Resonance Net', desc:'+5% pickup radius per level.', ore:'echoQuartz', max:12 },
-  { id:'droneEfficiency', name:'Drone Uplinks', desc:'+4% drone damage and speed per level.', ore:'umbralAlloy', max:12 },
-  { id:'trapEffectiveness', name:'Trap Matrices', desc:'+5% trap damage and radius per level.', ore:'pyroclastCore', max:12 },
-  { id:'arcDamage', name:'Arc Capacitors', desc:'+5% electric/arc damage per level.', ore:'voltarite', max:12 },
+  { id:'maxHealth', category:'Player Core', name:'Reinforced Suit', desc:'+5% max HP per level.', next:'Another +5% max HP.', ore:'ferronRoot', max:20 },
+  { id:'armour', category:'Player Core', name:'Impact Weave', desc:'Reduces contact damage by 2% per level.', next:'Another -2% contact damage.', ore:'ferronRoot', max:15 },
+  { id:'moveSpeed', category:'Player Core', name:'Vector Servos', desc:'+2.5% movement speed per level.', next:'Another +2.5% movement speed.', ore:'lumicite', max:15 },
+  { id:'miningSpeed', category:'Mining', name:'Bore Calibration', desc:'+4% mining speed per level.', next:'Another +4% mining speed.', ore:'echoQuartz', max:15 },
+  { id:'weaponDamage', category:'Weapons', name:'Weapon Harmonics', desc:'+3% weapon damage per level.', next:'Another +3% weapon damage.', ore:'umbralAlloy', max:20 },
+  { id:'fireRate', category:'Weapons', name:'Trigger Relays', desc:'+2% fire rate per level.', next:'Another +2% fire rate.', ore:'voltarite', max:15 },
+  { id:'pickupRadius', category:'Utility', name:'Resonance Net', desc:'+5% pickup radius per level.', next:'Another +5% pickup range.', ore:'echoQuartz', max:12 },
+  { id:'droneEfficiency', category:'Drones', name:'Drone Uplinks', desc:'+4% drone damage and speed per level.', next:'Another +4% drone efficiency.', ore:'umbralAlloy', max:12 },
+  { id:'trapEffectiveness', category:'Character-Specific', name:'Trap Matrices', desc:'+5% trap damage and radius per level.', next:'Another +5% trap output.', ore:'pyroclastCore', max:12 },
+  { id:'arcDamage', category:'Weapons', name:'Arc Capacitors', desc:'+5% electric/arc damage per level.', next:'Another +5% arc damage.', ore:'voltarite', max:12 },
 ];
 
 function defaultResources(){
@@ -319,27 +319,80 @@ function showCreditsMenu(){
   addMenuButton('Back',showMainMenu);
 }
 
+
+function renderUpgradeCost(cost){
+  return Object.entries(cost).map(([id,amount])=>{
+    const have=saveProfile.resources[id] || 0;
+    const ok=have>=amount;
+    return `<span class="costLine ${ok?'ok':'missing'}">${resourceLabel(id)}: ${have} / ${amount}</span>`;
+  }).join('');
+}
+
+function groupedPermanentUpgrades(){
+  const order=['Player Core','Mining','Weapons','Drones','Utility','Character-Specific'];
+  const groups=new Map(order.map(name=>[name,[]]));
+  for(const up of PERMANENT_UPGRADES){
+    const key=up.category || 'Utility';
+    if(!groups.has(key)) groups.set(key,[]);
+    groups.get(key).push(up);
+  }
+  return [...groups.entries()].filter(([,items])=>items.length);
+}
+
 function showUpgradesMenu(){
   appState='UPGRADES_MENU';
-  setMenu('Permanent Upgrades','Spend banked resources on account-wide upgrades. These bonuses are smaller than in-run upgrades and apply before each run starts.');
+  setMenu('Permanent Upgrades','Spend banked resources on account-wide upgrades. Upgrades are grouped by type; unavailable purchases are disabled until you have enough resources.');
   ui.menuMeta.innerHTML=`<div class="resourceStrip">${renderResourceLine()}</div>`;
-  const grid=document.createElement('div');
-  grid.className='upgradeGrid';
-  for(const up of PERMANENT_UPGRADES){
-    const level=saveProfile.permanentUpgrades[up.id] || 0;
-    const cost=permanentUpgradeCost(up);
-    const affordable=canAfford(cost);
-    const card=document.createElement('div');
-    card.className='upgradeRow';
-    card.innerHTML=`<div><h3>${up.name}</h3><p>${up.desc}</p><span>Level ${level}/${up.max}</span></div><div class="cost">${Object.entries(cost).map(([id,amount])=>`${resourceLabel(id)} ${amount}`).join('<br>')}</div>`;
-    const btn=document.createElement('button');
-    btn.textContent=level>=up.max?'Maxed':'Buy';
-    btn.disabled=level>=up.max || !affordable;
-    btn.onclick=()=>buyPermanentUpgrade(up.id);
-    card.appendChild(btn);
-    grid.appendChild(card);
+
+  const wrapper=document.createElement('div');
+  wrapper.className='upgradeTableWrap';
+
+  for(const [category,items] of groupedPermanentUpgrades()){
+    const section=document.createElement('section');
+    section.className='upgradeCategorySection';
+    section.innerHTML=`<h3>${category}</h3>`;
+
+    const table=document.createElement('table');
+    table.className='upgradeTable';
+    table.innerHTML='<thead><tr><th>Upgrade</th><th>Level</th><th>Current Effect</th><th>Next Effect</th><th>Cost</th><th>Action</th></tr></thead>';
+    const tbody=document.createElement('tbody');
+
+    const sorted=[...items].sort((a,b)=>{
+      const la=saveProfile.permanentUpgrades[a.id] || 0;
+      const lb=saveProfile.permanentUpgrades[b.id] || 0;
+      const sa=la>=a.max ? 2 : (canAfford(permanentUpgradeCost(a)) ? 0 : 1);
+      const sb=lb>=b.max ? 2 : (canAfford(permanentUpgradeCost(b)) ? 0 : 1);
+      return sa-sb;
+    });
+
+    for(const up of sorted){
+      const level=saveProfile.permanentUpgrades[up.id] || 0;
+      const cost=permanentUpgradeCost(up);
+      const affordable=canAfford(cost);
+      const maxed=level>=up.max;
+      const tr=document.createElement('tr');
+      tr.className=maxed?'maxed':(affordable?'affordable':'locked');
+      tr.innerHTML=`
+        <td><b>${up.name}</b><small>${up.category || category}</small></td>
+        <td>${level}/${up.max}</td>
+        <td>${up.desc}</td>
+        <td>${maxed?'Complete':(up.next || up.desc)}</td>
+        <td class="cost">${maxed?'—':renderUpgradeCost(cost)}</td>
+        <td></td>`;
+      const btn=document.createElement('button');
+      btn.className='buyBtn';
+      btn.textContent=maxed?'Maxed':(affordable?'Buy':'Not enough resources');
+      btn.disabled=maxed || !affordable;
+      btn.title=maxed?'Upgrade complete':(affordable?'Purchase upgrade':'Collect more resources to buy this upgrade');
+      btn.onclick=()=>{ if(!btn.disabled) buyPermanentUpgrade(up.id); };
+      tr.lastElementChild.appendChild(btn);
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    section.appendChild(table);
+    wrapper.appendChild(section);
   }
-  ui.menuContent.appendChild(grid);
+  ui.menuContent.appendChild(wrapper);
   addMenuButton('Back',showMainMenu);
 }
 
