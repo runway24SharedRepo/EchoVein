@@ -45,11 +45,13 @@ function render(g){
   const sx=(shake>0?rand(-shake,shake):0), sy=(shake>0?rand(-shake,shake):0);
   ctx.save(); ctx.translate(-cam.x+sx,-cam.y+sy);
   drawTiles(g,cam);
+  drawLavaDebugZones(g,cam);
   drawTraps(g);
   drawExtractionCraft(g);
   drawPickups(g);
   drawTargetLocks(g);
   drawMissiles(g);
+  drawEnemyBoomerangs(g);
   drawEnemyBullets(g);
   drawBullets(g);
   drawBoomerangs(g);
@@ -180,6 +182,20 @@ function drawTiles(g,cam){
   }
 }
 
+
+function drawLavaDebugZones(g,cam){
+  if(!g.debug?.showLavaZones) return;
+  const minx=clamp(Math.floor(cam.x/TILE)-1,0,MAP_W-1), maxx=clamp(Math.ceil((cam.x+innerWidth)/TILE)+1,0,MAP_W-1);
+  const miny=clamp(Math.floor(cam.y/TILE)-1,0,MAP_H-1), maxy=clamp(Math.ceil((cam.y+innerHeight)/TILE)+1,0,MAP_H-1);
+  ctx.save();
+  ctx.strokeStyle='rgba(255,112,56,0.82)';
+  ctx.lineWidth=2;
+  for(let y=miny;y<=maxy;y++) for(let x=minx;x<=maxx;x++) if(g.tiles[tileIdx(x,y)]===TILE_LAVA_ROCK){
+    ctx.strokeRect(x*TILE+2,y*TILE+2,TILE-4,TILE-4);
+  }
+  ctx.restore();
+}
+
 function drawPlayer(g){
   const p=g.player;
   ctx.save(); ctx.translate(p.x,p.y);
@@ -197,22 +213,60 @@ function drawPlayer(g){
 
 function drawEnemies(g){
   for(const e of g.enemies){
-    ctx.save(); ctx.translate(e.x,e.y);
-    ctx.fillStyle=e.hitFlash>0?'#fff':e.color;
-    ctx.shadowColor=e.color; ctx.shadowBlur=e.type==='boss'?28:(e.type==='elite'?18:6);
-    ctx.beginPath();
-    for(let i=0;i<8;i++){
-      const a=i*Math.PI*2/8;
-      const rr=e.r*(i%2?0.82:1.08);
-      ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);
+    ctx.save();
+    let shakeX=0, shakeY=0;
+    if(e.type==='hexShard' && e.detonationStarted){
+      const amp=e.shakeAmount || 4;
+      shakeX=rand(-amp,amp); shakeY=rand(-amp,amp);
     }
-    ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
+    ctx.translate(e.x+shakeX,e.y+shakeY);
+    if(e.type==='hexShard'){
+      const warning=e.detonationStarted;
+      const pulse=0.5+0.5*Math.sin(g.time*(warning?18:6)+e.phase);
+      ctx.fillStyle=e.hitFlash>0?'#fff':(warning?`rgba(255,112,56,${0.78+0.22*pulse})`:e.color);
+      ctx.strokeStyle=warning?'#ffe0a8':'rgba(255,220,170,0.82)';
+      ctx.lineWidth=warning?3:2;
+      ctx.shadowColor=warning?'#ff3d22':e.color;
+      ctx.shadowBlur=warning?26:10;
+      ctx.beginPath();
+      for(let i=0;i<6;i++){
+        const a=-Math.PI/6+i*Math.PI*2/6;
+        const rr=e.r*(warning?1+0.10*pulse:1);
+        const x=Math.cos(a)*rr, y=Math.sin(a)*rr;
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(0,0,0,0.38)';
+      ctx.beginPath(); ctx.arc(0,0,e.r*0.42,0,Math.PI*2); ctx.fill();
+      if(warning){
+        ctx.strokeStyle=`rgba(255,72,40,${0.42+0.42*pulse})`;
+        ctx.lineWidth=3;
+        ctx.beginPath(); ctx.arc(0,0,70+8*pulse,0,Math.PI*2); ctx.stroke();
+      }
+    } else {
+      ctx.fillStyle=e.hitFlash>0?'#fff':e.color;
+      ctx.shadowColor=e.color; ctx.shadowBlur=e.type==='boss'?28:(e.type==='elite'?18:6);
+      ctx.beginPath();
+      for(let i=0;i<8;i++){
+        const a=i*Math.PI*2/8;
+        const rr=e.r*(i%2?0.82:1.08);
+        ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);
+      }
+      ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
+    }
     ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(-e.r,-e.r-10,e.r*2,4);
     ctx.fillStyle='#ff5b5b'; ctx.fillRect(-e.r,-e.r-10,e.r*2*clamp(e.hp/e.maxHp,0,1),4);
     if(e.type==='boss'){
       ctx.strokeStyle='rgba(255,255,255,0.75)';
       ctx.lineWidth=3;
       ctx.beginPath(); ctx.arc(0,0,e.r+8+Math.sin(g.time*5)*3,0,Math.PI*2); ctx.stroke();
+    }
+    if(g.debug?.showHexRanges && e.type==='hexShard'){
+      ctx.shadowBlur=0;
+      ctx.strokeStyle='rgba(255,112,56,0.32)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(0,0,70,0,Math.PI*2); ctx.stroke();
+      ctx.strokeStyle='rgba(255,200,80,0.18)';
+      ctx.beginPath(); ctx.arc(0,0,420,0,Math.PI*2); ctx.stroke();
     }
     ctx.restore();
   }
@@ -273,6 +327,32 @@ function drawBullets(g){
     ctx.lineWidth=b.rail?4:2;
     ctx.beginPath(); ctx.moveTo(b.x-b.vx*0.025,b.y-b.vy*0.025); ctx.lineTo(b.x,b.y); ctx.stroke();
     ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill();
+  }
+}
+
+
+function drawEnemyBoomerangs(g){
+  for(const b of g.enemyBoomerangs || []){
+    ctx.save();
+    ctx.strokeStyle='rgba(255,112,56,0.40)';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    for(let i=0;i<b.trail.length;i++){
+      const t=b.trail[i];
+      if(i===0) ctx.moveTo(t.x,t.y); else ctx.lineTo(t.x,t.y);
+    }
+    ctx.stroke();
+    ctx.translate(b.x,b.y);
+    ctx.rotate(Math.atan2(b.vy,b.vx)+Math.PI/2);
+    ctx.fillStyle=b.color || '#ff7038';
+    ctx.strokeStyle='rgba(255,235,185,0.85)';
+    ctx.shadowColor=b.color || '#ff7038';
+    ctx.shadowBlur=14;
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(0,-10); ctx.lineTo(8,2); ctx.lineTo(0,8); ctx.lineTo(-8,2); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
   }
 }
 

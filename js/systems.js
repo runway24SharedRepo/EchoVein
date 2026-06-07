@@ -177,10 +177,12 @@ function update(g,dt){
   logTimeout = Math.max(0, logTimeout-dt);
   updateGamepadActions(g);
   updatePlayer(g,dt);
+  updateLavaContactDamage(g,dt);
   updateWeapons(g,dt);
   updateWardenDrones(g,dt);
   updateSifterDrones(g,dt);
   updateEnemies(g,dt);
+  updateEnemyBoomerangs(g,dt);
   updateEnemyBullets(g,dt);
   updateMissiles(g,dt);
   if(g.state !== 'playing') return;
@@ -283,6 +285,41 @@ function updatePlayer(g,dt){
     mineTile(g,p,miningTarget.tx,miningTarget.ty,dt);
   } else if(!hasInput || !isMiningLockStillUseful(g,p,dx,dy,p.miningLock,lowSpeedMining)){
     if(p.miningLock && p.miningLock.timer<=0) p.miningLock=null;
+  }
+}
+
+
+function updateLavaContactDamage(g,dt){
+  const p=g.player;
+  p.lavaDamageCd=Math.max(0,(p.lavaDamageCd || 0)-dt);
+  if(g.debug && g.debug.lavaDamageEnabled===false) return;
+  const r=p.collisionR || p.r;
+  const minx=Math.floor((p.x-r-2)/TILE), maxx=Math.floor((p.x+r+2)/TILE);
+  const miny=Math.floor((p.y-r-2)/TILE), maxy=Math.floor((p.y+r+2)/TILE);
+  let hit=null;
+  for(let ty=miny;ty<=maxy && !hit;ty++) for(let tx=minx;tx<=maxx;tx++){
+    if(tileAt(g,tx,ty)!==TILE_LAVA_ROCK) continue;
+    const rx=tx*TILE, ry=ty*TILE;
+    const cx=clamp(p.x,rx,rx+TILE), cy=clamp(p.y,ry,ry+TILE);
+    if(dist2(p.x,p.y,cx,cy)<(r+1)*(r+1)){ hit={tx,ty,cx,cy}; break; }
+  }
+  if(!hit) return;
+  if(p.lavaDamageCd<=0){
+    const damage=Math.max(1,Math.round(10*(p.armourMul || 1)));
+    p.hp-=damage;
+    p.lavaDamageCd=0.72;
+    p.iframes=Math.max(p.iframes,0.22);
+    flashDamage();
+    floating(g,p.x,p.y-24,`-${damage} heat`,'#ff7a38');
+    sfx('lavaBurn',0.9);
+    const cx=hit.tx*TILE+TILE/2, cy=hit.ty*TILE+TILE/2;
+    const dx=p.x-cx, dy=p.y-cy, l=len(dx,dy);
+    p.x+=dx/l*9;
+    p.y+=dy/l*9;
+    shake=Math.max(shake,4);
+    for(let k=0;k<12;k++) addParticle(g,hit.cx,hit.cy,rand(-80,80),rand(-80,80),'#ff7038',rand(0.15,0.38),rand(2,6),'spark');
+    addRing(g,hit.cx,hit.cy,'rgba(255,112,56,0.72)',0.18,5,28,3);
+    if(p.hp<=0) gameOver(g);
   }
 }
 
@@ -771,7 +808,9 @@ function updateSpawning(g,dt){
       else if(roll<0.82) spawnBurst(g,amount+1,'swarmer');
       else spawnBurst(g,1,'guard');
     } else {
-      if(roll<0.42) spawnBurst(g,amount,'grunt');
+      const hexChance = clamp(0.04 + (g.hollowPressure||0)*0.025 + Math.max(0,minute-2)*0.01, 0.04, 0.18);
+      if(roll<hexChance && g.time>120) spawnBurst(g,1,'hexShard');
+      else if(roll<0.42) spawnBurst(g,amount,'grunt');
       else if(roll<0.68) spawnBurst(g,amount+2,'swarmer');
       else if(roll<0.88) spawnBurst(g,Math.max(1,Math.floor(amount/2)),'guard');
       else spawnBurst(g,Math.max(1,Math.floor(amount/2)),'exploder');
@@ -1613,6 +1652,10 @@ function updateEnemies(g,dt){
   for(const e of g.enemies){
     e.hitFlash=Math.max(0,e.hitFlash-dt);
     e.slow=Math.max(0,e.slow-dt);
+    if(e.type==='hexShard'){
+      updateHexShardEnemy(g,e,dt);
+      continue;
+    }
     updateEnemyRangedAttack(g,e,dt);
     const moved=Math.hypot(e.x-e.lastX,e.y-e.lastY);
     if(moved<4) e.stuckTimer+=dt; else { e.stuckTimer=0; e.lastX=e.x; e.lastY=e.y; }
@@ -1687,8 +1730,154 @@ function updateEnemies(g,dt){
   }
   for(let i=g.enemies.length-1;i>=0;i--){
     const e=g.enemies[i];
-    if(e.hp<=0){ killEnemy(g,e); g.enemies.splice(i,1); }
+    if(e.hp<=0){ if(!e.noDrop) killEnemy(g,e); g.enemies.splice(i,1); }
   }
+}
+
+
+function updateHexShardEnemy(g,e,dt){
+  const p=g.player;
+  const pressure=g.hollowPressure || 0;
+  const triggerR=70 + Math.min(18,pressure*3);
+  const explosionR=95 + Math.min(28,pressure*5);
+  const d=Math.hypot(p.x-e.x,p.y-e.y);
+
+  if(!e.detonationStarted && d<=triggerR){
+    e.detonationStarted=true;
+    e.state='detonationWarning';
+    e.detonationTimer=1.05;
+    e.warningSoundTimer=0;
+    e.boomerangCd=999;
+    sfx('hexBlip',1.0);
+    log(g,'Hex Shard destabilising!');
+  }
+
+  if(e.detonationStarted){
+    e.detonationTimer-=dt;
+    e.warningSoundTimer-=dt;
+    e.shakeAmount=5+Math.max(0,1-e.detonationTimer/1.05)*8;
+    if(e.warningSoundTimer<=0){
+      e.warningSoundTimer=Math.max(0.14,0.34*clamp(e.detonationTimer/1.05,0.35,1));
+      sfx('hexBlip',0.75+0.4*(1-e.detonationTimer/1.05));
+    }
+    const dx=p.x-e.x, dy=p.y-e.y, l=len(dx,dy);
+    // Once primed, it braces and creeps toward the player instead of ranged attacks.
+    moveCircle(g,e,dx/l*e.speed*0.42*dt,dy/l*e.speed*0.42*dt);
+    if(e.detonationTimer<=0) hexShardExplode(g,e,explosionR);
+    return;
+  }
+
+  // Medium range skirmisher: approaches if far, backs off if too close, and strafes.
+  const preferredMin=180, preferredMax=420;
+  const dx=p.x-e.x, dy=p.y-e.y, l=len(dx,dy);
+  let ux=dx/l, uy=dy/l;
+  if(d<preferredMin){ ux=-ux; uy=-uy; }
+  else if(d<=preferredMax){
+    const side=Math.sin(g.time*2.2+e.phase)>0?1:-1;
+    ux=-dy/l*side; uy=dx/l*side;
+  }
+  const slow=e.slow>0?0.55:1;
+  moveCircle(g,e,ux*e.speed*slow*dt,uy*e.speed*slow*dt);
+
+  e.boomerangCd-=dt*(1+pressure*0.08);
+  if(d<520 && e.boomerangCd<=0 && lineOfSightClear(g,e.x,e.y,p.x,p.y)){
+    const count=(pressure>=3 && Math.random()<0.35) ? 2 : 1;
+    for(let i=0;i<count;i++) throwEnemyBoomerang(g,e,i,count);
+    e.boomerangCd=clamp(2.8-pressure*0.18,1.25,2.8)*rand(0.82,1.18);
+    e.state='attack';
+  }
+
+  const touch = (p.collisionR||p.r)+e.r;
+  if(d<touch && p.iframes<=0){
+    const damage=Math.max(1,Math.round(e.damage*(p.armourMul || 1)));
+    p.hp-=damage; p.iframes=0.45; flashDamage(); shake=Math.max(shake,5);
+    floating(g,p.x,p.y-25,`-${damage}`,'#ff7a38'); sfx('hit',0.75);
+    if(p.hp<=0) gameOver(g);
+  }
+}
+
+function throwEnemyBoomerang(g,e,index=0,count=1){
+  const p=g.player;
+  const pressure=g.hollowPressure || 0;
+  const baseA=Math.atan2(p.y-e.y,p.x-e.x);
+  const spread=(index-(count-1)/2)*0.28;
+  const a=baseA+spread+rand(-0.08,0.08);
+  const speed=245+pressure*18;
+  const predictedX=p.x+p.lastDx*42;
+  const predictedY=p.y+p.lastDy*42;
+  g.enemyBoomerangs.push({
+    x:e.x,y:e.y,originX:e.x,originY:e.y,owner:e,age:0,life:2.45+pressure*0.08,
+    phase:'outbound',targetX:predictedX,targetY:predictedY,
+    vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,speed,
+    r:7,damage:clamp(9+pressure*1.2,9,18),turnRate:3.2+pressure*0.25,
+    color:'#ff7038',curve:rand(-1,1)>=0?1:-1,trail:[],hitPlayer:false
+  });
+  addRing(g,e.x,e.y,'rgba(255,112,56,0.62)',0.16,e.r,e.r+20,3);
+  sfx('hexBoomerang',0.85);
+}
+
+function updateEnemyBoomerangs(g,dt){
+  const p=g.player;
+  for(const b of g.enemyBoomerangs){
+    b.age+=dt; b.life-=dt;
+    if(b.age>0.58) b.phase='return';
+    let tx=b.targetX, ty=b.targetY;
+    if(b.phase==='return'){
+      if(b.owner && b.owner.hp>0){ tx=b.owner.x; ty=b.owner.y; }
+      else { tx=b.originX; ty=b.originY; }
+    }
+    const dx=tx-b.x, dy=ty-b.y, l=len(dx,dy);
+    const perpX=-dy/l*b.curve, perpY=dx/l*b.curve;
+    const wobble=Math.sin(b.age*9)*0.34;
+    const desiredA=Math.atan2(dy/l+perpY*wobble, dx/l+perpX*wobble);
+    const desiredVx=Math.cos(desiredA)*b.speed;
+    const desiredVy=Math.sin(desiredA)*b.speed;
+    b.vx=lerp(b.vx,desiredVx,clamp(b.turnRate*dt,0,1));
+    b.vy=lerp(b.vy,desiredVy,clamp(b.turnRate*dt,0,1));
+    b.x+=b.vx*dt; b.y+=b.vy*dt;
+    b.trail.push({x:b.x,y:b.y});
+    if(b.trail.length>12) b.trail.shift();
+    if(shouldEmitVfx(g,false)) addParticle(g,b.x,b.y,-b.vx*0.035+rand(-12,12),-b.vy*0.035+rand(-12,12),b.color,0.13,2.5,'spark');
+    const [txi,tyi]=worldToTile(b.x,b.y);
+    if(isSolid(tileAt(g,txi,tyi))){ b.life=0; continue; }
+    if(!b.hitPlayer && dist2(p.x,p.y,b.x,b.y)<((p.collisionR||p.r)+b.r)*((p.collisionR||p.r)+b.r)){
+      const damage=Math.max(1,Math.round(b.damage*(p.armourMul || 1)));
+      p.hp-=damage; p.iframes=Math.max(p.iframes,0.28); b.hitPlayer=true; b.life=0;
+      floating(g,p.x,p.y-24,`-${damage}`,'#ff7038'); flashDamage(); sfx('hit',0.8);
+      if(p.hp<=0) gameOver(g);
+    }
+    if(b.phase==='return' && Math.hypot(b.x-b.originX,b.y-b.originY)<18) b.life=0;
+  }
+  g.enemyBoomerangs=g.enemyBoomerangs.filter(b=>b.life>0 && b.x>-160 && b.y>-160 && b.x<WORLD_W+160 && b.y<WORLD_H+160);
+}
+
+function hexShardExplode(g,e,r){
+  e.noDrop=true;
+  e.hp=0;
+  const p=g.player;
+  const d=Math.hypot(p.x-e.x,p.y-e.y);
+  if(d<r+(p.collisionR||p.r)){
+    const falloff=1-clamp(d/(r+(p.collisionR||p.r)),0,1)*0.45;
+    const damage=Math.max(1,Math.round((34+(g.hollowPressure||0)*3)*falloff*(p.armourMul || 1)));
+    p.hp-=damage;
+    p.iframes=Math.max(p.iframes,0.55);
+    floating(g,p.x,p.y-26,`-${damage}`,'#ff7038');
+    flashDamage();
+    if(p.hp<=0) gameOver(g);
+  }
+  shake=Math.max(shake,10);
+  addRing(g,e.x,e.y,'rgba(255,112,56,0.92)',0.34,8,r,7);
+  addRing(g,e.x,e.y,'rgba(255,235,160,0.92)',0.18,5,r*0.55,5);
+  addParticle(g,e.x,e.y,0,0,'rgba(255,245,220,0.96)',0.10,26);
+  for(let k=0;k<44;k++){
+    const a=rand(0,Math.PI*2), sp=rand(120,420);
+    addParticle(g,e.x,e.y,Math.cos(a)*sp,Math.sin(a)*sp,k%3===0?'#ffd36b':'#ff7038',rand(0.18,0.55),rand(1.6,4.2),'spark');
+  }
+  for(let k=0;k<18;k++){
+    const a=rand(0,Math.PI*2), sp=rand(45,150);
+    addParticle(g,e.x,e.y,Math.cos(a)*sp,Math.sin(a)*sp,'rgba(70,55,48,0.65)',rand(0.38,0.85),rand(5,12));
+  }
+  sfx('explosion',0.95);
 }
 
 function smallEnemyProjectileConfig(g,e){

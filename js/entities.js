@@ -38,6 +38,7 @@ class Player {
     this.trapDamageMul = 1;
     this.trapRadiusMul = 1;
     this.iframes = 0;
+    this.lavaDamageCd = 0;
     this.dashCd = 0;
     this.dashT = 0;
     this.lastDx = 1; this.lastDy = 0;
@@ -74,6 +75,13 @@ class Enemy {
     this.rangedCd=rand(1.2,3.0);
     this.smallShotCd=rand(2.8,6.0);
     this.burstShots=0;
+    // Hex Shard state machine fields. They are harmless for other enemies.
+    this.state = type==='hexShard' ? 'chase' : 'chase';
+    this.boomerangCd = type==='hexShard' ? rand(1.3,2.5) : 0;
+    this.detonationTimer = 0;
+    this.detonationStarted = false;
+    this.warningSoundTimer = 0;
+    this.shakeAmount = 0;
   }
 }
 
@@ -82,6 +90,7 @@ const ENEMY_TYPES = {
   swarmer: { r: 8, hp: 10, speed: 145, damage: 6, xp: 2, color:'#c8ff5c' },
   guard: { r: 18, hp: 68, speed: 66, damage: 22, xp: 12, color:'#ffb84d' },
   exploder: { r: 15, hp: 34, speed: 115, damage: 30, xp: 8, color:'#ff5b5b' },
+  hexShard: { r: 16, hp: 54, speed: 98, damage: 14, xp: 14, color:'#ff7a38' },
   elite: { r: 28, hp: 260, speed: 70, damage: 36, xp: 45, color:'#b46bff' },
   boss: { r: 42, hp: 980, speed: 58, damage: 48, xp: 120, color:'#ff4fd8' }
 };
@@ -92,11 +101,11 @@ function makeGame(cls){
     player:new Player(cls),
     tiles:new Uint8Array(MAP_W*MAP_H),
     tileHp:new Float32Array(MAP_W*MAP_H),
-    enemies:[], bullets:[], enemyBullets:[], missiles:[], targetLocks:[], boomerangs:[], wardenDrones:[], sifterDrones:[], traps:[], arcs:[], pickups:[], particles:[], texts:[], waves:[],
+    enemies:[], bullets:[], enemyBullets:[], enemyBoomerangs:[], missiles:[], targetLocks:[], boomerangs:[], wardenDrones:[], sifterDrones:[], traps:[], arcs:[], pickups:[], particles:[], texts:[], waves:[],
     weapons:[],
     arcConnection:{ unlocked:false, level:0, maxTargets:0, selectedEnemies:[], flash:0 },
     navigationVersion:0,
-    debug:{ showEnemyPaths:false, enemyBulletsEnabled:true, showEnemyBulletHitboxes:false, showMiningArc:false, lowSpeedMiningTest:false, showMiningCandidates:true, showEnemyBudget:false, showFogRadius:false, forcePerformanceState:null, perfDespawnLog:false },
+    debug:{ showEnemyPaths:false, enemyBulletsEnabled:true, showEnemyBulletHitboxes:false, showMiningArc:false, lowSpeedMiningTest:false, showMiningCandidates:true, showEnemyBudget:false, showFogRadius:false, forcePerformanceState:null, perfDespawnLog:false, lavaDamageEnabled:true, showLavaZones:false, showHexRanges:false },
     performance:{
       currentFPS:60,
       averageFPS:60,

@@ -76,7 +76,7 @@ function noise(dur=0.08, gain=0.08, lowpass=1800){
 function sfx(name, strength=1){
   if(!ensureAudio()) return;
   const t = audio.ctx.currentTime;
-  const minGap = { shoot:0.055, flamer:0.09, mine:0.075, hit:0.04, pickup:0.035, kill:0.05, missileWhoosh:0.18, missileLock:0.10, missileLaunch:0.18, missileImpact:0.05 }[name] ?? 0;
+  const minGap = { shoot:0.055, flamer:0.09, mine:0.075, hit:0.04, pickup:0.035, kill:0.05, missileWhoosh:0.18, missileLock:0.10, missileLaunch:0.18, missileImpact:0.05, hexBlip:0.12, hexBoomerang:0.18, lavaBurn:0.20 }[name] ?? 0;
   if(audio.last[name] && t-audio.last[name] < minGap) return;
   audio.last[name] = t;
   const k = Math.max(0.35, Math.min(1.6, strength));
@@ -87,6 +87,9 @@ function sfx(name, strength=1){
     case 'missileLaunch': tone(165,0.13,'sawtooth',0.045*k,95); noise(0.10,0.052*k,1300); break;
     case 'missileWhoosh': noise(0.10,0.018*k,1800); break;
     case 'missileImpact': tone(125,0.15,'sawtooth',0.065*k,45); tone(860,0.035,'triangle',0.03*k,360); noise(0.13,0.065*k,900); break;
+    case 'hexBlip': tone(860,0.055,'square',0.035*k,1180); setTimeout(()=>tone(1240,0.045,'square',0.025*k,760),56); break;
+    case 'hexBoomerang': tone(310,0.09,'sawtooth',0.035*k,520); noise(0.06,0.026*k,2100); break;
+    case 'lavaBurn': tone(95,0.12,'sawtooth',0.045*k,55); noise(0.12,0.052*k,850); break;
     case 'flamer': noise(0.13,0.035*k,900); tone(70,0.06,'sawtooth',0.012*k,55); break;
     case 'rail': tone(90,0.16,'sawtooth',0.075*k,42); tone(880,0.05,'triangle',0.04*k,320); noise(0.13,0.055*k,2400); break;
     case 'explosion': tone(92,0.24,'sawtooth',0.08*k,32); noise(0.22,0.09*k,650); break;

@@ -88,7 +88,7 @@ function debugSpawnVoltariteNode(){
 
 function debugClearEnemies(){ if(requireGame()){ game.enemies=[]; game.arcConnection.selectedEnemies=[]; debugLog('Cleared enemies.'); updateGameAfterDebug(); } }
 function debugClearPickups(){ if(requireGame()){ game.pickups=[]; debugLog('Cleared pickups.'); updateGameAfterDebug(); } }
-function debugClearProjectiles(){ if(requireGame()){ game.bullets=[]; game.enemyBullets=[]; game.missiles=[]; game.targetLocks=[]; game.boomerangs=[]; game.arcs=[]; game.particles=[]; debugLog('Cleared projectiles and transient VFX.'); } }
+function debugClearProjectiles(){ if(requireGame()){ game.bullets=[]; game.enemyBullets=[]; game.missiles=[]; game.targetLocks=[]; game.boomerangs=[]; game.enemyBoomerangs=[]; game.arcs=[]; game.particles=[]; debugLog('Cleared projectiles and transient VFX.'); } }
 function debugHealPlayer(){ if(requireGame()){ game.player.hp=game.player.maxHp; debugLog('Healed player to full HP.'); updateGameAfterDebug(); } }
 function debugAddXp(){ if(requireGame()){ gainXp(game, Math.max(10, Math.floor(game.xpNeed*0.55))); debugLog('Added XP.'); updateGameAfterDebug(); } }
 function debugForceLevelUp(){ if(requireGame()){ gainXp(game, game.xpNeed - game.xp + 1); debugLog('Forced level-up.'); updateGameAfterDebug(); } }
@@ -327,6 +327,60 @@ function debugFogLow(){ setFogIntensityPreset('low'); debugLog('Fog preset: low.
 function debugFogMedium(){ setFogIntensityPreset('medium'); debugLog('Fog preset: medium.'); updateGameAfterDebug(); }
 function debugFogHigh(){ setFogIntensityPreset('high'); debugLog('Fog preset: high.'); updateGameAfterDebug(); }
 
+
+function debugSpawnHexShard(count=1){
+  if(!requireGame()) return;
+  for(let i=0;i<count;i++){
+    const a=rand(0,Math.PI*2), d=rand(160,240);
+    const x=clamp(game.player.x+Math.cos(a)*d,TILE*3,WORLD_W-TILE*3);
+    const y=clamp(game.player.y+Math.sin(a)*d,TILE*3,WORLD_H-TILE*3);
+    game.enemies.push(new Enemy(x,y,'hexShard'));
+  }
+  debugLog(`Spawned ${count} Hex Shard enemy/enemies.`);
+  updateGameAfterDebug();
+}
+function debugSpawnFiveHexShards(){ debugSpawnHexShard(5); }
+function debugForceHexWarning(){
+  if(!requireGame()) return;
+  let e=game.enemies.find(e=>e.type==='hexShard');
+  if(!e){ debugSpawnHexShard(1); e=game.enemies.find(e=>e.type==='hexShard'); }
+  if(e){ e.detonationStarted=true; e.state='detonationWarning'; e.detonationTimer=1.0; e.warningSoundTimer=0; debugLog('Forced Hex Shard detonation warning.'); }
+}
+function debugSpawnEnemyBoomerang(){
+  if(!requireGame()) return;
+  let e=game.enemies.find(e=>e.type==='hexShard');
+  if(!e){ debugSpawnHexShard(1); e=game.enemies.find(e=>e.type==='hexShard'); }
+  if(e){ throwEnemyBoomerang(game,e); debugLog('Spawned Hex Shard boomerang projectile.'); }
+}
+function debugToggleLavaDamage(){
+  if(!requireGame()) return;
+  game.debug.lavaDamageEnabled = game.debug.lavaDamageEnabled===false ? true : false;
+  debugLog(`Lava contact damage ${game.debug.lavaDamageEnabled ? 'enabled' : 'disabled'}.`);
+  updateGameAfterDebug();
+}
+function debugToggleLavaZones(){
+  if(!requireGame()) return;
+  game.debug.showLavaZones=!game.debug.showLavaZones;
+  debugLog(`Lava collision zones ${game.debug.showLavaZones ? 'enabled' : 'disabled'}.`);
+  updateGameAfterDebug();
+}
+function debugToggleHexRanges(){
+  if(!requireGame()) return;
+  game.debug.showHexRanges=!game.debug.showHexRanges;
+  debugLog(`Hex Shard ranges ${game.debug.showHexRanges ? 'enabled' : 'disabled'}.`);
+  updateGameAfterDebug();
+}
+
+window.debugHex = {
+  spawn: ()=>debugSpawnHexShard(1),
+  spawn5: debugSpawnFiveHexShards,
+  warning: debugForceHexWarning,
+  boomerang: debugSpawnEnemyBoomerang,
+  lavaDamage: debugToggleLavaDamage,
+  lavaZones: debugToggleLavaZones,
+  ranges: debugToggleHexRanges
+};
+
 function buildDebugPanel(){
   if(!DEBUG_MODE) return;
   const toggle = document.createElement('button');
@@ -395,6 +449,15 @@ function buildDebugPanel(){
     makeDebugButton('Mining Test: Lava Rock Slide',debugMiningLavaTest),
     makeDebugButton('Toggle Enemy Bullets',debugToggleEnemyBullets),
     makeDebugButton('Toggle Enemy Bullet Hitboxes',debugToggleEnemyBulletHitboxes)
+  ]);
+  addDebugSection(panel,'Hex Shard & Lava Hazard Tests',[
+    makeDebugButton('Spawn Hex Shard',()=>debugSpawnHexShard(1)),
+    makeDebugButton('Spawn 5 Hex Shards',debugSpawnFiveHexShards),
+    makeDebugButton('Force Hex Detonation Warning',debugForceHexWarning),
+    makeDebugButton('Spawn Hex Boomerang',debugSpawnEnemyBoomerang),
+    makeDebugButton('Toggle Lava Contact Damage',debugToggleLavaDamage),
+    makeDebugButton('Toggle Lava Collision Zones',debugToggleLavaZones),
+    makeDebugButton('Toggle Hex Ranges',debugToggleHexRanges)
   ]);
   addDebugSection(panel,'Pathfinding',[
     makeDebugButton('Toggle Show Enemy Paths',debugToggleEnemyPaths)
