@@ -6,6 +6,7 @@ function loop(t){
   const rawDt=Math.max(0.001,(t-lastTime)/1000);
   const dt=Math.min(0.033,rawDt);
   lastTime=t;
+  if(typeof updateGamepadInput === 'function') updateGamepadInput(dt);
   if(game && typeof updatePerformanceMonitor === 'function') updatePerformanceMonitor(game,rawDt);
   if(game) update(game,dt);
   render(game);
@@ -17,9 +18,7 @@ addEventListener('keydown',e=>{
   resumeAudio();
   keys.add(e.code);
   if(e.code==='Space' && game && game.state==='playing' && !awaitingUpgrade){
-    const p=game.player;
-    const cd = p.classId==='pathfinder'?1.4:2.4;
-    if(p.dashCd<=0){ p.dashCd=cd; p.dashT=0.15; sfx('dash'); }
+    triggerDash(game,'keyboard');
     e.preventDefault();
   }
   if(e.code==='KeyP'){ paused=!paused; }
@@ -35,6 +34,7 @@ addEventListener('mousemove',e=>{
   mouse.y=e.clientY;
   mouse.used=true;
   mouse.lastMove=game ? game.time : 0;
+  if(game?.controllerCursor) game.controllerCursor.active=false;
 });
 addEventListener('mousedown',e=>{
   mouse.x=e.clientX;
@@ -43,13 +43,14 @@ addEventListener('mousedown',e=>{
   mouse.lastMove=game ? game.time : 0;
   if(e.button===0){
     mouse.down=true;
+    mouse._physicalDown=true;
     if(game?.player?.mouseTargeting) e.preventDefault();
   } else if(e.button===2 && game && typeof handleArcConnectionRightClick === 'function'){
     if(handleArcConnectionRightClick(game)) e.preventDefault();
   }
 });
 addEventListener('mouseup',e=>{
-  if(e.button===0) mouse.down=false;
+  if(e.button===0){ mouse.down=false; mouse._physicalDown=false; }
 });
 addEventListener('contextmenu',e=>{
   if(game?.arcConnection?.unlocked) e.preventDefault();
@@ -57,7 +58,16 @@ addEventListener('contextmenu',e=>{
 addEventListener('blur',()=>{ mouse.down=false; });
 
 addEventListener('gamepadconnected',e=>{
-  if(game) log(game, `${e.gamepad.id || 'Gamepad'} connected.`);
+  gamepadState.padIndex=e.gamepad.index;
+  gamepadState.connected=true;
+  gamepadState.id=e.gamepad.id || 'Gamepad';
+  if(game) log(game, `${gamepadState.id} connected.`);
+});
+addEventListener('gamepaddisconnected',e=>{
+  if(gamepadState.padIndex===e.gamepad.index){
+    gamepadState.padIndex=null;
+    gamepadState.connected=false;
+  }
 });
 ui.soundBtn.addEventListener('click',()=>{ resumeAudio(); toggleMute(); });
 ui.volumeSlider.addEventListener('input',e=>{ resumeAudio(); setAudioVolume(Number(e.target.value)/100); });

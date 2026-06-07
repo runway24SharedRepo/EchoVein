@@ -422,3 +422,25 @@
   vertical-align: middle;
   margin-right: 6px;
 }
+
+  .card.selected,
+  .card[aria-selected="true"] {
+    transform: translateY(-3px) scale(1.015);
+    background: rgba(66,214,255,0.16);
+    border-color: rgba(66,214,255,0.95);
+    box-shadow: 0 0 0 2px rgba(66,214,255,0.30), 0 18px 45px rgba(66,214,255,0.12);
+  }
+
+
+/* Controller focus/selection highlight used by main menu, class select, settings, and level-up cards. */
+.controllerSelected,
+button.controllerSelected,
+input.controllerSelected,
+.card.controllerSelected {
+  outline: 3px solid #64e8ff !important;
+  box-shadow: 0 0 0 2px rgba(100,232,255,0.24), 0 0 22px rgba(100,232,255,0.45) !important;
+  transform: translateY(-1px) scale(1.015);
+}
+input.controllerSelected {
+  transform: scale(1.18);
+}

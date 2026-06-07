@@ -16,14 +16,15 @@ function updateUI(g){
   ui.depth.textContent=Math.floor(g.time*1.6)+' m';
   ui.gold.textContent=g.gold; ui.nitra.textContent=g.nitra; ui.kills.textContent=g.kills;
   const trapChip = g.player.canUseTraps ? `<div class="chip"><span>Pathfinder Trap Kit</span><b>${g.player.trapCd<=0?'READY':'CD '+g.player.trapCd.toFixed(1)+'s'}</b></div>` : '';
-  const cursorChip = g.player.mouseTargeting ? `<div class="chip"><span>Targeting Cursor</span><b>${mouseTargetActive(g)?'MANUAL':'AUTO'}</b></div>` : '';
+  const accChip = `<div class="chip"><span>Weapon Accuracy</span><b>${Math.round((g.player.accuracy ?? 0.35)*100)}%</b></div>`;
+  const cursorChip = (g.player.mouseTargeting || g.controllerCursor?.active) ? `<div class="chip"><span>Targeting Cursor</span><b>${manualAimActive(g)?'MANUAL':'AUTO'}</b></div>` : '';
   const arc = g.arcConnection;
   const arcChip = arc?.unlocked ? `<div class="chip"><span>Arc Connection</span><b>${arc.selectedEnemies.length}/${arcConnectionMaxTargets(g)}</b></div>` : '';
   ui.weaponList.innerHTML=g.weapons.map(w=>{
     const spriteId=WEAPON_DATA[w.id]?.spriteId;
     const icon=spriteId ? `<img class="weaponIcon" src="${SPRITES[spriteId]}" alt="">` : '';
     return `<div class="chip"><span>${icon}${weaponName(w.id)}</span><b>Mk ${w.level}</b></div>`;
-  }).join('') + trapChip + cursorChip + arcChip;
+  }).join('') + trapChip + accChip + cursorChip + arcChip;
   const resourceChips = RUN_RESOURCE_IDS.filter(id=>id!=='gild' && id!=='voltarite' && id!=='echo' && (g.resources?.[id] || 0)>0)
     .map(id=>`<div class="chip"><span>${MINERALS[id].displayName}</span><b>${g.resources[id]}</b></div>`).join('');
   const pressureChip=`<div class="chip ${g.pressureFlash>0?'danger':''}"><span>Hollow Pressure</span><b>${g.hollowPressure || 0}</b></div>`;
@@ -75,11 +76,13 @@ function render(g){
   drawVignette();
   drawFogDebugOverlay(g,cam,sx,sy);
   drawEnemyBudgetOverlay(g);
+  drawControllerDebugOverlay(g);
+  drawAccuracyCone(g);
   if(paused) drawPause();
 }
 
 function drawTargetingCursor(g){
-  if(!mouseTargetActive(g)) return;
+  if(!manualAimActive(g)) return;
   const m = mouseWorld(g);
   ctx.save();
   ctx.translate(m.x,m.y);
@@ -979,3 +982,51 @@ function bindStartCardInput(){
 window.startGame=startGame;
 window.restartGame=function(){ startGame(game?.selectedClass || CLASSES[0]); };
 window.showStart=function(){ showClassSelect(); };
+
+
+function drawControllerDebugOverlay(g){
+  if(!g?.debug?.showController) return;
+  const lines=[
+    `Gamepad: ${gamepadState.connected ? gamepadState.id : 'not connected'}`,
+    `Left: ${Number(gamepadState.leftX||0).toFixed(2)}, ${Number(gamepadState.leftY||0).toFixed(2)}`,
+    `Right raw 2/3: ${Number(gamepadState.rightX||0).toFixed(2)}, ${Number(gamepadState.rightY||0).toFixed(2)}`,
+    `Cursor axis pair: ${game?.controllerCursor?.axisPair ? game.controllerCursor.axisPair.join('/') : 'none'}`,
+    `Cursor: ${Math.round(mouse.x)}, ${Math.round(mouse.y)}`,
+    `World: ${Math.round(mouseWorld(g).x)}, ${Math.round(mouseWorld(g).y)}`,
+    `Manual aim: ${manualAimActive(g) ? 'ON' : 'AUTO'}`,
+    `Upgrade index: ${g.upgradeMenuState?.selectedIndex ?? '-'}`,
+    `Accuracy: ${Math.round((g.player.accuracy ?? 0.35)*100)}%`
+  ];
+  ctx.save();
+  ctx.font='12px Consolas, Monaco, monospace';
+  ctx.textAlign='left';
+  const x=14, y=innerHeight-150;
+  ctx.fillStyle='rgba(0,0,0,0.64)';
+  ctx.fillRect(x-8,y-16,360,lines.length*16+18);
+  ctx.fillStyle='#b7f7ff';
+  for(let i=0;i<lines.length;i++) ctx.fillText(lines[i],x,y+i*16);
+  ctx.restore();
+}
+
+function drawAccuracyCone(g){
+  if(!g?.debug?.showAccuracyCone || !g.player) return;
+  const p=g.player;
+  const target=nearestEnemy(g,p.x,p.y,720);
+  if(!target) return;
+  const spread=weaponSpreadRadians(p.accuracy ?? 0.35);
+  const base=Math.atan2(target.y-p.y,target.x-p.x);
+  const length=360;
+  ctx.save();
+  ctx.translate(-g.camera.x,-g.camera.y);
+  ctx.strokeStyle='rgba(255,220,128,0.55)';
+  ctx.fillStyle='rgba(255,220,128,0.08)';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(p.x,p.y);
+  ctx.lineTo(p.x+Math.cos(base-spread)*length,p.y+Math.sin(base-spread)*length);
+  ctx.arc(p.x,p.y,length,base-spread,base+spread);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}

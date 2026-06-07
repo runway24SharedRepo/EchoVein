@@ -208,7 +208,8 @@ const CLASSES = [
 const UPGRADE_POOL = [
   { icon:'💥', name:'Kinetic Rounds', desc:'+18% projectile damage.', apply:g=>g.player.damageMul*=1.18 },
   { icon:'⚡', name:'Trigger Discipline', desc:'+14% fire rate on all automatic weapons.', apply:g=>g.player.fireRateMul*=1.14 },
-  { icon:'🎯', name:'Targeting Optics', desc:'+1 projectile for bullet weapons.', apply:g=>g.player.extraProjectiles++ },
+  { icon:'🎯', name:'Targeting Optics', desc:'+10% weapon accuracy. Projectile spread becomes tighter.', apply:g=>{ g.player.accuracy = clamp((g.player.accuracy || 0.35) + 0.10, 0, 1); g.player.accuracyBonus = (g.player.accuracyBonus || 0) + 0.10; log(g, `Weapon accuracy improved to ${Math.round(g.player.accuracy*100)}%.`); } },
+  { icon:'🔫', name:'Extra Barrel', desc:'+1 projectile for bullet weapons.', apply:g=>g.player.extraProjectiles++ },
   { icon:'✳️', spriteId:'vectorBurstIcon', name:'Vector Burst', desc:'Unlocks a common multi-direction weapon that fires a symmetrical spread at targets.', available:g=>!g.weapons.find(w=>w.id==='vectorBurst'), apply:g=>addOrLevelWeapon(g,'vectorBurst') },
   { icon:'➕', spriteId:'vectorBurstIcon', name:'Splitfire Array', desc:'Vector Burst gains +1 firing direction. No maximum cap.', available:g=>!!g.weapons.find(w=>w.id==='vectorBurst'), apply:g=>upgradeVectorBurst(g,'count') },
   { icon:'💠', spriteId:'vectorBurstIcon', name:'Vector Focusing', desc:'+15% Vector Burst damage.', available:g=>!!g.weapons.find(w=>w.id==='vectorBurst'), apply:g=>upgradeVectorBurst(g,'damage') },
@@ -282,6 +283,267 @@ function gamepadButtonPressed(index){
   const wasDown = !!gamepadButtonsPrev[index];
   gamepadButtonsPrev[index] = isDown;
   return isDown && !wasDown;
+}
+
+
+const GAMEPAD = {
+  // Standard Gamepad API button mapping:
+  // A=0, B=1, X=2, Y=3.
+  // User control rule: X is the left-mouse/primary-action equivalent.
+  A:0, B:1, X:2, Y:3,
+  DPAD_UP:12, DPAD_DOWN:13, DPAD_LEFT:14, DPAD_RIGHT:15,
+  LEFT_DEADZONE:0.35,
+  RIGHT_DEADZONE:0.22,
+  CURSOR_SPEED:860
+};
+
+let gamepadState = {
+  connected:false,
+  id:'',
+  padIndex:null,
+  prevButtons:[],
+  buttons:[],
+  axes:[0,0,0,0],
+  leftX:0,
+  leftY:0,
+  rightX:0,
+  rightY:0
+};
+
+
+// Real-time manual aim clock.  Game time can pause/freeze during menus or
+// transitions, so controller cursor/manual aim state also uses browser time.
+let manualAimLastMoveRealTime = -999;
+
+let menuGamepadState = {
+  selectedIndex:0,
+  lastMoveTime:-999,
+  moveRepeatDelay:0.20,
+  lastSignature:''
+};
+
+function getPrimaryGamepad(){
+  if(!navigator.getGamepads) return null;
+  const pads=navigator.getGamepads();
+  if(gamepadState.padIndex!=null){
+    const known=pads[gamepadState.padIndex];
+    if(known && known.connected !== false) return known;
+    gamepadState.padIndex=null;
+  }
+  for(const pad of pads){
+    if(pad && pad.connected !== false){ gamepadState.padIndex=pad.index; return pad; }
+  }
+  return null;
+}
+
+function pollGamepadState(){
+  const pad=getPrimaryGamepad();
+  gamepadState.prevButtons=gamepadState.buttons || [];
+  if(!pad){
+    gamepadState.connected=false;
+    gamepadState.buttons=[];
+    gamepadState.axes=[0,0,0,0];
+    gamepadState.leftX=gamepadState.leftY=gamepadState.rightX=gamepadState.rightY=0;
+    return gamepadState;
+  }
+  gamepadState.connected=true;
+  gamepadState.id=pad.id || 'Gamepad';
+  gamepadState.buttons=Array.from(pad.buttons || [], b=>!!b.pressed);
+  gamepadState.axes=Array.from(pad.axes || []);
+  gamepadState.leftX=gamepadState.axes[0] || 0;
+  gamepadState.leftY=gamepadState.axes[1] || 0;
+  gamepadState.rightX=gamepadState.axes[2] || 0;
+  gamepadState.rightY=gamepadState.axes[3] || 0;
+  return gamepadState;
+}
+
+function gamepadPressed(index){
+  return !!gamepadState.buttons[index] && !gamepadState.prevButtons[index];
+}
+
+function gamepadHeld(index){
+  return !!gamepadState.buttons[index];
+}
+
+function gamepadPressedAny(indices){
+  return indices.some(index=>gamepadPressed(index));
+}
+
+function gamepadHeldAny(indices){
+  return indices.some(index=>gamepadHeld(index));
+}
+
+function getGamepadLeftNav(){
+  /*
+   * Navigation source used by menus and upgrade cards.
+   *
+   * Some pads expose D-pad as buttons 12-15, some as axes 6/7, while the
+   * standard left stick uses axes 0/1.  Read all of these so the power-up menu
+   * is not silently locked to one controller mapping.
+   */
+  const x=gamepadState.leftX || 0, y=gamepadState.leftY || 0;
+  const axes=gamepadState.axes || [];
+  const dpadButtonX=(gamepadHeld(GAMEPAD.DPAD_RIGHT)?1:0) - (gamepadHeld(GAMEPAD.DPAD_LEFT)?1:0);
+  const dpadButtonY=(gamepadHeld(GAMEPAD.DPAD_DOWN)?1:0) - (gamepadHeld(GAMEPAD.DPAD_UP)?1:0);
+  const dpadAxisX=Math.abs(axes[6] || 0)>GAMEPAD.LEFT_DEADZONE ? Math.sign(axes[6]) : 0;
+  const dpadAxisY=Math.abs(axes[7] || 0)>GAMEPAD.LEFT_DEADZONE ? Math.sign(axes[7]) : 0;
+  const stickX=Math.abs(x)>GAMEPAD.LEFT_DEADZONE ? Math.sign(x) : 0;
+  const stickY=Math.abs(y)>GAMEPAD.LEFT_DEADZONE ? Math.sign(y) : 0;
+  const nx = dpadButtonX || dpadAxisX || stickX;
+  const ny = dpadButtonY || dpadAxisY || stickY;
+  return {x:nx,y:ny,active:!!(nx||ny)};
+}
+
+function currentManualAimActive(g){
+  if(!g || !mouse.used) return false;
+  const realNow = performance.now()/1000;
+  const gameRecent = g.time - mouse.lastMove < 2;
+  const realRecent = realNow - manualAimLastMoveRealTime < 2;
+  return !!(gameRecent || realRecent);
+}
+
+function activeAimWorld(g){
+  const realNow = performance.now()/1000;
+  const c = g?.controllerCursor;
+  if(c?.active && ((g.time - c.lastMoveTime < 2) || (realNow - (c.lastMoveRealTime ?? -999) < 2))){
+    return {x:c.worldX, y:c.worldY};
+  }
+  return { x:g.camera.x + mouse.x, y:g.camera.y + mouse.y };
+}
+
+function triggerDash(g, source='input'){
+  if(!g || g.state!=='playing' || awaitingUpgrade) return false;
+  const p=g.player;
+  const cd = p.classId==='pathfinder'?1.4:2.4;
+  if(p.dashCd>0) return false;
+  p.dashCd=cd;
+  p.dashT=0.15;
+  sfx('dash');
+  return true;
+}
+
+function getGamepadRightVector(){
+  /*
+   * Right-stick axes are usually 2/3 on standard Xbox-style pads, but some
+   * browser/driver combinations expose them as 3/4, 2/5, or 4/5.  The previous
+   * implementation read only axes 2/3, so on some pads the cursor could appear
+   * to move once and then stop.  Pick the strongest plausible right-stick pair
+   * each frame and treat it as continuous analogue input, not as an edge event.
+   */
+  const axes = gamepadState.axes || [];
+  const pairs = [[2,3],[3,4],[2,5],[4,5]];
+  let best = {x:0,y:0,mag:0,pair:null};
+  for(const [ix,iy] of pairs){
+    if(ix>=axes.length || iy>=axes.length) continue;
+    const x = axes[ix] || 0;
+    const y = axes[iy] || 0;
+    const mag = Math.hypot(x,y);
+    if(mag > best.mag) best = {x,y,mag,pair:[ix,iy]};
+  }
+  if(best.mag <= GAMEPAD.RIGHT_DEADZONE) return {x:0,y:0,active:false,mag:0,pair:best.pair};
+  const scaled = clamp((best.mag-GAMEPAD.RIGHT_DEADZONE)/(1-GAMEPAD.RIGHT_DEADZONE),0,1);
+  return {x:best.x/best.mag*scaled, y:best.y/best.mag*scaled, active:true, mag:best.mag, pair:best.pair};
+}
+
+function syncControllerCursorWorld(g){
+  if(!g?.controllerCursor) return;
+  g.controllerCursor.worldX = g.camera.x + g.controllerCursor.screenX;
+  g.controllerCursor.worldY = g.camera.y + g.controllerCursor.screenY;
+}
+
+function moveControllerCursor(g,dt){
+  if(!g) return;
+  const c=g.controllerCursor;
+  if(!c) return;
+  const rv=getGamepadRightVector();
+  const realNow = performance.now()/1000;
+  if(rv.active){
+    c.active=true;
+    c.screenX=clamp((c.screenX ?? innerWidth/2) + rv.x*GAMEPAD.CURSOR_SPEED*dt, 0, innerWidth);
+    c.screenY=clamp((c.screenY ?? innerHeight/2) + rv.y*GAMEPAD.CURSOR_SPEED*dt, 0, innerHeight);
+    c.lastMoveTime=g.time;
+    c.lastMoveRealTime=realNow;
+    c.axisPair=rv.pair;
+    syncControllerCursorWorld(g);
+    mouse.x=c.screenX;
+    mouse.y=c.screenY;
+    mouse.used=true;
+    mouse.lastMove=g.time;
+    manualAimLastMoveRealTime=realNow;
+  } else if(c.active){
+    syncControllerCursorWorld(g);
+    if((g.time - c.lastMoveTime > 2) && (realNow - (c.lastMoveRealTime ?? -999) > 2)) c.active=false;
+  }
+}
+
+
+function menuInputClock(){
+  // Menus pause/freeze game.time, so controller repeat timing must use
+  // the browser's real clock. This fixes stick/D-pad navigation only moving
+  // once in the level-up/power-up menu.
+  return performance.now()/1000;
+}
+
+function visibleMenuGamepadElements(){
+  if(!ui.startOverlay?.classList?.contains('show')) return [];
+  const selectors = [
+    '#menuButtons button',
+    '#classCards .card[data-class-id]',
+    '#menuContent button',
+    '#menuContent input[type="checkbox"]'
+  ];
+  return selectors
+    .flatMap(sel=>Array.from(ui.startOverlay.querySelectorAll(sel)))
+    .filter(el=>{
+      if(el.disabled) return false;
+      const style=getComputedStyle(el);
+      return style.display !== 'none' && style.visibility !== 'hidden' && el.offsetParent !== null;
+    });
+}
+
+function refreshMenuGamepadSelection(elements=visibleMenuGamepadElements()){
+  elements.forEach((el,i)=>{
+    const selected=i===menuGamepadState.selectedIndex;
+    el.classList.toggle('controllerSelected', selected);
+    el.setAttribute('aria-selected', selected ? 'true' : 'false');
+    if(selected && document.activeElement!==el){
+      try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); }
+    }
+  });
+}
+
+function updateMenuGamepadInput(dt){
+  if(!ui.startOverlay?.classList?.contains('show')) return false;
+  const elements=visibleMenuGamepadElements();
+  if(!elements.length) return false;
+  const signature=elements.map(el=>el.textContent || el.dataset.classId || el.id || el.tagName).join('|');
+  if(signature!==menuGamepadState.lastSignature){
+    menuGamepadState.lastSignature=signature;
+    menuGamepadState.selectedIndex=0;
+    menuGamepadState.lastMoveTime=-999;
+  }
+  menuGamepadState.selectedIndex=clamp(menuGamepadState.selectedIndex,0,elements.length-1);
+  const nav=getGamepadLeftNav();
+  const t=menuInputClock();
+  if(nav.active && t-menuGamepadState.lastMoveTime>=menuGamepadState.moveRepeatDelay){
+    const step=(nav.x>0 || nav.y>0) ? 1 : -1;
+    menuGamepadState.selectedIndex=(menuGamepadState.selectedIndex+step+elements.length)%elements.length;
+    menuGamepadState.lastMoveTime=t;
+  }
+  refreshMenuGamepadSelection(elements);
+  if(gamepadPressedAny([GAMEPAD.A, GAMEPAD.X])){
+    const el=elements[menuGamepadState.selectedIndex];
+    if(el){
+      if(el.type==='checkbox') el.checked=!el.checked;
+      el.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));
+      return true;
+    }
+  }
+  if(gamepadPressed(GAMEPAD.B)){
+    const back=elements.find(el=>/back|main menu|cancel|close/i.test(el.textContent || ''));
+    if(back){ back.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window})); return true; }
+  }
+  return true;
 }
 
 function resizeCanvas(){

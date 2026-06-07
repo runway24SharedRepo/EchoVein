@@ -213,7 +213,9 @@ function updateHollowPressure(g,dt){
 }
 
 function updateGamepadActions(g){
-  if(gamepadButtonPressed(0)) placeTrap(g);
+  // Legacy per-frame action hook is kept for compatibility. Gamepad input is
+  // now polled once per frame by updateGamepadInput() so button edges are not
+  // consumed multiple times by different systems.
 }
 
 function updatePlayer(g,dt){
@@ -912,19 +914,23 @@ function nearestEnemy(g,x,y,maxD=999999){
 }
 
 function mouseWorld(g){
-  return { x:g.camera.x + mouse.x, y:g.camera.y + mouse.y };
+  return activeAimWorld(g);
+}
+
+function manualAimActive(g){
+  return currentManualAimActive(g);
 }
 
 function mouseTargetActive(g){
-  return g.player.mouseTargeting && mouse.used && g.time - mouse.lastMove < 2;
+  return manualAimActive(g);
 }
 
 function mouseManualFireActive(g){
-  return mouseTargetActive(g);
+  return mouseTargetActive(g) && (mouse.down || (g.controllerCursor?.primaryHoldTimer || 0)>0);
 }
 
 function arcMouseAutoDisabled(g){
-  return g.arcConnection?.unlocked && mouse.used && g.time - mouse.lastMove < 2;
+  return manualAimActive(g);
 }
 
 function targetEnemy(g,range,mouseBiasRadius=180){
@@ -965,11 +971,11 @@ function enemyAtWorldPoint(g,x,y){
   return best;
 }
 
-function handleArcConnectionRightClick(g){
+function handleArcConnectionRightClick(g, worldX=null, worldY=null){
   const arc = g.arcConnection;
   if(!arc?.unlocked || g.state!=='playing' || awaitingUpgrade) return false;
   const selections = liveArcSelections(g);
-  const m = mouseWorld(g);
+  const m = worldX == null || worldY == null ? mouseWorld(g) : {x:worldX,y:worldY};
   const target = enemyAtWorldPoint(g,m.x,m.y);
   if(target){
     if(selections.includes(target)){
@@ -1024,6 +1030,136 @@ function updateArcConnection(g,dt){
   if(!g.arcConnection?.unlocked) return;
   g.arcConnection.flash=Math.max(0,g.arcConnection.flash-dt);
   liveArcSelections(g);
+}
+
+
+function handlePrimaryActionAt(g,worldX,worldY,source='input'){
+  if(!g || g.state!=='playing' || awaitingUpgrade) return false;
+  mouse.x=clamp(worldX-g.camera.x,0,innerWidth);
+  mouse.y=clamp(worldY-g.camera.y,0,innerHeight);
+  mouse.used=true;
+  mouse.lastMove=g.time;
+  if(g.controllerCursor){
+    g.controllerCursor.screenX=mouse.x;
+    g.controllerCursor.screenY=mouse.y;
+    g.controllerCursor.worldX=worldX;
+    g.controllerCursor.worldY=worldY;
+    g.controllerCursor.active=true;
+    g.controllerCursor.lastMoveTime=g.time;
+    g.controllerCursor.primaryHoldTimer=0.18;
+  }
+  // Give click-driven/manual fire systems a short primary-action pulse.
+  // This must not depend on the optional Targeting Cursor upgrade; it should
+  // behave like a real left mouse click, because physical mouse down also sets
+  // mouse.down unconditionally.
+  mouse.down=true;
+  return true;
+}
+
+function handleSecondaryActionAt(g,worldX,worldY,source='input'){
+  if(!g || g.state!=='playing' || awaitingUpgrade) return false;
+  mouse.x=clamp(worldX-g.camera.x,0,innerWidth);
+  mouse.y=clamp(worldY-g.camera.y,0,innerHeight);
+  mouse.used=true;
+  mouse.lastMove=g.time;
+  return handleArcConnectionRightClick(g,worldX,worldY);
+}
+
+function updateGamepadInput(dt){
+  pollGamepadState();
+
+  // The game can be fully controlled from a pad before a run exists.  Earlier
+  // builds returned here when game === null, so class/menu selection never saw
+  // controller input.
+  if(ui.startOverlay?.classList?.contains('show') && !awaitingUpgrade){
+    updateMenuGamepadInput(dt);
+    return;
+  }
+
+  if(!game) return;
+  moveControllerCursor(game,dt);
+  if(game.controllerCursor) game.controllerCursor.primaryHoldTimer=Math.max(0,(game.controllerCursor.primaryHoldTimer||0)-dt);
+  if(!game.controllerCursor?.primaryHoldTimer && !mouse._physicalDown) mouse.down=false;
+
+  if(awaitingUpgrade && game.upgradeMenuState?.open){
+    updateUpgradeMenuGamepad(game,dt);
+    return;
+  }
+  if(game.state!=='playing') return;
+  if(gamepadPressed(GAMEPAD.Y)) triggerDash(game,'gamepad');
+
+  // A was already used by the player as the trap button. Keep A mapped to the
+  // same gameplay action as keyboard E while no menu is open.
+  if(gamepadPressed(GAMEPAD.A)){
+    if(typeof placeTrap === 'function') placeTrap(game);
+  }
+
+  if(gamepadPressed(GAMEPAD.X)){
+    // X is the controller equivalent of the left mouse button / primary fire.
+    const aim=activeAimWorld(game);
+    handlePrimaryActionAt(game,aim.x,aim.y,'gamepad-x');
+  }
+  if(gamepadPressed(GAMEPAD.B)){
+    const aim=activeAimWorld(game);
+    handleSecondaryActionAt(game,aim.x,aim.y,'gamepad-b');
+  }
+}
+
+function updateUpgradeMenuGamepad(g,dt){
+  const state=g.upgradeMenuState;
+  const cards=[...ui.upgradeCards.querySelectorAll('.card[data-upgrade-index]')];
+  if(!state || !cards.length) return;
+
+  // IMPORTANT: game time is frozen while the upgrade menu is open.  Use a real
+  // clock for repeat timing, otherwise stick/D-pad navigation works at most
+  // once and then appears broken.
+  const t=menuInputClock();
+  state.selectedIndex=clamp(state.selectedIndex ?? 0,0,cards.length-1);
+
+  const nav=getGamepadLeftNav();
+  if(!state.navWasActive && !nav.active){
+    state.lastMoveTime=-999;
+  }
+  if(nav.active && (!state.navWasActive || t - (state.lastMoveTime ?? -999) >= (state.moveRepeatDelay ?? 0.20))){
+    const step=(nav.x>0 || nav.y>0) ? 1 : -1;
+    state.selectedIndex=(state.selectedIndex + step + cards.length) % cards.length;
+    state.lastMoveTime=t;
+  }
+  state.navWasActive=nav.active;
+
+  refreshUpgradeSelection(g);
+
+  // A confirms menu choices. X also confirms because X is the requested
+  // left-click equivalent, but in gameplay A remains the trap button.
+  if(gamepadPressedAny([GAMEPAD.A, GAMEPAD.X])){
+    selectUpgradeByIndex(g,state.selectedIndex,'gamepad');
+  }
+}
+
+function refreshUpgradeSelection(g){
+  const state=g.upgradeMenuState;
+  const cards=[...ui.upgradeCards.querySelectorAll('.card[data-upgrade-index]')];
+  for(const card of cards){
+    const idx=Number(card.dataset.upgradeIndex);
+    card.classList.toggle('selected', idx===state.selectedIndex);
+    card.setAttribute('aria-selected', idx===state.selectedIndex ? 'true' : 'false');
+  }
+  const card=cards.find(c=>Number(c.dataset.upgradeIndex)===state.selectedIndex) || cards[state.selectedIndex];
+  if(card && document.activeElement!==card){
+    try{ card.focus({preventScroll:true}); }catch(_){ card.focus(); }
+  }
+}
+
+function selectUpgradeByIndex(g,index,source='input'){
+  const choices=g.upgradeMenuState?.choices || [];
+  const up=choices[index];
+  if(!up) return false;
+  up.apply(g);
+  awaitingUpgrade=false;
+  g.upgradeMenuState.open=false;
+  ui.upgradeOverlay.classList.remove('show');
+  updateUI(g);
+  return true;
 }
 
 function selectMissileTargets(g,count,range){
@@ -1559,8 +1695,10 @@ function fireVectorBurst(g,w,target){
   const spread=(w.spreadDeg || 18)*Math.PI/180;
   const center=(count-1)/2;
   w.cd=(w.baseCooldown || 0.92)/(p.fireRateMul || 1);
+  const accuracy = clamp((p.accuracy ?? 0.35) + (w.accuracyBonus || 0), 0, 1);
+  const inaccuracy = weaponSpreadRadians(accuracy);
   for(let i=0;i<count;i++){
-    const a=base+(i-center)*spread;
+    const a=base+(i-center)*spread+rand(-inaccuracy,inaccuracy);
     const speed=w.speed || 560;
     g.bullets.push({
       x:p.x+Math.cos(a)*p.r,y:p.y+Math.sin(a)*p.r,
@@ -1571,11 +1709,17 @@ function fireVectorBurst(g,w,target){
   sfx('shoot',0.72);
 }
 
+function weaponSpreadRadians(accuracy){
+  const acc=clamp(accuracy ?? 0.35,0,1);
+  return lerp(0.45,0.03,acc);
+}
+
 function fireSpread(g,p,target,count,damage,speed,spread,color,pierce=0){
   const base=Math.atan2(target.y-p.y,target.x-p.x);
+  const accuracySpread=weaponSpreadRadians(p.accuracy ?? 0.35);
   for(let i=0;i<count;i++){
     const offset = count===1 ? 0 : (i-(count-1)/2)*spread;
-    const a=base+offset+rand(-0.035,0.035);
+    const a=base+offset+rand(-accuracySpread,accuracySpread);
     g.bullets.push({x:p.x+Math.cos(a)*p.r,y:p.y+Math.sin(a)*p.r,vx:Math.cos(a)*speed,vy:Math.sin(a)*speed,r:4,life:1.4,damage:damage*p.damageMul,pierce,color});
   }
 }
@@ -2135,17 +2279,27 @@ function openUpgrade(g){
     const idx=randi(0,pool.length-1);
     choices.push(pool.splice(idx,1)[0]);
   }
-  for(const up of choices){
+  g.upgradeMenuState = g.upgradeMenuState || {open:false,selectedIndex:0,lastMoveTime:-999,moveRepeatDelay:0.20};
+  g.upgradeMenuState.open=true;
+  g.upgradeMenuState.selectedIndex=0;
+  g.upgradeMenuState.lastMoveTime=-999;
+  g.upgradeMenuState.choices=choices;
+  for(let i=0;i<choices.length;i++){
+    const up=choices[i];
     const div=document.createElement('div');
     div.className='card';
+    div.dataset.upgradeIndex=String(i);
+    div.setAttribute('role','option');
+    div.setAttribute('tabindex','0');
     const iconHtml = up.spriteId ? spriteIconHtml(up.spriteId, up.icon) : up.icon;
     div.innerHTML=`<div class="icon">${iconHtml}</div><h3>${up.name}</h3><p>${up.desc}</p><span class="tag">Select</span>`;
-    div.onclick=()=>{
-      up.apply(g); awaitingUpgrade=false; ui.upgradeOverlay.classList.remove('show'); updateUI(g);
-    };
+    div.onclick=()=>selectUpgradeByIndex(g,i,'mouse');
+    div.onmouseenter=()=>{ g.upgradeMenuState.selectedIndex=i; refreshUpgradeSelection(g); };
+    div.onkeydown=(ev)=>{ if(ev.code==='Enter' || ev.code==='Space'){ ev.preventDefault(); selectUpgradeByIndex(g,i,'keyboard'); } };
     ui.upgradeCards.appendChild(div);
   }
   ui.upgradeOverlay.classList.add('show');
+  refreshUpgradeSelection(g);
 }
 
 function updateParticles(g,dt){

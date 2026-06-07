@@ -113,6 +113,19 @@ function debugVectorBurstCount(){ if(requireGame()){ upgradeVectorBurst(game,'co
 function debugSetPressure(level){ if(requireGame()){ game.hollowPressure=Math.max(0,Math.floor(level)); game.nextPressureTime=(game.hollowPressure+1)*120; game.pressureFlash=2; debugLog(`Set Hollow Pressure to ${game.hollowPressure}.`); updateGameAfterDebug(); } }
 function debugForceElitePattern(){ if(requireGame()){ game.hollowPressure=Math.max(game.hollowPressure||0,4); debugSpawnEnemies('elite',1); debugLog('Spawned high-pressure multi-shot elite.'); updateGameAfterDebug(); } }
 function debugSpawnEscalatedBoss(){ if(requireGame()){ game.hollowPressure=Math.max(game.hollowPressure||0,5); debugSpawnEnemies('boss',1); debugLog('Spawned escalated boss profile.'); updateGameAfterDebug(); } }
+
+function debugAddAccuracy(){ if(requireGame()){ game.player.accuracy=clamp((game.player.accuracy||0.35)+0.10,0,1); debugLog(`Accuracy now ${Math.round(game.player.accuracy*100)}%.`); updateGameAfterDebug(); } }
+function debugResetAccuracy(){ if(requireGame()){ game.player.accuracy=0.35; game.player.accuracyBonus=0; debugLog('Accuracy reset to 35%.'); updateGameAfterDebug(); } }
+function debugToggleControllerInfo(){ if(requireGame()){ game.debug.showController=!game.debug.showController; debugLog(`Controller debug ${game.debug.showController?'enabled':'disabled'}.`); updateGameAfterDebug(); } }
+function debugToggleAccuracyCone(){ if(requireGame()){ game.debug.showAccuracyCone=!game.debug.showAccuracyCone; debugLog(`Accuracy cone debug ${game.debug.showAccuracyCone?'enabled':'disabled'}.`); updateGameAfterDebug(); } }
+window.debugController = {
+  info: debugToggleControllerInfo,
+  accuracyCone: debugToggleAccuracyCone,
+  addAccuracy: debugAddAccuracy,
+  resetAccuracy: debugResetAccuracy,
+  state: ()=>gamepadState
+};
+
 function debugResetCooldowns(){ if(requireGame()){ game.player.dashCd=0; game.player.trapCd=0; for(const w of game.weapons) w.cd=0; debugLog('Reset cooldowns.'); updateGameAfterDebug(); } }
 function debugToggleEnemyPaths(){ if(requireGame()){ game.debug.showEnemyPaths=!game.debug.showEnemyPaths; debugLog(`Enemy path debug ${game.debug.showEnemyPaths ? 'enabled' : 'disabled'}.`); updateGameAfterDebug(); } }
 
@@ -566,6 +579,13 @@ function buildDebugPanel(){
     makeDebugButton('Spawn Stress Test Swarm',debugStressSwarm),
     makeDebugButton('Toggle Enemy Budget Overlay',debugToggleEnemyBudgetOverlay),
     makeDebugButton('Toggle Perf Despawn Log',debugTogglePerfDespawnLog)
+  ]);
+
+  addDebugSection(panel,'Accuracy and Controller',[
+    makeDebugButton('Add +10% Accuracy',debugAddAccuracy),
+    makeDebugButton('Reset Accuracy 35%',debugResetAccuracy),
+    makeDebugButton('Toggle Controller Info',debugToggleControllerInfo),
+    makeDebugButton('Toggle Accuracy Cone',debugToggleAccuracyCone)
   ]);
 
   addDebugSection(panel,'Player State',[
