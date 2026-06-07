@@ -54,6 +54,17 @@ class Enemy {
     this.hitFlash=0;
     this.slow=0;
     this.phase=Math.random()*Math.PI*2;
+    this.path=[];
+    this.pathIndex=0;
+    this.pathTimer=0;
+    this.pathVersion=-1;
+    this.lastPlayerTileX=null;
+    this.lastPlayerTileY=null;
+    this.stuckTimer=0;
+    this.lastX=x;
+    this.lastY=y;
+    this.unstickAngle=Math.random()*Math.PI*2;
+    this.noPathTimer=0;
   }
 }
 
@@ -74,6 +85,8 @@ function makeGame(cls){
     enemies:[], bullets:[], boomerangs:[], wardenDrones:[], sifterDrones:[], traps:[], arcs:[], pickups:[], particles:[], texts:[], waves:[],
     weapons:[],
     arcConnection:{ unlocked:false, level:0, maxTargets:0, selectedEnemies:[], flash:0 },
+    navigationVersion:0,
+    debug:{ showEnemyPaths:false },
     time:0, kills:0, level:1, xp:0, xpNeed:28, gold:0, nitra:0,
     spawnTimer:0, eliteTimer:75, nextWave:0,
     camera:{x:0,y:0},

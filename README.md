@@ -46,6 +46,7 @@ js/main.js              requestAnimationFrame loop, keyboard/mouse input, startu
 - Pathfinder traps can be placed with `E` on keyboard or the Xbox controller `A` button.
 - Arc Connection is a repeatable power-up. Right-click enemies to build an ordered green chain, then right-click empty space with two or more linked enemies to detonate electric/fire arc damage. Each upgrade adds one more selectable target.
 - Development debug mode adds a Debug button with upgrade application, weapon unlocks, test spawns, clears, player-state controls, and a debug action log.
+- Enemies now use terrain-aware pursuit: direct line-of-sight movement when possible, grid pathfinding through mined tunnels around obstacles when needed, mining-triggered navigation invalidation, stuck recovery, and a debug toggle for path visualization.
 
 ## Development Notes
 

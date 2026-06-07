@@ -104,6 +104,7 @@ function debugAddResource(resourceId, amount){
 function debugAddGild(){ debugAddResource('gild',100); }
 function debugAddVoltarite(){ debugAddResource('voltarite',50); }
 function debugResetCooldowns(){ if(requireGame()){ game.player.dashCd=0; game.player.trapCd=0; for(const w of game.weapons) w.cd=0; debugLog('Reset cooldowns.'); updateGameAfterDebug(); } }
+function debugToggleEnemyPaths(){ if(requireGame()){ game.debug.showEnemyPaths=!game.debug.showEnemyPaths; debugLog(`Enemy path debug ${game.debug.showEnemyPaths ? 'enabled' : 'disabled'}.`); updateGameAfterDebug(); } }
 
 function debugResetAbilities(){
   if(!requireGame()) return;
@@ -179,6 +180,9 @@ function buildDebugPanel(){
     makeDebugButton('Clear enemies',debugClearEnemies),
     makeDebugButton('Clear pickups',debugClearPickups),
     makeDebugButton('Clear projectiles',debugClearProjectiles)
+  ]);
+  addDebugSection(panel,'Pathfinding',[
+    makeDebugButton('Toggle Show Enemy Paths',debugToggleEnemyPaths)
   ]);
   addDebugSection(panel,'Player State',[
     makeDebugButton('Heal player to full HP',debugHealPlayer),

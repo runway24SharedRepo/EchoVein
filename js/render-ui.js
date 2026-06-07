@@ -40,6 +40,7 @@ function render(g){
   drawBoomerangs(g);
   drawArcConnection(g);
   drawEnemies(g);
+  drawEnemyPaths(g);
   drawWardenDrones(g);
   drawSifterDrones(g);
   drawPlayer(g);
@@ -186,6 +187,29 @@ function drawEnemies(g){
     ctx.fillStyle='#ff5b5b'; ctx.fillRect(-e.r,-e.r-10,e.r*2*clamp(e.hp/e.maxHp,0,1),4);
     ctx.restore();
   }
+}
+
+function drawEnemyPaths(g){
+  if(!g.debug?.showEnemyPaths) return;
+  ctx.save();
+  for(const e of g.enemies){
+    if(e.stuckTimer>0.75){
+      ctx.strokeStyle='rgba(255,91,91,0.95)';
+      ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(e.x,e.y,e.r+14,0,Math.PI*2); ctx.stroke();
+    }
+    if(!e.path || e.pathIndex>=e.path.length) continue;
+    ctx.strokeStyle='rgba(93,255,154,0.48)';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(e.x,e.y);
+    for(let i=e.pathIndex;i<e.path.length;i++) ctx.lineTo(e.path[i].x,e.path[i].y);
+    ctx.stroke();
+    const wp=e.path[e.pathIndex];
+    ctx.fillStyle='rgba(66,214,255,0.85)';
+    ctx.beginPath(); ctx.arc(wp.x,wp.y,4,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
 }
 
 function drawBullets(g){

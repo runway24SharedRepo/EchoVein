@@ -74,6 +74,10 @@ function mineAhead(g,p,dx,dy,dt){
   if(g.tileHp[i]<=0){
     g.tiles[i]=TILE_EMPTY;
     g.tileHp[i]=0;
+    g.navigationVersion++;
+    for(const e of g.enemies){
+      if(dist2(e.x,e.y,tx*TILE+TILE/2,ty*TILE+TILE/2)<520*520) e.pathTimer=0;
+    }
     shake = Math.max(shake, 2.5);
     sfx('rockBreak', 0.85);
     for(let k=0;k<10;k++) addParticle(g, tx*TILE+TILE/2, ty*TILE+TILE/2, rand(-120,120), rand(-120,120), '#8b735e', rand(0.28,0.6), rand(2,6));
@@ -106,6 +110,100 @@ function tryMoveAxis(g,obj,dx,dy){
     }
   }
   return {x:nx,y:ny};
+}
+
+function tileWalkable(g,tx,ty){
+  return inMap(tx,ty) && !isSolid(tileAt(g,tx,ty));
+}
+
+function tileCenter(tx,ty){
+  return {x:tx*TILE+TILE/2,y:ty*TILE+TILE/2};
+}
+
+function lineOfSightClear(g,x1,y1,x2,y2){
+  const dist=Math.hypot(x2-x1,y2-y1);
+  const steps=Math.max(1,Math.ceil(dist/(TILE*0.45)));
+  for(let i=1;i<steps;i++){
+    const t=i/steps;
+    const tx=Math.floor(lerp(x1,x2,t)/TILE), ty=Math.floor(lerp(y1,y2,t)/TILE);
+    if(isSolid(tileAt(g,tx,ty))) return false;
+  }
+  return true;
+}
+
+function findClosestWalkableTile(g,tx,ty,maxR=8){
+  if(tileWalkable(g,tx,ty)) return {tx,ty};
+  let best=null, bd=Infinity;
+  for(let r=1;r<=maxR;r++){
+    for(let y=ty-r;y<=ty+r;y++) for(let x=tx-r;x<=tx+r;x++){
+      if(Math.abs(x-tx)!==r && Math.abs(y-ty)!==r) continue;
+      if(!tileWalkable(g,x,y)) continue;
+      const d=(x-tx)*(x-tx)+(y-ty)*(y-ty);
+      if(d<bd){ bd=d; best={tx:x,ty:y}; }
+    }
+    if(best) return best;
+  }
+  return null;
+}
+
+function reconstructPath(cameFrom,current){
+  const path=[];
+  while(current!==-1){
+    const tx=current%MAP_W, ty=Math.floor(current/MAP_W);
+    path.push(tileCenter(tx,ty));
+    current=cameFrom[current] ?? -1;
+  }
+  path.reverse();
+  return path;
+}
+
+function findPathAStar(g,startTx,startTy,goalTx,goalTy,maxNodes=900){
+  const start=findClosestWalkableTile(g,startTx,startTy,5);
+  const goal=findClosestWalkableTile(g,goalTx,goalTy,10);
+  if(!start || !goal) return [];
+  const startId=tileIdx(start.tx,start.ty), goalId=tileIdx(goal.tx,goal.ty);
+  if(startId===goalId) return [tileCenter(goal.tx,goal.ty)];
+
+  const open=[startId];
+  const cameFrom=new Int32Array(MAP_W*MAP_H); cameFrom.fill(-1);
+  const gScore=new Float32Array(MAP_W*MAP_H); gScore.fill(Infinity);
+  const fScore=new Float32Array(MAP_W*MAP_H); fScore.fill(Infinity);
+  const inOpen=new Uint8Array(MAP_W*MAP_H);
+  gScore[startId]=0;
+  fScore[startId]=Math.abs(start.tx-goal.tx)+Math.abs(start.ty-goal.ty);
+  inOpen[startId]=1;
+  const dirs=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  let processed=0, bestId=startId, bestH=fScore[startId];
+
+  while(open.length && processed<maxNodes){
+    let bestIndex=0, bestF=fScore[open[0]];
+    for(let i=1;i<open.length;i++){
+      const id=open[i];
+      if(fScore[id]<bestF){ bestF=fScore[id]; bestIndex=i; }
+    }
+    const current=open.splice(bestIndex,1)[0];
+    inOpen[current]=0;
+    processed++;
+    if(current===goalId) return reconstructPath(cameFrom,current).slice(1);
+    const cx=current%MAP_W, cy=Math.floor(current/MAP_W);
+    const h=Math.abs(cx-goal.tx)+Math.abs(cy-goal.ty);
+    if(h<bestH){ bestH=h; bestId=current; }
+    for(const [dx,dy] of dirs){
+      const nx=cx+dx, ny=cy+dy;
+      if(!tileWalkable(g,nx,ny)) continue;
+      if(dx&&dy && (!tileWalkable(g,cx+dx,cy) || !tileWalkable(g,cx,cy+dy))) continue;
+      const nid=tileIdx(nx,ny);
+      const step=(dx&&dy)?1.4:1;
+      const tentative=gScore[current]+step;
+      if(tentative<gScore[nid]){
+        cameFrom[nid]=current;
+        gScore[nid]=tentative;
+        fScore[nid]=tentative+Math.abs(nx-goal.tx)+Math.abs(ny-goal.ty);
+        if(!inOpen[nid]){ open.push(nid); inOpen[nid]=1; }
+      }
+    }
+  }
+  return bestId!==startId ? reconstructPath(cameFrom,bestId).slice(1) : [];
 }
 
 function updateSpawning(g,dt){
@@ -666,10 +764,59 @@ function updateEnemies(g,dt){
   for(const e of g.enemies){
     e.hitFlash=Math.max(0,e.hitFlash-dt);
     e.slow=Math.max(0,e.slow-dt);
-    const dx=p.x-e.x, dy=p.y-e.y, l=len(dx,dy);
-    const wobble=Math.sin(g.time*4+e.phase)*0.25;
-    const ux=dx/l*Math.cos(wobble)-dy/l*Math.sin(wobble)*0.18;
-    const uy=dy/l*Math.cos(wobble)+dx/l*Math.sin(wobble)*0.18;
+    const moved=Math.hypot(e.x-e.lastX,e.y-e.lastY);
+    if(moved<4) e.stuckTimer+=dt; else { e.stuckTimer=0; e.lastX=e.x; e.lastY=e.y; }
+    e.pathTimer-=dt;
+    const [ptx,pty]=worldToTile(p.x,p.y);
+    const [etx,ety]=worldToTile(e.x,e.y);
+    const closeToPlayer=dist2(e.x,e.y,p.x,p.y)<420*420;
+    const hasLos=lineOfSightClear(g,e.x,e.y,p.x,p.y);
+    const needsPath=!hasLos && (
+      !e.path.length ||
+      e.pathIndex>=e.path.length ||
+      e.pathTimer<=0 ||
+      e.pathVersion!==g.navigationVersion ||
+      e.lastPlayerTileX===null ||
+      Math.abs(ptx-e.lastPlayerTileX)+Math.abs(pty-e.lastPlayerTileY)>2 ||
+      e.stuckTimer>0.75
+    );
+    if(needsPath){
+      const maxNodes=closeToPlayer?1200:650;
+      e.path=findPathAStar(g,etx,ety,ptx,pty,maxNodes);
+      e.pathIndex=0;
+      e.pathVersion=g.navigationVersion;
+      e.lastPlayerTileX=ptx; e.lastPlayerTileY=pty;
+      e.pathTimer=rand(closeToPlayer?0.25:0.55, closeToPlayer?0.55:1.05);
+      if(!e.path.length) e.noPathTimer=0.55;
+    }
+    let targetX=p.x, targetY=p.y;
+    if(!hasLos && e.path.length){
+      while(e.pathIndex<e.path.length && Math.hypot(e.path[e.pathIndex].x-e.x,e.path[e.pathIndex].y-e.y)<12) e.pathIndex++;
+      if(e.pathIndex<e.path.length){
+        targetX=e.path[e.pathIndex].x;
+        targetY=e.path[e.pathIndex].y;
+      }
+    } else if(!hasLos && e.noPathTimer>0){
+      const fallback=findClosestWalkableTile(g,ptx,pty,14);
+      if(fallback){
+        const c=tileCenter(fallback.tx,fallback.ty);
+        targetX=c.x; targetY=c.y;
+      }
+      e.noPathTimer-=dt;
+    }
+    const dx=targetX-e.x, dy=targetY-e.y, l=len(dx,dy);
+    const baseUx=dx/l, baseUy=dy/l;
+    let ux=baseUx, uy=baseUy;
+    const wobble=Math.sin(g.time*4+e.phase)*0.18;
+    ux=baseUx*Math.cos(wobble)-baseUy*Math.sin(wobble)*0.12;
+    uy=baseUy*Math.cos(wobble)+baseUx*Math.sin(wobble)*0.12;
+    if(e.stuckTimer>0.75){
+      e.unstickAngle += dt*5.5;
+      ux += Math.cos(e.unstickAngle)*0.45;
+      uy += Math.sin(e.unstickAngle)*0.45;
+      const ul=len(ux,uy); ux/=ul; uy/=ul;
+      e.pathTimer=0;
+    }
     const slow=e.slow>0?0.55:1;
     moveCircle(g,e,ux*e.speed*slow*dt,uy*e.speed*slow*dt);
     const touch = p.r+e.r;
