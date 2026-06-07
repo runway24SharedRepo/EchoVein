@@ -9,8 +9,8 @@ function update(g,dt){
   logTimeout = Math.max(0, logTimeout-dt);
   updatePlayer(g,dt);
   updateWeapons(g,dt);
-  updateDrones(g,dt);
-  updateSweepers(g,dt);
+  updateWardenDrones(g,dt);
+  updateSifterDrones(g,dt);
   updateEnemies(g,dt);
   updateBullets(g,dt);
   updateBoomerangs(g,dt);
@@ -65,9 +65,9 @@ function mineAhead(g,p,dx,dy,dt){
     shake = Math.max(shake, 2.5);
     sfx('rockBreak', 0.85);
     for(let k=0;k<10;k++) addParticle(g, tx*TILE+TILE/2, ty*TILE+TILE/2, rand(-120,120), rand(-120,120), '#8b735e', rand(0.28,0.6), rand(2,6));
-    if(t===TILE_GOLD){ g.gold += randi(2,5); floating(g,tx*TILE+18,ty*TILE+12,'+Gold','#ffcc4d'); sfx('mineral'); }
-    if(t===TILE_NITRA){ g.nitra += randi(1,3); floating(g,tx*TILE+18,ty*TILE+12,'+Nitra','#ff5b5b'); sfx('mineral'); }
-    if(t===TILE_CRYSTAL){ dropPickup(g,tx*TILE+18,ty*TILE+18,'xp',12); floating(g,tx*TILE+18,ty*TILE+12,'+XP crystal','#42d6ff'); sfx('mineral'); }
+    if(t===TILE_GOLD){ g.gold += randi(2,5); floating(g,tx*TILE+18,ty*TILE+12,'+Gild Shards',MINERALS.gild.color); sfx('mineral'); }
+    if(t===TILE_NITRA){ g.nitra += randi(1,3); floating(g,tx*TILE+18,ty*TILE+12,'+Voltarite',MINERALS.voltarite.color); sfx('mineral'); }
+    if(t===TILE_CRYSTAL){ dropPickup(g,tx*TILE+18,ty*TILE+18,'xp',12); floating(g,tx*TILE+18,ty*TILE+12,'+Echo Shards',MINERALS.echo.color); sfx('mineral'); }
   }
 }
 
@@ -112,7 +112,7 @@ function updateSpawning(g,dt){
   if(g.time > g.eliteTimer){
     g.eliteTimer += 75;
     spawnBurst(g,1,'elite');
-    log(g,'Elite glyphid detected!');
+    log(g,'Hollow Tyrant detected!');
     sfx('elite');
   }
   if(g.time > g.nextWave){
@@ -141,7 +141,7 @@ function updateWeapons(g,dt){
       continue;
     }
     if(w.id==='sweeper'){
-      ensureSweeperFleet(g,w);
+      ensureSifterFleet(g,w);
       continue;
     }
     if(w.cd>0) continue;
@@ -201,9 +201,9 @@ function updateWeapons(g,dt){
 function ensureDroneFleet(g,w){
   const p=g.player;
   const desired = Math.min(10, 1 + w.level);
-  while(g.drones.length < desired){
+  while(g.wardenDrones.length < desired){
     const a=rand(0,Math.PI*2);
-    g.drones.push({
+    g.wardenDrones.push({
       x:p.x+Math.cos(a)*rand(35,90),
       y:p.y+Math.sin(a)*rand(35,90),
       r:9,
@@ -216,16 +216,16 @@ function ensureDroneFleet(g,w){
       level:w.level,
     });
   }
-  for(const d of g.drones) d.level=w.level;
+  for(const d of g.wardenDrones) d.level=w.level;
 }
 
-function updateDrones(g,dt){
+function updateWardenDrones(g,dt){
   const p=g.player;
   const w=g.weapons.find(w=>w.id==='drones');
-  if(!w || !g.drones.length) return;
+  if(!w || !g.wardenDrones.length) return;
   const roamRadius = 150 * p.droneOrbitMul + w.level*18;
-  for(let i=0;i<g.drones.length;i++){
-    const d=g.drones[i];
+  for(let i=0;i<g.wardenDrones.length;i++){
+    const d=g.wardenDrones[i];
     d.retarget -= dt;
     const threat=nearestEnemy(g,d.x,d.y,460 + w.level*20);
     if(d.retarget<=0 || dist2(d.x,d.y,d.targetX,d.targetY)<28*28){
@@ -269,12 +269,12 @@ function updateDrones(g,dt){
   }
 }
 
-function ensureSweeperFleet(g,w){
+function ensureSifterFleet(g,w){
   const p=g.player;
   const desired = Math.min(6, 1 + Math.floor((w.level+1)/2));
-  while(g.sweepers.length < desired){
+  while(g.sifterDrones.length < desired){
     const a=rand(0,Math.PI*2);
-    g.sweepers.push({
+    g.sifterDrones.push({
       x:p.x+Math.cos(a)*rand(45,95),
       y:p.y+Math.sin(a)*rand(45,95),
       r:10,
@@ -287,7 +287,7 @@ function ensureSweeperFleet(g,w){
       phase:rand(0,Math.PI*2),
     });
   }
-  for(const sw of g.sweepers) sw.level=w.level;
+  for(const sw of g.sifterDrones) sw.level=w.level;
 }
 
 function nearestXpPickup(g,x,y,maxD){
@@ -300,23 +300,23 @@ function nearestXpPickup(g,x,y,maxD){
   return best;
 }
 
-function collectPickupBySweeper(g,it,sw){
+function collectPickupBySifter(g,it,sw){
   if(!it || it.life<=0) return;
   if(it.type==='xp') gainXp(g,it.value);
   it.life=0;
-  floating(g,sw.x,sw.y-18,'XP swept','#7df9ff');
+  floating(g,sw.x,sw.y-18,'Echo sifted','#7df9ff');
   sfx('pickup',0.45);
   addRing(g,sw.x,sw.y,'rgba(125,249,255,0.75)',0.18,5,24,3);
 }
 
-function updateSweepers(g,dt){
+function updateSifterDrones(g,dt){
   const p=g.player;
   const w=g.weapons.find(w=>w.id==='sweeper');
-  if(!w || !g.sweepers.length) return;
+  if(!w || !g.sifterDrones.length) return;
   const searchRange=(360+w.level*70)*p.sweeperRangeMul;
   const homeRadius=230+w.level*30;
-  for(let i=0;i<g.sweepers.length;i++){
-    const sw=g.sweepers[i];
+  for(let i=0;i<g.sifterDrones.length;i++){
+    const sw=g.sifterDrones[i];
     sw.retarget -= dt;
     if(!sw.target || sw.target.life<=0 || sw.target.type!=='xp' || sw.retarget<=0){
       sw.target=nearestXpPickup(g,sw.x,sw.y,searchRange);
@@ -351,7 +351,7 @@ function updateSweepers(g,dt){
     const collectR=(22+w.level*3)*p.sweeperCollectMul;
     for(const it of g.pickups){
       if(it.type==='xp' && it.life>0 && dist2(sw.x,sw.y,it.x,it.y)<collectR*collectR){
-        collectPickupBySweeper(g,it,sw);
+        collectPickupBySifter(g,it,sw);
       }
     }
     if(Math.random()<0.28) addParticle(g,sw.x,sw.y,-sw.vx*0.04+rand(-10,10),-sw.vy*0.04+rand(-10,10),'rgba(125,249,255,0.72)',0.18,2,'spark');
@@ -440,11 +440,11 @@ function placeTrap(g){
   if(!p.canUseTraps || p.trapCd>0 || g.state!=='playing' || awaitingUpgrade) return false;
   const [tx,ty]=worldToTile(p.x,p.y);
   if(isSolid(tileAt(g,tx,ty))) return false;
-  const maxTraps = p.classId==='scout' ? 8 : 4;
+  const maxTraps = p.classId==='pathfinder' ? 8 : 4;
   if(g.traps.length>=maxTraps) g.traps.shift();
   g.traps.push({x:p.x,y:p.y,r:16,triggerR:28,age:0,armed:false,life:32,pulse:0,damage:90*p.trapDamageMul,radius:88*p.trapRadiusMul});
   p.trapCd=p.trapMaxCd;
-  floating(g,p.x,p.y-25,'Trap armed','#ffcc4d');
+  floating(g,p.x,p.y-25,'Seismic trap armed','#ffcc4d');
   addRing(g,p.x,p.y,'rgba(255,204,77,0.75)',0.22,5,24,3);
   sfx('pickup',0.35);
   return true;

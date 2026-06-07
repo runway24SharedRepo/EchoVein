@@ -38,7 +38,7 @@ function setAudioVolume(v){
 function toggleMute(){
   audio.muted = !audio.muted;
   if(audio.master) audio.master.gain.setTargetAtTime(audio.muted ? 0 : audio.volume, audio.ctx.currentTime, 0.02);
-  ui.soundBtn.textContent = audio.muted ? '🔇 Muted' : '🔊 Sound';
+  ui.soundBtn.textContent = audio.muted ? 'Muted' : 'Sound';
 }
 
 function tone(freq, dur=0.08, type='sine', gain=0.08, slideTo=null){

@@ -1,6 +1,8 @@
-# Rockfall Survivor - Modular HTML Roguelike Prototype
+# Echo Vein
 
-This is the same browser game split into separate files so the project is easier to extend.
+Echo Vein is a modular HTML roguelike survivor prototype about Hollowshift Guild subsurface operators descending into unstable alien caverns to extract resonance minerals and survive escalating Hollowborn swarms.
+
+Mission phrase: descend, extract, survive.
 
 ## Run
 
@@ -17,36 +19,25 @@ Then open `http://localhost:8000`.
 ```text
 index.html              HTML shell and overlays
 css/style.css           All UI and canvas styling
-js/core.js              Constants, global game state, UI references, helpers, canvas resize
+assets/sprites/         Optional sprite pack PNGs
+js/core.js              Constants, global game state, data dictionaries, UI references, helpers, canvas resize
+js/assets.js            Optional sprite loading with procedural rendering fallbacks
 js/audio.js             Web Audio procedural sound engine
 js/entities.js          Player, Enemy, enemy types, makeGame()
 js/world.js             Cave generation, tiles, mining helpers, enemy spawning, log
-js/systems.js           Update loop logic: player, enemies, weapons, bullets, pickups, XP, upgrades
+js/systems.js           Update loop logic: player, enemies, weapons, bullets, pickups, Echo, upgrades
 js/render-ui.js         HUD updates, drawing functions, menus, game over/start flows
 js/main.js              requestAnimationFrame loop, keyboard/mouse input, startup
 ```
 
-## Development notes
+## Identity Pass
+
+- Game title updated to Echo Vein.
+- Visible classes are Bulwark, Pathfinder, and Borecaster.
+- Visible resources are Gild Shards, Voltarite, and Echo Shards.
+- Visible weapons now use original names such as Rotary Mauler, Vector Carbine, Thermal Lance, Warden Drones, Sifter Drone, Storm Lattice, Bore Rail, and Return Disc.
+- Optional sprite loading supports mineral nodes, Echo Shard pickups, Warden Drones, and Sifter Drones while preserving procedural fallbacks.
+
+## Development Notes
 
 The scripts are loaded in dependency order using normal browser scripts, not a bundler. This keeps the game very easy to open locally. Later, this can be converted to ES modules with `import`/`export` once the project grows further.
-
-
-## New additions
-
-- Enhanced multi-layer explosion VFX with shockwaves and spark bursts
-- Additional drone-focused upgrades
-- New boomerang weapon upgrade
-
-
-## v3 additions
-
-- Autonomous roaming drones now move around the player and fire their own micro-bullets at enemies.
-- Arc Coil now draws visible chain-lightning VFX and applies local electric splash damage around chained targets.
-- Scout now has an explosive trap kit. Press `E` to place a trap on the ground; it arms shortly after deployment and explodes when enemies step on it.
-
-
-## v4 additions
-
-- Sweeper Drone utility upgrade
-- Sweeper drones roam independently and collect XP crystals for the player
-- Sweeper Optics and Sweeper Turbo improve XP search radius, movement speed, and collection radius

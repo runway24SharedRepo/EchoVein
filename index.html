@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Rockfall Survivor - Modular HTML Roguelike Prototype</title>
+  <title>Echo Vein</title>
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="css/style.css" />
   <script defer src="js/core.js"></script>
+  <script defer src="js/assets.js"></script>
   <script defer src="js/audio.js"></script>
   <script defer src="js/entities.js"></script>
   <script defer src="js/world.js"></script>
@@ -20,15 +21,15 @@
 <div class="hud">
   <div class="topbar">
     <div class="panel stats">
-      <div class="line"><span>⛏️ <strong>Rockfall Survivor</strong></span><span id="timer">00:00</span></div>
+      <div class="line"><span><strong>Echo Vein</strong></span><span id="timer">00:00</span></div>
       <div class="bars">
         <div class="bar health"><div id="hpFill"></div><span class="label" id="hpLabel">HP</span></div>
-        <div class="bar xp"><div id="xpFill"></div><span class="label" id="xpLabel">XP</span></div>
-        <div class="bar overheat"><div id="heatFill"></div><span class="label" id="heatLabel">DRILL HEAT</span></div>
+        <div class="bar xp"><div id="xpFill"></div><span class="label" id="xpLabel">ECHO</span></div>
+        <div class="bar overheat"><div id="heatFill"></div><span class="label" id="heatLabel">TOOL HEAT</span></div>
       </div>
       <div class="line">
-        <span>Level <strong id="level">1</strong> · Depth <strong id="depth">0 m</strong></span>
-        <span>Gold <strong id="gold">0</strong> · Nitra <strong id="nitra">0</strong> · Kills <strong id="kills">0</strong></span>
+        <span>Level <strong id="level">1</strong> &middot; Depth <strong id="depth">0 m</strong></span>
+        <span>Gild Shards <strong id="gold">0</strong> &middot; Voltarite <strong id="nitra">0</strong> &middot; Kills <strong id="kills">0</strong></span>
       </div>
     </div>
   </div>
@@ -36,7 +37,7 @@
   <div class="rightbar panel">
     <div>
       <div class="title">Mission Status</div>
-      <div class="subtitle">Mine minerals, survive the swarm, and build a ridiculous auto-firing dwarf loadout.</div>
+      <div class="subtitle">Descend, extract, survive. Mine resonance minerals, outlast the Hollowborn, and build an overloaded operator kit.</div>
     </div>
     <div class="weaponList" id="weaponList"></div>
     <div class="logList" id="logList"></div>
@@ -44,10 +45,10 @@
 
   <div class="bottomHelp panel">
     <span class="soundControls">
-      <button id="soundBtn" title="Toggle sound. Shortcut: M">🔊 Sound</button>
+      <button id="soundBtn" title="Toggle sound. Shortcut: M">Sound</button>
       <label>Vol <input id="volumeSlider" type="range" min="0" max="100" value="42"></label>
     </span>
-    Move <kbd>WASD</kbd>/<kbd>Arrows</kbd> · Drill rock by walking into it · Dash <kbd>Space</kbd> · Scout trap <kbd>E</kbd> · Pause <kbd>P</kbd> · Restart <kbd>R</kbd> · Mute <kbd>M</kbd>
+    Move <kbd>WASD</kbd>/<kbd>Arrows</kbd> &middot; Bore Crust Stone by walking into it &middot; Dash <kbd>Space</kbd> &middot; Pathfinder trap <kbd>E</kbd> &middot; Pause <kbd>P</kbd> &middot; Restart <kbd>R</kbd> &middot; Mute <kbd>M</kbd>
   </div>
 </div>
 
@@ -55,9 +56,9 @@
 
 <div class="overlay show" id="startOverlay">
   <div class="modal">
-    <h1>⛏️ Rockfall Survivor</h1>
-    <p>A modular HTML roguelike survivor prototype inspired by cave-mining auto-shooters. It has procedural destructible caves, minerals, auto weapons, XP gems, upgrades, swarms, elites, and extraction-style survival.</p>
-    <p><b>Goal:</b> survive as long as possible. The game escalates every minute. Enemies drop XP; minerals give economy. Drilling is useful but overheating slows excavation.</p>
+    <h1>Echo Vein</h1>
+    <p>A roguelike survivor prototype about Hollowshift Guild subsurface operators descending into unstable alien caverns for volatile resonance minerals.</p>
+    <p><b>Goal:</b> survive as long as possible. The mission escalates every minute. Hollowborn drop Echo Shards; mineral veins feed your economy. Boring through rock is powerful, but tool heat can stall excavation.</p>
     <div class="cards" id="classCards"></div>
   </div>
 </div>
@@ -65,7 +66,7 @@
 <div class="overlay" id="upgradeOverlay">
   <div class="modal">
     <h2>Level Up - Choose an Upgrade</h2>
-    <p>Pick one upgrade. Weapon stacks are intentionally strong, because roguelike survivor games should become chaotic.</p>
+    <p>Pick one upgrade. Weapon stacks are intentionally strong because survivor runs should spiral into controlled chaos.</p>
     <div class="cards" id="upgradeCards"></div>
   </div>
 </div>
@@ -76,7 +77,7 @@
     <p id="gameOverText"></p>
     <div class="buttonRow">
       <button onclick="restartGame()">Restart Mission</button>
-      <button onclick="showStart()">Choose Class</button>
+      <button onclick="showStart()">Choose Operator</button>
     </div>
   </div>
 </div>

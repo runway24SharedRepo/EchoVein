@@ -1,8 +1,8 @@
 'use strict';
 
-/* Core state, configuration, DOM references, input-independent helpers, and canvas resize. */
+/* Core state, configuration, DOM references, data dictionaries, helpers, and canvas resize. */
 
-'use strict';
+const GAME_TITLE = 'Echo Vein';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -20,6 +20,34 @@ const TILE_HARD = 2;
 const TILE_GOLD = 3;
 const TILE_NITRA = 4;
 const TILE_CRYSTAL = 5;
+
+const MINERALS = {
+  gild: { id: 'gild', displayName: 'Gild Shards', shortName: 'Gild', color: '#ffcc4d', sprite: 'gildShard' },
+  voltarite: { id: 'voltarite', displayName: 'Voltarite', shortName: 'Voltarite', color: '#ff5b5b', sprite: 'voltariteOre' },
+  echo: { id: 'echo', displayName: 'Echo Shards', shortName: 'Echo', color: '#42d6ff', sprite: 'echoShard' },
+  crust: { id: 'crust', displayName: 'Crust Stone', shortName: 'Crust', color: '#3a342f' },
+  ironbasalt: { id: 'ironbasalt', displayName: 'Ironbasalt', shortName: 'Ironbasalt', color: '#302b2a' }
+};
+
+const TILE_DATA = {
+  [TILE_ROCK]: MINERALS.crust,
+  [TILE_HARD]: MINERALS.ironbasalt,
+  [TILE_GOLD]: MINERALS.gild,
+  [TILE_NITRA]: MINERALS.voltarite,
+  [TILE_CRYSTAL]: MINERALS.echo
+};
+
+const WEAPON_DATA = {
+  minigun: { name: 'Rotary Mauler' },
+  carbine: { name: 'Vector Carbine' },
+  flamer: { name: 'Thermal Lance' },
+  satchel: { name: 'Seismic Charge' },
+  drones: { name: 'Warden Drones' },
+  boomerang: { name: 'Return Disc' },
+  arc: { name: 'Storm Lattice' },
+  rail: { name: 'Bore Rail' },
+  sweeper: { name: 'Sifter Drone' }
+};
 
 const keys = new Set();
 let mouse = { x: 0, y: 0 };
@@ -46,35 +74,35 @@ const ui = {
 };
 
 const CLASSES = [
-  { id: 'gunner', icon: '🔫', name: 'Gunner', desc: 'High fire-rate minigun, more armour, lower movement speed.', tag: 'Stable DPS', hp: 140, speed: 185, weapon: 'minigun' },
-  { id: 'scout', icon: '🪝', name: 'Scout', desc: 'Fast miner with stronger dash and ricochet carbine.', tag: 'Mobility', hp: 105, speed: 235, weapon: 'carbine' },
-  { id: 'driller', icon: '🔥', name: 'Driller', desc: 'Better excavation, flame cone weapon, improved heat capacity.', tag: 'Mining Control', hp: 125, speed: 195, weapon: 'flamer' }
+  { id: 'bulwark', icon: 'B', name: 'Bulwark', desc: 'Heavy armour, high endurance, and a Rotary Mauler built for sustained pressure.', tag: 'Armoured DPS', hp: 140, speed: 185, weapon: 'minigun' },
+  { id: 'pathfinder', icon: 'P', name: 'Pathfinder', desc: 'Fast utility operator with a Vector Carbine, stronger dash, and a deployable trap kit.', tag: 'Mobility', hp: 105, speed: 235, weapon: 'carbine' },
+  { id: 'borecaster', icon: 'C', name: 'Borecaster', desc: 'Mining and thermal-control specialist with better heat capacity and a Thermal Lance.', tag: 'Mining Control', hp: 125, speed: 195, weapon: 'flamer' }
 ];
 
 const UPGRADE_POOL = [
-  { icon:'💥', name:'Kinetic Rounds', desc:'+18% projectile damage.', apply:g=>g.player.damageMul*=1.18 },
-  { icon:'⚡', name:'Trigger Discipline', desc:'+14% fire rate on all automatic weapons.', apply:g=>g.player.fireRateMul*=1.14 },
-  { icon:'🎯', name:'Targeting Optics', desc:'+1 projectile for bullet weapons.', apply:g=>g.player.extraProjectiles++ },
-  { icon:'🛡️', name:'Armour Plates', desc:'+25 max HP and repair 20 HP.', apply:g=>{g.player.maxHp+=25; g.player.hp=Math.min(g.player.maxHp,g.player.hp+20);} },
-  { icon:'👟', name:'Mag Boots', desc:'+10% movement speed.', apply:g=>g.player.speedMul*=1.10 },
-  { icon:'🧲', name:'Mineral Magnet', desc:'+35% XP and mineral pickup range.', apply:g=>g.player.pickupMul*=1.35 },
-  { icon:'🧹', name:'Sweeper Drone', desc:'Adds a utility drone that roams out and collects XP crystals for you.', apply:g=>addOrLevelWeapon(g,'sweeper') },
-  { icon:'🪓', name:'Tungsten Drill Bit', desc:'+35% mining speed and less heat per tile.', apply:g=>{g.player.mineMul*=1.35; g.player.heatEfficiency*=0.86;} },
-  { icon:'🧊', name:'Cryo Coolant', desc:'Drill cools faster and overheats less often.', apply:g=>{g.player.coolMul*=1.35; g.player.maxHeat+=20;} },
-  { icon:'🧨', name:'Satchel Charge', desc:'Adds a periodic explosion around the nearest swarm.', apply:g=>addOrLevelWeapon(g,'satchel') },
-  { icon:'🌀', name:'Shredder Drone Bay', desc:'Adds autonomous roaming drones that fire their own micro-bullets.', apply:g=>addOrLevelWeapon(g,'drones') },
-  { icon:'🤖', name:'Drone Bay Expansion', desc:'Adds more autonomous drones and improves their bullet damage.', apply:g=>{ addOrLevelWeapon(g,'drones'); addOrLevelWeapon(g,'drones'); g.player.droneDamageMul*=1.12; } },
-  { icon:'🛰️', name:'Drone Targeting AI', desc:'Drones roam faster and fire their micro-guns more aggressively.', apply:g=>{ if(!g.weapons.find(w=>w.id==='drones')) addOrLevelWeapon(g,'drones'); g.player.droneSpeedMul*=1.18; g.player.droneFireRateMul*=1.30; } },
-  { icon:'🛸', name:'Drone Patrol Radius', desc:'Drones roam farther from the miner and hit harder.', apply:g=>{ if(!g.weapons.find(w=>w.id==='drones')) addOrLevelWeapon(g,'drones'); g.player.droneOrbitMul*=1.20; g.player.droneDamageMul*=1.18; } },
-  { icon:'🔎', name:'Sweeper Optics', desc:'Unlocks the Sweeper Drone if needed and increases its XP search radius.', apply:g=>{ if(!g.weapons.find(w=>w.id==='sweeper')) addOrLevelWeapon(g,'sweeper'); g.player.sweeperRangeMul*=1.35; } },
-  { icon:'💨', name:'Sweeper Turbo', desc:'Sweeper drones move faster and collect XP more aggressively.', apply:g=>{ if(!g.weapons.find(w=>w.id==='sweeper')) addOrLevelWeapon(g,'sweeper'); g.player.sweeperSpeedMul*=1.30; g.player.sweeperCollectMul*=1.18; } },
-  { icon:'🪃', name:'Boomerang Cutter', desc:'Adds a returning boomerang that slices through bugs on the way out and back.', apply:g=>addOrLevelWeapon(g,'boomerang') },
-  { icon:'🌩️', name:'Arc Coil', desc:'Adds chain lightning between nearby enemies.', apply:g=>addOrLevelWeapon(g,'arc') },
-  { icon:'☄️', name:'Rock Splitter', desc:'Adds a heavy piercing rail shot.', apply:g=>addOrLevelWeapon(g,'rail') },
-  { icon:'🩸', name:'Vampire Pickaxe', desc:'Every 18 kills restore 8 HP.', apply:g=>g.player.vampire+=8 },
-  { icon:'📦', name:'Supply Pod', desc:'Spend 15 Nitra to gain full repair now, otherwise +20 max HP.', apply:g=>{ if(g.nitra>=15){g.nitra-=15; g.player.hp=g.player.maxHp;} else {g.player.maxHp+=20; g.player.hp+=20;} } },
-  { icon:'🪤', name:'Trap Payload', desc:'Scout traps gain larger blast radius and more damage. Non-scouts unlock emergency traps.', apply:g=>{ g.player.trapDamageMul*=1.30; g.player.trapRadiusMul*=1.15; g.player.canUseTraps=true; } },
-  { icon:'💣', name:'Explosive Ammo', desc:'Bullets gain small area damage.', apply:g=>g.player.splash+=10 },
+  { icon:'DMG', name:'Kinetic Rounds', desc:'+18% projectile damage.', apply:g=>g.player.damageMul*=1.18 },
+  { icon:'FR', name:'Trigger Discipline', desc:'+14% fire rate on all automatic weapons.', apply:g=>g.player.fireRateMul*=1.14 },
+  { icon:'TGT', name:'Targeting Optics', desc:'+1 projectile for bullet weapons.', apply:g=>g.player.extraProjectiles++ },
+  { icon:'ARM', name:'Armour Plates', desc:'+25 max HP and repair 20 HP.', apply:g=>{g.player.maxHp+=25; g.player.hp=Math.min(g.player.maxHp,g.player.hp+20);} },
+  { icon:'SPD', name:'Mag Boots', desc:'+10% movement speed.', apply:g=>g.player.speedMul*=1.10 },
+  { icon:'MAG', name:'Resonance Magnet', desc:'+35% Echo Shard and mineral pickup range.', apply:g=>g.player.pickupMul*=1.35 },
+  { icon:'SIF', name:'Sifter Drone', desc:'Adds a utility drone that roams out and collects Echo Shards for you.', apply:g=>addOrLevelWeapon(g,'sweeper') },
+  { icon:'BOR', name:'Tungsten Bore Bit', desc:'+35% mining speed and less heat per tile.', apply:g=>{g.player.mineMul*=1.35; g.player.heatEfficiency*=0.86;} },
+  { icon:'COOL', name:'Cryo Coolant', desc:'Tool cools faster and overheats less often.', apply:g=>{g.player.coolMul*=1.35; g.player.maxHeat+=20;} },
+  { icon:'SEIS', name:'Seismic Charge', desc:'Adds a periodic explosion around the nearest swarm.', apply:g=>addOrLevelWeapon(g,'satchel') },
+  { icon:'WRDN', name:'Warden Drone Bay', desc:'Adds autonomous Warden Drones that roam and fire micro-bullets.', apply:g=>addOrLevelWeapon(g,'drones') },
+  { icon:'BAY', name:'Drone Bay Expansion', desc:'Adds more Warden Drones and improves their bullet damage.', apply:g=>{ addOrLevelWeapon(g,'drones'); addOrLevelWeapon(g,'drones'); g.player.droneDamageMul*=1.12; } },
+  { icon:'AI', name:'Drone Targeting AI', desc:'Warden Drones roam faster and fire more aggressively.', apply:g=>{ if(!g.weapons.find(w=>w.id==='drones')) addOrLevelWeapon(g,'drones'); g.player.droneSpeedMul*=1.18; g.player.droneFireRateMul*=1.30; } },
+  { icon:'PAT', name:'Drone Patrol Radius', desc:'Warden Drones roam farther from the operator and hit harder.', apply:g=>{ if(!g.weapons.find(w=>w.id==='drones')) addOrLevelWeapon(g,'drones'); g.player.droneOrbitMul*=1.20; g.player.droneDamageMul*=1.18; } },
+  { icon:'OPT', name:'Sifter Optics', desc:'Unlocks the Sifter Drone if needed and increases its Echo Shard search radius.', apply:g=>{ if(!g.weapons.find(w=>w.id==='sweeper')) addOrLevelWeapon(g,'sweeper'); g.player.sweeperRangeMul*=1.35; } },
+  { icon:'TRB', name:'Sifter Turbo', desc:'Sifter Drones move faster and collect Echo Shards more aggressively.', apply:g=>{ if(!g.weapons.find(w=>w.id==='sweeper')) addOrLevelWeapon(g,'sweeper'); g.player.sweeperSpeedMul*=1.30; g.player.sweeperCollectMul*=1.18; } },
+  { icon:'DISC', name:'Return Disc', desc:'Adds a returning disc that slices through Hollowborn on the way out and back.', apply:g=>addOrLevelWeapon(g,'boomerang') },
+  { icon:'ARC', name:'Storm Lattice', desc:'Adds chain lightning between nearby enemies.', apply:g=>addOrLevelWeapon(g,'arc') },
+  { icon:'RAIL', name:'Bore Rail', desc:'Adds a heavy piercing rail shot.', apply:g=>addOrLevelWeapon(g,'rail') },
+  { icon:'REC', name:'Field Reclaimer', desc:'Every 18 kills restore 8 HP.', apply:g=>g.player.vampire+=8 },
+  { icon:'SUP', name:'Supply Cache', desc:'Spend 15 Voltarite to gain full repair now, otherwise +20 max HP.', apply:g=>{ if(g.nitra>=15){g.nitra-=15; g.player.hp=g.player.maxHp;} else {g.player.maxHp+=20; g.player.hp+=20;} } },
+  { icon:'TRAP', name:'Trap Payload', desc:'Pathfinder traps gain larger blast radius and more damage. Other operators unlock emergency traps.', apply:g=>{ g.player.trapDamageMul*=1.30; g.player.trapRadiusMul*=1.15; g.player.canUseTraps=true; } },
+  { icon:'EXP', name:'Explosive Ammo', desc:'Bullets gain small area damage.', apply:g=>g.player.splash+=10 },
 ];
 
 function rand(a,b){ return a + Math.random()*(b-a); }
@@ -84,14 +112,9 @@ function dist2(ax,ay,bx,by){ const dx=ax-bx, dy=ay-by; return dx*dx+dy*dy; }
 function len(x,y){ return Math.hypot(x,y) || 1; }
 function lerp(a,b,t){ return a+(b-a)*t; }
 function nowSec(){ return game ? game.time : 0; }
-
+function weaponName(id){ return WEAPON_DATA[id]?.name || id; }
 
 function resizeCanvas(){
-  /*
-   * The canvas is visually sized by CSS, but the drawing buffer must also be
-   * resized. Without this, some browsers keep the default 300x150 buffer and
-   * scale it, which can make the first game screen look wrong after start.
-   */
   canvas.width = Math.floor(window.innerWidth * DPR);
   canvas.height = Math.floor(window.innerHeight * DPR);
   canvas.style.width = window.innerWidth + 'px';

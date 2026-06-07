@@ -61,7 +61,6 @@ function addOrLevelWeapon(g,id){
   g.weapons.push(w);
   log(g, `${weaponName(id)} online`);
 }
-function weaponName(id){ return ({minigun:'Lead Storm Minigun',carbine:'Ricochet Carbine',flamer:'Flame Stream',satchel:'Satchel Charge',drones:'Autonomous Drones',boomerang:'Boomerang Cutter',arc:'Arc Coil',rail:'Rock Splitter',sweeper:'Sweeper Drone'})[id] || id; }
 
 function log(g,msg){
   g.log.unshift(msg);

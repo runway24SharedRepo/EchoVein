@@ -13,10 +13,10 @@ class Player {
     this.damageMul = 1;
     this.fireRateMul = 1;
     this.pickupMul = 1;
-    this.mineMul = cls.id === 'driller' ? 1.45 : 1;
-    this.coolMul = cls.id === 'driller' ? 1.2 : 1;
-    this.heatEfficiency = cls.id === 'driller' ? 0.75 : 1;
-    this.maxHeat = cls.id === 'driller' ? 130 : 100;
+    this.mineMul = cls.id === 'borecaster' ? 1.45 : 1;
+    this.coolMul = cls.id === 'borecaster' ? 1.2 : 1;
+    this.heatEfficiency = cls.id === 'borecaster' ? 0.75 : 1;
+    this.maxHeat = cls.id === 'borecaster' ? 130 : 100;
     this.heat = 0;
     this.extraProjectiles = 0;
     this.splash = 0;
@@ -29,9 +29,9 @@ class Player {
     this.sweeperRangeMul = 1;
     this.sweeperSpeedMul = 1;
     this.sweeperCollectMul = 1;
-    this.canUseTraps = cls.id === 'scout';
+    this.canUseTraps = cls.id === 'pathfinder';
     this.trapCd = 0;
-    this.trapMaxCd = cls.id === 'scout' ? 2.6 : 4.5;
+    this.trapMaxCd = cls.id === 'pathfinder' ? 2.6 : 4.5;
     this.trapDamageMul = 1;
     this.trapRadiusMul = 1;
     this.iframes = 0;
@@ -70,19 +70,19 @@ function makeGame(cls){
     player:new Player(cls),
     tiles:new Uint8Array(MAP_W*MAP_H),
     tileHp:new Float32Array(MAP_W*MAP_H),
-    enemies:[], bullets:[], boomerangs:[], drones:[], sweepers:[], traps:[], arcs:[], pickups:[], particles:[], texts:[], waves:[],
+    enemies:[], bullets:[], boomerangs:[], wardenDrones:[], sifterDrones:[], traps:[], arcs:[], pickups:[], particles:[], texts:[], waves:[],
     weapons:[],
     time:0, kills:0, level:1, xp:0, xpNeed:28, gold:0, nitra:0,
     spawnTimer:0, eliteTimer:75, nextWave:0,
     camera:{x:0,y:0},
-    log:['Mission started. Rock and stone!'],
+    log:['Mission started. Descend, extract, survive.'],
     selectedClass:cls
   };
   generateCave(g);
   addOrLevelWeapon(g, cls.weapon);
-  if(cls.id === 'scout'){
+  if(cls.id === 'pathfinder'){
     g.player.dashCd = -1;
-    log(g, 'Scout trap kit ready. Press E to place explosive traps.');
+    log(g, 'Pathfinder Trap Kit ready. Press E to place seismic traps.');
   }
   return g;
 }

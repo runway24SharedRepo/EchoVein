@@ -9,13 +9,13 @@ function updateUI(g){
   ui.hpFill.style.width=`${clamp(p.hp/p.maxHp*100,0,100)}%`;
   ui.hpLabel.textContent=`HP ${Math.ceil(Math.max(0,p.hp))}/${p.maxHp}`;
   ui.xpFill.style.width=`${clamp(g.xp/g.xpNeed*100,0,100)}%`;
-  ui.xpLabel.textContent=`XP ${Math.floor(g.xp)}/${g.xpNeed}`;
+  ui.xpLabel.textContent=`Echo ${Math.floor(g.xp)}/${g.xpNeed}`;
   ui.heatFill.style.width=`${clamp(p.heat/p.maxHeat*100,0,100)}%`;
-  ui.heatLabel.textContent=p.heat>=p.maxHeat?'DRILL OVERHEATED':'DRILL HEAT';
+  ui.heatLabel.textContent=p.heat>=p.maxHeat?'TOOL OVERHEATED':'TOOL HEAT';
   ui.level.textContent=g.level;
   ui.depth.textContent=Math.floor(g.time*1.6)+' m';
   ui.gold.textContent=g.gold; ui.nitra.textContent=g.nitra; ui.kills.textContent=g.kills;
-  const trapChip = g.player.canUseTraps ? `<div class="chip"><span>Scout Trap Kit</span><b>${g.player.trapCd<=0?'READY':'CD '+g.player.trapCd.toFixed(1)+'s'}</b></div>` : '';
+  const trapChip = g.player.canUseTraps ? `<div class="chip"><span>Pathfinder Trap Kit</span><b>${g.player.trapCd<=0?'READY':'CD '+g.player.trapCd.toFixed(1)+'s'}</b></div>` : '';
   ui.weaponList.innerHTML=g.weapons.map(w=>`<div class="chip"><span>${weaponName(w.id)}</span><b>Mk ${w.level}</b></div>`).join('') + trapChip;
   ui.logList.innerHTML=g.log.slice(0,4).map((m,i)=>`<div class="chip"><span>${m}</span><b>${i===0?'NEW':''}</b></div>`).join('');
 }
@@ -36,8 +36,8 @@ function render(g){
   drawBullets(g);
   drawBoomerangs(g);
   drawEnemies(g);
-  drawDrones(g);
-  drawSweepers(g);
+  drawWardenDrones(g);
+  drawSifterDrones(g);
   drawPlayer(g);
   drawParticles(g);
   drawArcs(g);
@@ -65,6 +65,11 @@ function drawTiles(g,cam){
     } else {
       const color = t===TILE_HARD?'#302b2a':t===TILE_GOLD?'#6d5520':t===TILE_NITRA?'#5e2530':t===TILE_CRYSTAL?'#1e4d64':'#3a342f';
       ctx.fillStyle=color; ctx.fillRect(px,py,TILE,TILE);
+      const tileInfo = TILE_DATA[t];
+      const sprite = tileInfo?.sprite ? getSprite(tileInfo.sprite) : null;
+      if(sprite){
+        ctx.drawImage(sprite, px+3, py+3, TILE-6, TILE-6);
+      }
       ctx.fillStyle='rgba(255,255,255,0.04)'; ctx.fillRect(px+2,py+2,TILE-4,3);
       ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.fillRect(px,py+TILE-4,TILE,4);
       const seed=(x*73856093 ^ y*19349663)>>>0;
@@ -118,12 +123,20 @@ function drawBullets(g){
     ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill();
   }
 }
-function drawDrones(g){
-  for(const d of g.drones){
+function drawWardenDrones(g){
+  for(const d of g.wardenDrones){
     ctx.save();
     ctx.translate(d.x,d.y);
     const a=Math.atan2(d.vy,d.vx || 1);
     ctx.rotate(a);
+    const sprite = getSprite('wardenDrone');
+    if(sprite){
+      ctx.shadowColor='#d6a2ff'; ctx.shadowBlur=15;
+      ctx.drawImage(sprite,-14,-14,28,28);
+      ctx.shadowBlur=0;
+      ctx.restore();
+      continue;
+    }
     ctx.shadowColor='#d6a2ff'; ctx.shadowBlur=15;
     ctx.fillStyle='#b46bff';
     ctx.beginPath();
@@ -138,12 +151,20 @@ function drawDrones(g){
   }
 }
 
-function drawSweepers(g){
-  for(const sw of g.sweepers){
+function drawSifterDrones(g){
+  for(const sw of g.sifterDrones){
     ctx.save();
     ctx.translate(sw.x,sw.y);
     const a=Math.atan2(sw.vy,sw.vx || 1);
     ctx.rotate(a);
+    const sprite = getSprite('sifterDrone');
+    if(sprite){
+      ctx.shadowColor='#7df9ff'; ctx.shadowBlur=14;
+      ctx.drawImage(sprite,-15,-15,30,30);
+      ctx.shadowBlur=0;
+      ctx.restore();
+      continue;
+    }
     ctx.shadowColor='#7df9ff'; ctx.shadowBlur=14;
     ctx.fillStyle='#30d7ff';
     ctx.beginPath();
@@ -205,7 +226,16 @@ function drawBoomerangs(g){
 }
 function drawPickups(g){
   for(const it of g.pickups){
-    ctx.fillStyle=it.type==='xp'?'#42d6ff':'#ff5b5b';
+    const sprite = it.type==='xp' ? getSprite('echoShard') : null;
+    if(sprite){
+      ctx.save();
+      ctx.shadowColor=MINERALS.echo.color; ctx.shadowBlur=12;
+      ctx.drawImage(sprite,it.x-12,it.y-12,24,24);
+      ctx.shadowBlur=0;
+      ctx.restore();
+      continue;
+    }
+    ctx.fillStyle=it.type==='xp'?MINERALS.echo.color:MINERALS.voltarite.color;
     ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=10;
     ctx.beginPath(); ctx.moveTo(it.x,it.y-it.r); ctx.lineTo(it.x+it.r,it.y); ctx.lineTo(it.x,it.y+it.r); ctx.lineTo(it.x-it.r,it.y); ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
   }
@@ -283,7 +313,7 @@ function gameOver(g){
   if(g.state==='dead') return;
   g.state='dead';
   sfx('gameover');
-  ui.gameOverText.innerHTML=`You survived <b>${ui.timer.textContent}</b>, reached <b>Level ${g.level}</b>, mined <b>${g.gold} gold</b> and <b>${g.nitra} nitra</b>, and killed <b>${g.kills}</b> bugs.`;
+  ui.gameOverText.innerHTML=`You survived <b>${ui.timer.textContent}</b>, reached <b>Level ${g.level}</b>, mined <b>${g.gold} Gild Shards</b> and <b>${g.nitra} Voltarite</b>, and killed <b>${g.kills}</b> Hollowborn.`;
   ui.gameOverOverlay.classList.add('show');
 }
 

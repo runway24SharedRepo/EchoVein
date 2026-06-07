@@ -15,7 +15,7 @@ addEventListener('keydown',e=>{
   keys.add(e.code);
   if(e.code==='Space' && game && game.state==='playing' && !awaitingUpgrade){
     const p=game.player;
-    const cd = p.classId==='scout'?1.4:2.4;
+    const cd = p.classId==='pathfinder'?1.4:2.4;
     if(p.dashCd<=0){ p.dashCd=cd; p.dashT=0.15; sfx('dash'); }
     e.preventDefault();
   }
