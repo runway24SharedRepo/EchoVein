@@ -54,3 +54,8 @@ js/main.js              requestAnimationFrame loop, keyboard/mouse input, startu
 ## Development Notes
 
 The scripts are loaded in dependency order using normal browser scripts, not a bundler. This keeps the game very easy to open locally. Later, this can be converted to ES modules with `import`/`export` once the project grows further.
+
+
+## Hammerfall Salvo
+
+Bulwark can unlock Hammerfall Salvo, a guided missile salvo weapon with target locks, curved flight, retargeting, and upgrade cards for damage, speed, fuel, missile count, and accuracy.

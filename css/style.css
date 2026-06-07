@@ -216,61 +216,6 @@
   }
 
   .buttonRow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
-  .buttonColumn {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-    margin-top: 16px;
-  }
-  .menuMeta, .menuContent { margin-top: 12px; }
-  .menuStats, .resourceStrip {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    margin-top: 8px;
-  }
-  .menuStats span, .resourceStrip span, .saveCard span {
-    display: inline-flex;
-    gap: 5px;
-    align-items: center;
-    border: 1px solid rgba(255,255,255,0.10);
-    background: rgba(255,255,255,0.06);
-    border-radius: 10px;
-    padding: 7px 9px;
-    color: var(--muted);
-    font-size: 12px;
-  }
-  .saveCard {
-    display: grid;
-    gap: 8px;
-    max-width: 460px;
-    padding: 12px;
-    border: 1px solid rgba(255,255,255,0.13);
-    background: rgba(255,255,255,0.06);
-    border-radius: 12px;
-  }
-  .upgradeGrid { display: grid; gap: 10px; margin-top: 14px; }
-  .upgradeRow {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 190px 82px;
-    gap: 12px;
-    align-items: center;
-    border: 1px solid rgba(255,255,255,0.12);
-    background: rgba(255,255,255,0.06);
-    border-radius: 12px;
-    padding: 12px;
-  }
-  .upgradeRow h3 { margin: 0 0 5px; font-size: 16px; }
-  .upgradeRow p { margin: 0 0 6px; font-size: 12px; }
-  .upgradeRow span, .upgradeRow .cost {
-    color: var(--muted);
-    font-size: 12px;
-    line-height: 1.35;
-  }
-  .chip.done { border-color: rgba(93,255,154,0.35); background: rgba(93,255,154,0.10); }
-  .chip.done b { color: var(--green); }
-  .chip.danger { border-color: rgba(255,91,91,0.36); background: rgba(255,91,91,0.10); }
-  .chip.danger b { color: var(--red); }
   button {
     pointer-events: auto;
     border: 1px solid rgba(255,255,255,0.18);
@@ -282,10 +227,6 @@
     cursor: pointer;
   }
   button:hover { border-color: rgba(66,214,255,0.75); }
-  button:disabled {
-    opacity: 0.45;
-    cursor: not-allowed;
-  }
 
   .damageFlash {
     position: fixed;
@@ -321,8 +262,6 @@
     .rightbar { display: none; }
     .topbar { min-width: 310px; max-width: calc(100vw - 28px); }
     .cards { grid-template-columns: 1fr; }
-    .buttonColumn { grid-template-columns: 1fr; }
-    .upgradeRow { grid-template-columns: 1fr; }
     .bottomHelp { display: none; }
   }
 

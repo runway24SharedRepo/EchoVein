@@ -39,7 +39,9 @@ function debugApplyUpgrade(index){
 function debugUnlockWeapon(id){
   if(!requireGame()) return;
   addOrLevelWeapon(game,id);
-  debugLog(`Unlocked/levelled weapon: ${weaponName(id)}`);
+  const allowed=WEAPON_DATA[id]?.allowedClasses;
+  const override=allowed && !allowed.includes(game.player.classId) ? ' (debug override)' : '';
+  debugLog(`Unlocked/levelled weapon${override}: ${weaponName(id)}`);
   updateGameAfterDebug();
 }
 
@@ -86,7 +88,7 @@ function debugSpawnVoltariteNode(){
 
 function debugClearEnemies(){ if(requireGame()){ game.enemies=[]; game.arcConnection.selectedEnemies=[]; debugLog('Cleared enemies.'); updateGameAfterDebug(); } }
 function debugClearPickups(){ if(requireGame()){ game.pickups=[]; debugLog('Cleared pickups.'); updateGameAfterDebug(); } }
-function debugClearProjectiles(){ if(requireGame()){ game.bullets=[]; game.enemyBullets=[]; game.boomerangs=[]; game.arcs=[]; game.particles=[]; debugLog('Cleared projectiles and transient VFX.'); } }
+function debugClearProjectiles(){ if(requireGame()){ game.bullets=[]; game.enemyBullets=[]; game.missiles=[]; game.targetLocks=[]; game.boomerangs=[]; game.arcs=[]; game.particles=[]; debugLog('Cleared projectiles and transient VFX.'); } }
 function debugHealPlayer(){ if(requireGame()){ game.player.hp=game.player.maxHp; debugLog('Healed player to full HP.'); updateGameAfterDebug(); } }
 function debugAddXp(){ if(requireGame()){ gainXp(game, Math.max(10, Math.floor(game.xpNeed*0.55))); debugLog('Added XP.'); updateGameAfterDebug(); } }
 function debugForceLevelUp(){ if(requireGame()){ gainXp(game, game.xpNeed - game.xp + 1); debugLog('Forced level-up.'); updateGameAfterDebug(); } }
@@ -105,6 +107,41 @@ function debugAddGild(){ debugAddResource('gild',100); }
 function debugAddVoltarite(){ debugAddResource('voltarite',50); }
 function debugResetCooldowns(){ if(requireGame()){ game.player.dashCd=0; game.player.trapCd=0; for(const w of game.weapons) w.cd=0; debugLog('Reset cooldowns.'); updateGameAfterDebug(); } }
 function debugToggleEnemyPaths(){ if(requireGame()){ game.debug.showEnemyPaths=!game.debug.showEnemyPaths; debugLog(`Enemy path debug ${game.debug.showEnemyPaths ? 'enabled' : 'disabled'}.`); updateGameAfterDebug(); } }
+
+function debugHammerfallWeapon(create=false){
+  if(!requireGame()) return null;
+  let w=game.weapons.find(w=>w.id==='hammerfallSalvo');
+  if(!w && create){
+    addOrLevelWeapon(game,'hammerfallSalvo');
+    w=game.weapons.find(w=>w.id==='hammerfallSalvo');
+    const override=game.player.classId!=='bulwark' ? ' (debug override: non-Bulwark)' : '';
+    debugLog(`Hammerfall Salvo unlocked${override}.`);
+  }
+  if(w) ensureHammerfallDefaults(w);
+  return w;
+}
+function debugHammerfallUnlock(){ debugHammerfallWeapon(true); updateGameAfterDebug(); }
+function debugHammerfallUpgrade(kind){ const w=debugHammerfallWeapon(true); if(!w) return; upgradeHammerfall(game,kind); debugLog(`Hammerfall ${kind} test upgrade applied.`); updateGameAfterDebug(); }
+function debugHammerfallCount(){ debugHammerfallUpgrade('count'); }
+function debugHammerfallDamage(){ debugHammerfallUpgrade('damage'); }
+function debugHammerfallSpeed(){ debugHammerfallUpgrade('speed'); }
+function debugHammerfallFuel(){ debugHammerfallUpgrade('fuel'); }
+function debugHammerfallAccuracy(){ debugHammerfallUpgrade('accuracy'); }
+function debugHammerfallSpawnTargets(count=16){ debugSpawnEnemies('grunt',count); debugLog(`Hammerfall target pack spawned: ${count}.`); }
+function debugHammerfallSpawnElite(){ debugSpawnEnemies('elite',1); debugLog('Hammerfall elite priority target spawned.'); }
+function debugHammerfallFireNow(){ const w=debugHammerfallWeapon(true); if(!w) return; w.cd=0; updateHammerfallSalvo(game,w,0); debugLog('Forced one Hammerfall salvo attempt.'); updateGameAfterDebug(); }
+
+window.debugHammerfall = {
+  unlock: debugHammerfallUnlock,
+  spawnTargets: debugHammerfallSpawnTargets,
+  spawnElite: debugHammerfallSpawnElite,
+  count: debugHammerfallCount,
+  damage: debugHammerfallDamage,
+  speed: debugHammerfallSpeed,
+  fuel: debugHammerfallFuel,
+  accuracy: debugHammerfallAccuracy,
+  fire: debugHammerfallFireNow
+};
 
 function debugResetAbilities(){
   if(!requireGame()) return;
@@ -172,6 +209,17 @@ function buildDebugPanel(){
     makeDebugButton('Enable Pathfinder Trap Kit',()=>{ if(requireGame()){ game.player.canUseTraps=true; debugLog('Enabled Pathfinder Trap Kit.'); updateGameAfterDebug(); } }),
     makeDebugButton('Reset Weapons/Abilities',debugResetAbilities)
   ]));
+  addDebugSection(panel,'Hammerfall Salvo Tests',[
+    makeDebugButton('Unlock Hammerfall',debugHammerfallUnlock),
+    makeDebugButton('Force Salvo Now',debugHammerfallFireNow),
+    makeDebugButton('+ Missile Count',debugHammerfallCount),
+    makeDebugButton('+ Missile Damage',debugHammerfallDamage),
+    makeDebugButton('+ Missile Speed',debugHammerfallSpeed),
+    makeDebugButton('+ Flight Time',debugHammerfallFuel),
+    makeDebugButton('+ Accuracy',debugHammerfallAccuracy),
+    makeDebugButton('Spawn 16 Targets',()=>debugHammerfallSpawnTargets(16)),
+    makeDebugButton('Spawn Elite Target',debugHammerfallSpawnElite)
+  ]);
   addDebugSection(panel,'Spawns & Clears',[
     makeDebugButton('Spawn 5 weak enemies',()=>debugSpawnEnemies('grunt',5)),
     makeDebugButton('Spawn 1 elite enemy',()=>debugSpawnEnemies('elite',1)),

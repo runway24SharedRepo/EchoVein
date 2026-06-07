@@ -14,6 +14,7 @@ function update(g,dt){
   updateSifterDrones(g,dt);
   updateEnemies(g,dt);
   updateEnemyBullets(g,dt);
+  updateMissiles(g,dt);
   if(g.state !== 'playing') return;
   updateArcConnection(g,dt);
   updateBullets(g,dt);
@@ -499,12 +500,202 @@ function updateArcConnection(g,dt){
   liveArcSelections(g);
 }
 
+function selectMissileTargets(g,count,range){
+  const p=g.player;
+  const candidates=g.enemies
+    .filter(e=>e.hp>0 && dist2(p.x,p.y,e.x,e.y)<=range*range)
+    .sort((a,b)=>{
+      const pa=(a.type==='elite'||a.type==='boss') ? 0 : (a.hp>50 ? 1 : 2);
+      const pb=(b.type==='elite'||b.type==='boss') ? 0 : (b.hp>50 ? 1 : 2);
+      if(pa!==pb) return pa-pb;
+      const hpDiff = b.hp - a.hp;
+      if(pa === 1 && Math.abs(hpDiff) > 12) return hpDiff;
+      return dist2(p.x,p.y,a.x,a.y)-dist2(p.x,p.y,b.x,b.y);
+    });
+  const targets=[];
+  for(let i=0;i<count;i++){
+    targets.push(candidates[i % Math.max(1,candidates.length)] || null);
+  }
+  return targets;
+}
+
+function addTargetLock(g,e,life=0.62){
+  if(!e) return;
+  const existing=g.targetLocks.find(l=>l.enemy===e);
+  if(existing){ existing.life=Math.max(existing.life,life); existing.maxLife=Math.max(existing.maxLife,life); return; }
+  g.targetLocks.push({enemy:e,life,maxLife:life,spin:rand(0,Math.PI*2)});
+}
+
+function updateHammerfallSalvo(g,weapon,dt){
+  ensureHammerfallDefaults(weapon);
+  if(weapon.cd > 0) return;
+  const targets = selectMissileTargets(g, weapon.missilesPerSalvo, weapon.lockRange);
+  if(!targets.some(Boolean)) return;
+  if(launchMissileSalvo(g, targets, weapon)){
+    // Cooldown is decremented globally with fire-rate scaling, so keep the weapon's
+    // own base cooldown stable and let fire-rate upgrades affect the timer drain.
+    weapon.cd = weapon.baseCooldown;
+  }
+}
+
+function launchMissileSalvo(g,targets,weapon){
+  const p=g.player;
+  ensureHammerfallDefaults(weapon);
+  let launched=0;
+  const count=Math.max(2, Math.floor(weapon.missilesPerSalvo));
+  for(let i=0;i<count;i++){
+    const target=targets[i % Math.max(1,targets.length)];
+    if(!target) continue;
+    addTargetLock(g,target,0.72);
+    const targetAngle=Math.atan2(target.y-p.y,target.x-p.x);
+    const side = (i % 2 === 0 ? 1 : -1);
+    const pairIndex = Math.floor(i/2);
+    const spread = side*(0.30 + pairIndex*0.055) + rand(-0.05,0.05)*(1-weapon.missileAccuracy);
+    const launchAngle=targetAngle + spread;
+    const mountSide = side * 9;
+    const mountX = p.x + Math.cos(targetAngle+Math.PI/2)*mountSide + Math.cos(targetAngle)*p.r;
+    const mountY = p.y + Math.sin(targetAngle+Math.PI/2)*mountSide + Math.sin(targetAngle)*p.r;
+    const speed = weapon.missileSpeed * rand(0.86, 0.98);
+    const vx=Math.cos(launchAngle)*speed*0.74;
+    const vy=Math.sin(launchAngle)*speed*0.74;
+    g.missiles.push({
+      x:mountX,
+      y:mountY,
+      vx, vy,
+      radius:5,
+      target,
+      age:0,
+      life:weapon.missileLifetime,
+      maxLife:weapon.missileLifetime,
+      damage:weapon.missileDamage,
+      speed:weapon.missileSpeed,
+      accuracy:weapon.missileAccuracy,
+      turnRate:weapon.missileTurnRate,
+      explosionRadius:weapon.explosionRadius,
+      phase:'launch',
+      launchDir:launchAngle,
+      trail:[],
+      retargetCd:0,
+      owner:'hammerfallSalvo'
+    });
+    addRing(g,mountX,mountY,'rgba(255,220,120,0.95)',0.11,3,18,3);
+    for(let k=0;k<5;k++){
+      addParticle(g,mountX,mountY,
+        Math.cos(launchAngle+Math.PI+rand(-0.25,0.25))*rand(80,210),
+        Math.sin(launchAngle+Math.PI+rand(-0.25,0.25))*rand(80,210),
+        k%2?'rgba(120,120,120,0.58)':'#ff9f43',rand(0.16,0.34),rand(2,6),k%2?'circle':'spark');
+    }
+    launched++;
+  }
+  if(launched){
+    shake=Math.max(shake,3.0 + Math.min(4, launched*0.25));
+    sfx('missileLock',0.75);
+    sfx('missileLaunch',Math.min(1.4,0.65+launched*0.08));
+    addRing(g,p.x,p.y,'rgba(255,159,67,0.55)',0.18,8,28+launched*1.5,3);
+  }
+  return launched>0;
+}
+
+function retargetMissile(g,m){
+  const alt=nearestEnemy(g,m.x,m.y,280);
+  if(alt){
+    m.target=alt;
+    addTargetLock(g,alt,0.42);
+    m.retargetCd=0.28;
+    return true;
+  }
+  m.target=null;
+  return false;
+}
+
+function updateMissiles(g,dt){
+  for(const m of g.missiles){
+    m.age+=dt;
+    m.life-=dt;
+
+    if(m.target && m.target.hp<=0){
+      m.retargetCd-=dt;
+      if(m.retargetCd<=0) retargetMissile(g,m);
+    }
+
+    if(m.phase==='launch' && m.age>0.24) m.phase='homing';
+    if(m.target && dist2(m.x,m.y,m.target.x,m.target.y)<(m.target.r+m.radius+36)*(m.target.r+m.radius+36)) m.phase='terminal';
+
+    const targetAngle = m.target ? Math.atan2(m.target.y-m.y,m.target.x-m.x) : m.launchDir;
+    const maxGuidanceNoise=(1-m.accuracy)*0.45;
+    const launchCurve = m.phase==='launch' ? Math.sin(m.age*14 + m.launchDir)*0.22 : 0;
+    const guidanceNoise = m.phase==='launch' ? 0 : rand(-maxGuidanceNoise,maxGuidanceNoise)*0.35;
+    const desiredAngle=targetAngle + launchCurve + guidanceNoise;
+    const terminalBoost = m.phase==='terminal' ? 1.18 : 1.0;
+    const desiredVx=Math.cos(desiredAngle)*m.speed*terminalBoost;
+    const desiredVy=Math.sin(desiredAngle)*m.speed*terminalBoost;
+    const steer=m.phase==='terminal' ? m.turnRate*2.1 : (m.phase==='launch' ? m.turnRate*0.45 : m.turnRate);
+    m.vx=lerp(m.vx, desiredVx, clamp(dt*steer,0,1));
+    m.vy=lerp(m.vy, desiredVy, clamp(dt*steer,0,1));
+    if(!m.target){ m.vx*=1.01; m.vy*=1.01; }
+
+    m.x+=m.vx*dt;
+    m.y+=m.vy*dt;
+    m.trail.push({x:m.x,y:m.y});
+    if(m.trail.length>10) m.trail.shift();
+
+    if(Math.random()<0.85){
+      addParticle(g,m.x-m.vx*0.012,m.y-m.vy*0.012,-m.vx*0.020+rand(-16,16),-m.vy*0.020+rand(-16,16),'rgba(150,150,150,0.45)',0.22,rand(2,5));
+      addParticle(g,m.x-m.vx*0.010,m.y-m.vy*0.010,-m.vx*0.012+rand(-12,12),-m.vy*0.012+rand(-12,12),m.phase==='launch'?'#ffdd80':'#ff9f43',0.12,rand(2,4),'spark');
+    }
+    if(m.age>0.08 && Math.random()<0.015) sfx('missileWhoosh',0.35);
+
+    if(m.target && m.target.hp>0 && dist2(m.x,m.y,m.target.x,m.target.y)<(m.target.r+m.radius+4)*(m.target.r+m.radius+4)){
+      missileImpact(g,m,m.target);
+      m.life=0;
+      continue;
+    }
+    if(m.life<=0){
+      if(m.age>0.18) missileImpact(g,m,null);
+      else addRing(g,m.x,m.y,'rgba(255,159,67,0.30)',0.10,5,16,2);
+    }
+  }
+  g.missiles=g.missiles.filter(m=>m.life>0 && m.x>-160 && m.y>-160 && m.x<WORLD_W+160 && m.y<WORLD_H+160);
+  for(const l of g.targetLocks) l.life-=dt;
+  g.targetLocks=g.targetLocks.filter(l=>l.life>0 && l.enemy && l.enemy.hp>0);
+}
+
+function missileImpact(g,m,target){
+  const splash=m.explosionRadius;
+  if(target && target.hp>0) damageEnemy(g,target,m.damage,'#ffcc4d');
+  addRing(g,m.x,m.y,'rgba(255,255,255,0.98)',0.09,4,splash*0.62,3);
+  addRing(g,m.x,m.y,'rgba(255,159,67,0.88)',0.20,6,splash,4);
+  addParticle(g,m.x,m.y,0,0,'rgba(255,230,165,0.95)',0.08,Math.max(9,splash*0.28));
+  shake=Math.max(shake,3.5);
+  sfx('missileImpact',0.82);
+  for(let k=0;k<18;k++){
+    const a=rand(0,Math.PI*2), sp=rand(120,330);
+    addParticle(g,m.x,m.y,Math.cos(a)*sp,Math.sin(a)*sp,k%3?'rgba(255,159,67,0.9)':'rgba(255,238,180,0.95)',rand(0.12,0.32),rand(2,7),'spark');
+  }
+  for(let k=0;k<6;k++){
+    const a=rand(0,Math.PI*2), sp=rand(35,110);
+    addParticle(g,m.x,m.y,Math.cos(a)*sp,Math.sin(a)*sp,'rgba(90,90,90,0.42)',rand(0.32,0.58),rand(5,12));
+  }
+  for(const e of g.enemies){
+    if(e.hp<=0 || e===target) continue;
+    const d=Math.hypot(e.x-m.x,e.y-m.y);
+    if(d<splash+e.r){
+      const falloff=0.35 + 0.65*clamp(1-d/(splash+e.r),0,1);
+      damageEnemy(g,e,m.damage*falloff*0.55,'#ff9f43');
+    }
+  }
+}
+
 function updateWeapons(g,dt){
   const p=g.player;
   const manualMode = mouseManualFireActive(g);
   const pauseAutoTargeting = !manualMode && arcMouseAutoDisabled(g);
   for(const w of g.weapons){
     w.cd -= dt * p.fireRateMul;
+    if(w.id==='hammerfallSalvo'){
+      updateHammerfallSalvo(g,w,dt);
+      continue;
+    }
     if(w.id==='drones'){
       ensureDroneFleet(g,w);
       continue;
@@ -629,6 +820,11 @@ function fireManualWeapon(g,w){
     w.cd=Math.max(1.6,4.4-w.level*0.35);
     explode(g,m.x,m.y,90+w.level*8,75+w.level*26,manualColor);
     sfx('explosion', 1.05);
+  } else if(w.id==='hammerfallSalvo'){
+    ensureHammerfallDefaults(w);
+    const targets = selectMissileTargets(g, w.missilesPerSalvo, w.lockRange);
+    if(!targets.some(Boolean)) return;
+    if(launchMissileSalvo(g, targets, w)) w.cd = Math.max(0.35, w.baseCooldown*0.85);
   }
 }
 
@@ -1161,7 +1357,7 @@ function openUpgrade(g){
   awaitingUpgrade=true;
   ui.upgradeCards.innerHTML='';
   const choices=[];
-  const pool=UPGRADE_POOL.filter(up=>!up.available || up.available(g));
+  const pool=UPGRADE_POOL.filter(up=>(!up.allowedClasses || up.allowedClasses.includes(g.player.classId)) && (!up.available || up.available(g)));
   while(choices.length<3 && pool.length){
     const idx=randi(0,pool.length-1);
     choices.push(pool.splice(idx,1)[0]);

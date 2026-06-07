@@ -54,12 +54,74 @@ function carveCircle(g,cx,cy,r){
   }
 }
 
+function hammerfallBaseState(){
+  return {
+    missilesPerSalvo: 2,
+    missileDamage: 34,
+    missileSpeed: 320,
+    missileLifetime: 2.4,
+    missileAccuracy: 0.82,
+    missileTurnRate: 4.5,
+    explosionRadius: 38,
+    lockRange: 650,
+    baseCooldown: 3.8
+  };
+}
+
+function ensureHammerfallDefaults(w){
+  if(!w || w.id !== 'hammerfallSalvo') return w;
+  const base = hammerfallBaseState();
+  for(const [key,value] of Object.entries(base)){
+    if(w[key] == null) w[key] = value;
+  }
+  w.missilesPerSalvo = Math.max(2, Math.floor(w.missilesPerSalvo));
+  w.missileAccuracy = clamp(w.missileAccuracy, 0.25, 0.98);
+  return w;
+}
+
+function unlockHammerfallSalvo(g){
+  if(g.player.classId !== 'bulwark'){
+    log(g, 'Hammerfall Salvo is Bulwark-only.');
+    return null;
+  }
+  const existing = g.weapons.find(w=>w.id==='hammerfallSalvo');
+  if(existing){
+    ensureHammerfallDefaults(existing);
+    log(g, 'Hammerfall Salvo already online.');
+    return existing;
+  }
+  return addOrLevelWeapon(g,'hammerfallSalvo');
+}
+
+function upgradeHammerfall(g,kind){
+  const w = ensureHammerfallDefaults(g.weapons.find(w=>w.id==='hammerfallSalvo'));
+  if(!w){ log(g, 'Hammerfall Salvo must be unlocked first.'); return; }
+  if(kind === 'damage') w.missileDamage *= 1.15;
+  else if(kind === 'speed') w.missileSpeed *= 1.12;
+  else if(kind === 'fuel') w.missileLifetime *= 1.15;
+  else if(kind === 'count') w.missilesPerSalvo += 1;
+  else if(kind === 'accuracy') w.missileAccuracy = Math.min(0.98, w.missileAccuracy + 0.06);
+  w.level++;
+  log(g, `${weaponName('hammerfallSalvo')} ${kind} upgrade applied. Mk ${w.level}`);
+}
+
 function addOrLevelWeapon(g,id){
   let w = g.weapons.find(w=>w.id===id);
-  if(w){ w.level++; log(g, `${weaponName(id)} upgraded to Mk ${w.level}`); return; }
+  if(w){
+    if(id==='hammerfallSalvo') ensureHammerfallDefaults(w);
+    w.level++;
+    log(g, `${weaponName(id)} upgraded to Mk ${w.level}`);
+    return w;
+  }
   w = { id, level:1, cd:0, angle:0 };
+  if(id==='hammerfallSalvo'){
+    Object.assign(w, hammerfallBaseState());
+    // Short arming delay prevents immediate frame-0 salvo spam after unlock/debug unlock.
+    w.cd = 0.85;
+  }
   g.weapons.push(w);
   log(g, `${weaponName(id)} online`);
+  return w;
 }
 
 function log(g,msg){

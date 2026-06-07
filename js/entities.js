@@ -85,7 +85,7 @@ function makeGame(cls){
     player:new Player(cls),
     tiles:new Uint8Array(MAP_W*MAP_H),
     tileHp:new Float32Array(MAP_W*MAP_H),
-    enemies:[], bullets:[], enemyBullets:[], boomerangs:[], wardenDrones:[], sifterDrones:[], traps:[], arcs:[], pickups:[], particles:[], texts:[], waves:[],
+    enemies:[], bullets:[], enemyBullets:[], missiles:[], targetLocks:[], boomerangs:[], wardenDrones:[], sifterDrones:[], traps:[], arcs:[], pickups:[], particles:[], texts:[], waves:[],
     weapons:[],
     arcConnection:{ unlocked:false, level:0, maxTargets:0, selectedEnemies:[], flash:0 },
     navigationVersion:0,
