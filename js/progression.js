@@ -322,7 +322,7 @@ function showMainMenu(){
   addMenuButton('Upgrades',showUpgradesMenu);
   addMenuButton('Gears',()=>showPlaceholderMenu('Gears','Gears feature coming later.'));
   addMenuButton('Milestones',()=>showPlaceholderMenu('Milestones','Milestones feature coming later.'));
-  addMenuButton('Settings',()=>showPlaceholderMenu('Settings','Settings feature coming later.'));
+  addMenuButton('Settings',showSettingsMenu);
   addMenuButton('Credits',showCreditsMenu);
 }
 
@@ -330,6 +330,49 @@ function showClassSelect(){
   appState='MISSION_SELECT';
   setMenu('Choose Operator', `Mission ${saveProfile.missionIndex}, Run ${saveProfile.runIndex} of ${RUNS_PER_MISSION}. Complete objectives, defeat the sector boss, then reach extraction.`);
   setupClassCards();
+}
+
+
+function showSettingsMenu(){
+  appState='SETTINGS_MENU';
+  setMenu('Settings','Tune visibility and accessibility options. Changes apply immediately and are saved locally.');
+
+  const settings=getFogSettings();
+  const panel=document.createElement('div');
+  panel.className='settingsPanel';
+
+  const fogRow=document.createElement('label');
+  fogRow.className='settingsRow';
+  fogRow.innerHTML=`
+    <span><b>Fog of War</b><small>Limits cave visibility around the operator. Disable this for full-map visibility.</small></span>
+    <input id="fogToggle" type="checkbox" ${settings.fogOfWarEnabled?'checked':''}>
+  `;
+  panel.appendChild(fogRow);
+
+  const presetRow=document.createElement('div');
+  presetRow.className='settingsRow settingsPresetRow';
+  presetRow.innerHTML=`<span><b>Fog Intensity</b><small>Optional accessibility preset for visibility radius and darkness.</small></span>`;
+  const presetButtons=document.createElement('div');
+  presetButtons.className='settingsPresetButtons';
+  for(const [id,label] of [['low','Low'],['medium','Medium'],['high','High']]){
+    const btn=document.createElement('button');
+    btn.textContent=label;
+    btn.onclick=()=>{ setFogIntensityPreset(id); showSettingsMenu(); };
+    presetButtons.appendChild(btn);
+  }
+  presetRow.appendChild(presetButtons);
+  panel.appendChild(presetRow);
+
+  const values=document.createElement('div');
+  values.className='settingsValues';
+  values.innerHTML=`Visibility radius: <b>${settings.fogOfWarRadius}px</b> &middot; Soft edge: <b>${settings.fogOfWarSoftEdge}px</b> &middot; Outer intensity: <b>${Math.round(settings.fogOfWarIntensity*100)}%</b>`;
+  panel.appendChild(values);
+
+  ui.menuContent.appendChild(panel);
+  document.getElementById('fogToggle').addEventListener('change',ev=>{
+    setFogOfWarEnabled(ev.target.checked);
+  });
+  addMenuButton('Back',showMainMenu);
 }
 
 function showPlaceholderMenu(title,text){

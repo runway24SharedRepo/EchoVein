@@ -358,3 +358,52 @@
     min-width: 122px;
     padding: 8px 10px;
   }
+
+
+  .settingsPanel {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .settingsRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 13px 14px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    background: rgba(255,255,255,0.055);
+  }
+  .settingsRow span {
+    display: grid;
+    gap: 4px;
+  }
+  .settingsRow small,
+  .settingsValues {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .settingsRow input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+    accent-color: var(--cyan);
+    cursor: pointer;
+  }
+  .settingsPresetRow {
+    align-items: flex-start;
+  }
+  .settingsPresetButtons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .settingsPresetButtons button {
+    padding: 7px 10px;
+    border-radius: 10px;
+  }
+  .settingsValues {
+    padding: 0 4px;
+  }

@@ -65,7 +65,9 @@ function render(g){
   drawTargetingCursor(g);
   drawTexts(g);
   ctx.restore();
+  drawFogOfWar(g,cam,sx,sy);
   drawVignette();
+  drawFogDebugOverlay(g,cam,sx,sy);
   drawEnemyBudgetOverlay(g);
   if(paused) drawPause();
 }
@@ -629,6 +631,66 @@ function drawTexts(g){
   }
   ctx.globalAlpha=1;
 }
+
+function drawFogOfWar(g,cam,sx=0,sy=0){
+  const settings=getFogSettings();
+  if(!settings.fogOfWarEnabled || !g?.player) return;
+
+  // Keep the first implementation cheap: one full-screen radial gradient. If
+  // adaptive performance is under pressure, avoid extra texture/noise work and
+  // simply draw the soft radial overlay.
+  const p=g.player;
+  const cx=p.x-cam.x+sx;
+  const cy=p.y-cam.y+sy;
+  const radius=settings.fogOfWarRadius;
+  const soft=settings.fogOfWarSoftEdge;
+  const outer=radius+soft;
+  const intensity=clamp(settings.fogOfWarIntensity,0,0.95);
+  const perf=g.performance?.state;
+  const perfTrim=perf===PERF_STATES.CRITICAL ? 0.92 : perf===PERF_STATES.WARNING ? 0.97 : 1;
+  const outerAlpha=intensity*perfTrim;
+
+  const gradient=ctx.createRadialGradient(cx,cy,Math.max(1,radius*0.35),cx,cy,outer);
+  gradient.addColorStop(0,'rgba(0,0,0,0)');
+  gradient.addColorStop(Math.max(0.05, radius/outer),'rgba(3,8,16,0.02)');
+  gradient.addColorStop(Math.min(0.98,(radius+soft*0.55)/outer),`rgba(3,8,16,${outerAlpha*0.50})`);
+  gradient.addColorStop(1,`rgba(0,0,0,${outerAlpha})`);
+
+  ctx.save();
+  ctx.fillStyle=gradient;
+  ctx.fillRect(0,0,innerWidth,innerHeight);
+
+  // Atmospheric soft blue rim around the visibility boundary. This is a single
+  // stroke and remains performance-safe.
+  ctx.globalAlpha=0.16;
+  ctx.strokeStyle='rgba(66,214,255,0.42)';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.arc(cx,cy,radius+soft*0.24,0,Math.PI*2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawFogDebugOverlay(g,cam,sx=0,sy=0){
+  if(!g.debug?.showFogRadius || !g?.player) return;
+  const settings=getFogSettings();
+  const cx=g.player.x-cam.x+sx;
+  const cy=g.player.y-cam.y+sy;
+  ctx.save();
+  ctx.strokeStyle='rgba(93,255,154,0.85)';
+  ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(cx,cy,settings.fogOfWarRadius,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle='rgba(66,214,255,0.55)';
+  ctx.setLineDash([8,6]);
+  ctx.beginPath(); ctx.arc(cx,cy,settings.fogOfWarRadius+settings.fogOfWarSoftEdge,0,Math.PI*2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,255,255,0.86)';
+  ctx.font='bold 12px Segoe UI, Arial';
+  ctx.textAlign='left';
+  ctx.fillText(`Fog ${settings.fogOfWarEnabled?'ON':'OFF'} · R ${settings.fogOfWarRadius} · Soft ${settings.fogOfWarSoftEdge}`,cx+18,cy-settings.fogOfWarRadius-12);
+  ctx.restore();
+}
+
 function drawVignette(){
   const grd=ctx.createRadialGradient(innerWidth/2,innerHeight/2,innerHeight*0.15,innerWidth/2,innerHeight/2,innerWidth*0.72);
   grd.addColorStop(0,'rgba(0,0,0,0)'); grd.addColorStop(1,'rgba(0,0,0,0.58)');

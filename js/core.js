@@ -123,6 +123,55 @@ const PERFORMANCE_CONFIG = {
   cameraMargin: 180
 };
 
+const SETTINGS_KEY = 'echoVeinSettings';
+const DEFAULT_SETTINGS = {
+  fogOfWarEnabled: true,
+  fogOfWarRadius: 280,
+  fogOfWarSoftEdge: 160,
+  fogOfWarIntensity: 0.78,
+  fogOfWarMemoryEnabled: false
+};
+let gameSettings = loadSettings();
+
+function normalizeSettings(settings){
+  return {...DEFAULT_SETTINGS, ...(settings || {})};
+}
+
+function loadSettings(){
+  try{
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    return normalizeSettings(raw ? JSON.parse(raw) : null);
+  }catch(err){
+    console.warn('Could not load Echo Vein settings.', err);
+    return normalizeSettings(null);
+  }
+}
+
+function saveSettings(){
+  try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(gameSettings)); }
+  catch(err){ console.warn('Could not save Echo Vein settings.', err); }
+}
+
+function getFogSettings(){
+  return normalizeSettings(gameSettings);
+}
+
+function setFogOfWarEnabled(enabled){
+  gameSettings.fogOfWarEnabled = !!enabled;
+  saveSettings();
+}
+
+function setFogIntensityPreset(preset){
+  const presets = {
+    low: { fogOfWarRadius: 340, fogOfWarSoftEdge: 190, fogOfWarIntensity: 0.58 },
+    medium: { fogOfWarRadius: 280, fogOfWarSoftEdge: 160, fogOfWarIntensity: 0.78 },
+    high: { fogOfWarRadius: 230, fogOfWarSoftEdge: 140, fogOfWarIntensity: 0.88 }
+  };
+  Object.assign(gameSettings, presets[preset] || presets.medium);
+  saveSettings();
+}
+
+
 const keys = new Set();
 let mouse = { x: 0, y: 0, down: false, lastMove: -999, used: false };
 let gamepadButtonsPrev = [];

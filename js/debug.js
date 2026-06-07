@@ -311,6 +311,22 @@ function addDebugSection(panel,title,children){
   panel.appendChild(section);
 }
 
+
+function debugToggleFogOfWar(){
+  setFogOfWarEnabled(!getFogSettings().fogOfWarEnabled);
+  debugLog(`Fog of War ${getFogSettings().fogOfWarEnabled ? 'enabled' : 'disabled'}.`);
+  updateGameAfterDebug();
+}
+function debugToggleFogRadius(){
+  if(!requireGame()) return;
+  game.debug.showFogRadius=!game.debug.showFogRadius;
+  debugLog(`Fog radius debug ${game.debug.showFogRadius ? 'enabled' : 'disabled'}.`);
+  updateGameAfterDebug();
+}
+function debugFogLow(){ setFogIntensityPreset('low'); debugLog('Fog preset: low.'); updateGameAfterDebug(); }
+function debugFogMedium(){ setFogIntensityPreset('medium'); debugLog('Fog preset: medium.'); updateGameAfterDebug(); }
+function debugFogHigh(){ setFogIntensityPreset('high'); debugLog('Fog preset: high.'); updateGameAfterDebug(); }
+
 function buildDebugPanel(){
   if(!DEBUG_MODE) return;
   const toggle = document.createElement('button');
@@ -387,6 +403,14 @@ function buildDebugPanel(){
   perfSection.className = 'debugSection';
   perfSection.innerHTML = '<h3>Adaptive Performance Metrics</h3><pre class="debugLog" id="debugPerfMetrics">Start a run to view metrics.</pre>';
   panel.appendChild(perfSection);
+  addDebugSection(panel,'Fog of War',[
+    makeDebugButton('Toggle Fog of War',debugToggleFogOfWar),
+    makeDebugButton('Toggle Fog Radius Debug',debugToggleFogRadius),
+    makeDebugButton('Fog Low',debugFogLow),
+    makeDebugButton('Fog Medium',debugFogMedium),
+    makeDebugButton('Fog High',debugFogHigh)
+  ]);
+
   addDebugSection(panel,'Adaptive Performance Tests',[
     makeDebugButton('Force PERF_HEALTHY',debugForcePerfHealthy),
     makeDebugButton('Force PERF_WARNING',debugForcePerfWarning),
@@ -412,5 +436,14 @@ function buildDebugPanel(){
   document.body.appendChild(panel);
   debugLog('Debug system ready.');
 }
+
+
+window.debugFog = {
+  toggle: debugToggleFogOfWar,
+  radius: debugToggleFogRadius,
+  low: debugFogLow,
+  medium: debugFogMedium,
+  high: debugFogHigh
+};
 
 window.addEventListener('DOMContentLoaded', buildDebugPanel);
