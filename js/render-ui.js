@@ -220,6 +220,16 @@ function drawPlayer(g){
   ctx.restore();
 }
 
+
+function enemyRenderTransform(g,e,cfg,warning=false){
+  const style=e.rotationStyle || cfg.rotationStyle || 'wobble';
+  const base=(e.visualRotation || 0) + (e.visualRotationSpeed || 0)*g.time;
+  const wobble=Math.sin(g.time*(e.visualWobbleSpeed || 2.5) + (e.visualPhase || e.phase || 0)) * (e.visualWobbleAmount || 0);
+  const warningTwist=warning ? Math.sin(g.time*24 + e.phase)*0.18 : 0;
+  const scale=1 + Math.sin(g.time*(e.visualScaleSpeed || 1.5) + (e.visualPhase || 0))*(e.visualScalePulse || 0);
+  return { rotation:base+wobble+warningTwist, scale:scale*(e.visualScaleMul || 1) };
+}
+
 function drawEnemies(g){
   for(const e of g.enemies){
     ctx.save();
@@ -244,10 +254,10 @@ function drawEnemies(g){
       const role = cfg.role || e.role || 'normal';
       const baseScale = role==='boss' ? 3.25 : role==='elite' ? 3.15 : 3.05;
       const minSize = role==='boss' ? 110 : role==='elite' ? 64 : 44;
-      const size = Math.max(minSize, e.r*baseScale) * (warning ? 1+0.08*pulse : 1);
-      const rotation = isHexLike ? g.time*0.8 + Math.sin(g.time*4+e.phase)*0.10 : Math.sin(g.time*2+e.phase)*0.06;
+      const tr=enemyRenderTransform(g,e,cfg,warning);
+      const size = Math.max(minSize, e.r*baseScale) * (warning ? 1+0.08*pulse : 1) * tr.scale;
       spriteDrawn = drawSpriteCentered(ctx,spriteId,0,0,size,size,{
-        rotation,
+        rotation:tr.rotation,
         alpha: e.hitFlash>0 ? 0.72 : (cfg.behavior==='riftStalker'?0.82:1),
         glowColor: warning ? '#ff3d22' : e.color,
         glowBlur: warning ? 24 : (role==='boss'?26:(role==='elite'?16:8))
@@ -266,6 +276,10 @@ function drawEnemies(g){
     }
 
     if(!spriteDrawn){
+      const tr=enemyRenderTransform(g,e,cfg,warning);
+      ctx.save();
+      ctx.rotate(tr.rotation);
+      ctx.scale(tr.scale,tr.scale);
       if((ENEMY_TYPES[e.type]?.behavior || e.behavior) === 'hexBoomerangDetonator'){
         ctx.fillStyle=e.hitFlash>0?'#fff':(warning?`rgba(255,112,56,${0.78+0.22*pulse})`:e.color);
         ctx.strokeStyle=warning?'#ffe0a8':'rgba(255,220,170,0.82)';
@@ -299,6 +313,7 @@ function drawEnemies(g){
         }
         ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
       }
+      ctx.restore();
     }
 
     ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(-e.r,-e.r-10,e.r*2,4);

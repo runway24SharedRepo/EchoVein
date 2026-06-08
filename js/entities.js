@@ -61,15 +61,21 @@ class Enemy {
     this.type=type;
     const cfg = ENEMY_TYPES[type] || ENEMY_TYPES.grunt;
     this.type = ENEMY_TYPES[type] ? type : 'grunt';
+    const visualVariant = chooseEnemyVisualVariant(this.type, cfg);
     this.displayName = cfg.displayName || this.type;
+    this.visualVariantId = visualVariant?.id || this.type;
+    this.visualDisplayName = visualVariant?.displayName || this.displayName;
     this.behavior = cfg.behavior || 'meleeChase';
-    this.spriteId = cfg.spriteId || cfg.spriteKey || null;
+    this.spriteId = visualVariant?.spriteId || cfg.spriteId || cfg.spriteKey || null;
+    this.rotationStyle = visualVariant?.rotationStyle || cfg.rotationStyle || enemyRotationStyleFor(cfg, this.type);
+    this.visualScaleMul = visualVariant?.scale || cfg.visualScale || 1;
     this.role = cfg.role || 'normal';
     this.r=cfg.r; this.hp=cfg.hp; this.maxHp=cfg.hp; this.speed=cfg.speed; this.damage=cfg.damage; this.xp=cfg.xp;
     this.color=cfg.color;
     this.hitFlash=0;
     this.slow=0;
     this.phase=Math.random()*Math.PI*2;
+    initialiseEnemyVisualMotion(this,cfg);
     this.path=[];
     this.pathIndex=0;
     this.pathTimer=0;
@@ -126,6 +132,83 @@ const ENEMY_TYPES = {
   obsidianTitan: { displayName:'Obsidian Titan', spriteId:'obsidianTitan', r:34, hp:520, speed:48, damage:42, xp:80, color:'#ff7a38', behavior:'miniBoss', role:'boss' },
   hollowTyrantVariant: { displayName:'Hollow Tyrant Variant', spriteId:'hollowTyrantVariant', r:44, hp:1100, speed:54, damage:52, xp:130, color:'#ff4fd8', behavior:'bossShooter', role:'boss' }
 };
+
+/*
+ * Visual variants deliberately separate gameplay archetype from sprite choice.
+ * Legacy spawn archetypes such as 'grunt' and 'swarmer' can now produce many
+ * different looks from run 1 while keeping their gameplay balance readable.
+ */
+const ENEMY_VISUAL_VARIANTS = {
+  grunt: [
+    { id:'clawlingRunner', displayName:'Clawling Runner', spriteId:'clawlingRunner', weight:1.0, rotationStyle:'wobble', scale:1.00 },
+    { id:'boneSkitter', displayName:'Bone Skitter', spriteId:'boneSkitter', weight:0.80, rotationStyle:'fastSpin', scale:0.94 },
+    { id:'acidTick', displayName:'Acid Tick', spriteId:'acidTick', weight:0.62, rotationStyle:'pulse', scale:0.90 },
+    { id:'gloomBat', displayName:'Gloom Bat', spriteId:'gloomBat', weight:0.45, rotationStyle:'flyingDrift', scale:0.92 },
+  ],
+  swarmer: [
+    { id:'needleWisp', displayName:'Needle Wisp', spriteId:'needleWisp', weight:1.0, rotationStyle:'flyingDrift', scale:0.92 },
+    { id:'voidMite', displayName:'Void Mite', spriteId:'voidMite', weight:0.80, rotationStyle:'fastSpin', scale:0.88 },
+    { id:'boneSkitter', displayName:'Bone Skitter', spriteId:'boneSkitter', weight:0.55, rotationStyle:'fastSpin', scale:0.86 },
+  ],
+  guard: [
+    { id:'shellbackGuard', displayName:'Shellback Guard', spriteId:'shellbackGuard', weight:1.0, rotationStyle:'heavyTurn', scale:1.02 },
+    { id:'ironMaw', displayName:'Iron Maw', spriteId:'ironMaw', weight:0.30, rotationStyle:'heavyTurn', scale:1.08 },
+  ],
+  exploder: [
+    { id:'blisterPod', displayName:'Blister Pod', spriteId:'blisterPod', weight:1.0, rotationStyle:'pulse', scale:1.0 },
+  ],
+};
+
+const ENEMY_ROTATION_STYLE_PRESETS = {
+  fastSpin:      { speed:[-2.6, 2.6], wobble:[0.04,0.16], wobbleSpeed:[3.0,6.2], scalePulse:[0.00,0.035], scaleSpeed:[2.0,4.5] },
+  slowSpin:      { speed:[-0.75,0.75], wobble:[0.02,0.10], wobbleSpeed:[1.2,3.0], scalePulse:[0.00,0.045], scaleSpeed:[1.0,2.8] },
+  wobble:        { speed:[-0.38,0.38], wobble:[0.07,0.25], wobbleSpeed:[2.2,5.2], scalePulse:[0.00,0.035], scaleSpeed:[1.5,3.0] },
+  pulse:         { speed:[-0.28,0.28], wobble:[0.00,0.08], wobbleSpeed:[1.5,3.2], scalePulse:[0.035,0.085], scaleSpeed:[1.8,4.0] },
+  heavyTurn:     { speed:[-0.22,0.22], wobble:[0.00,0.045], wobbleSpeed:[0.8,1.9], scalePulse:[0.00,0.022], scaleSpeed:[0.8,1.6] },
+  bossPresence:  { speed:[-0.11,0.11], wobble:[0.00,0.035], wobbleSpeed:[0.6,1.4], scalePulse:[0.025,0.055], scaleSpeed:[0.7,1.4] },
+  flyingDrift:   { speed:[-1.10,1.10], wobble:[0.10,0.28], wobbleSpeed:[2.0,4.8], scalePulse:[0.015,0.065], scaleSpeed:[1.5,3.7] },
+};
+
+function weightedPick(list){
+  if(!list || !list.length) return null;
+  const total=list.reduce((s,v)=>s+(v.weight ?? 1),0);
+  let roll=Math.random()*total;
+  for(const item of list){ roll-=(item.weight ?? 1); if(roll<=0) return item; }
+  return list[list.length-1];
+}
+
+function chooseEnemyVisualVariant(type,cfg){
+  if(ENEMY_VISUAL_VARIANTS[type]) return weightedPick(ENEMY_VISUAL_VARIANTS[type]);
+  return null;
+}
+
+function enemyRotationStyleFor(cfg,type){
+  if(cfg.role==='boss') return 'bossPresence';
+  if(cfg.role==='elite') return 'heavyTurn';
+  if(type==='hexShard' || type==='hexShardThrower') return 'slowSpin';
+  if(type==='stormOrb') return 'slowSpin';
+  if(type==='gloomBat') return 'flyingDrift';
+  if(cfg.behavior==='proximityExploder') return 'pulse';
+  if(cfg.behavior==='zigzagChase' || cfg.behavior==='blinkChase') return 'fastSpin';
+  if(cfg.behavior==='flyingChase') return 'flyingDrift';
+  return 'wobble';
+}
+
+function initEnemyVisualRange(range){ return rand(range[0], range[1]); }
+function initialiseEnemyVisualMotion(e,cfg){
+  const style=e.rotationStyle || enemyRotationStyleFor(cfg,e.type);
+  const preset=ENEMY_ROTATION_STYLE_PRESETS[style] || ENEMY_ROTATION_STYLE_PRESETS.wobble;
+  e.visualRotation = rand(0,Math.PI*2);
+  e.visualRotationSpeed = initEnemyVisualRange(preset.speed);
+  if(Math.abs(e.visualRotationSpeed)<0.035) e.visualRotationSpeed += (Math.random()<0.5?-1:1)*0.06;
+  e.visualWobbleAmount = initEnemyVisualRange(preset.wobble);
+  e.visualWobbleSpeed = initEnemyVisualRange(preset.wobbleSpeed);
+  e.visualPhase = rand(0,Math.PI*2);
+  e.visualScalePulse = initEnemyVisualRange(preset.scalePulse);
+  e.visualScaleSpeed = initEnemyVisualRange(preset.scaleSpeed);
+  if(e.role==='boss'){ e.visualRotationSpeed*=0.45; e.visualWobbleAmount*=0.65; }
+  if(e.role==='elite'){ e.visualRotationSpeed*=0.70; }
+}
 
 function makeGame(cls){
   const g = {

@@ -503,6 +503,109 @@ function debugSpawnDestructiveBulletSprite(){
   game.enemyBullets.push({x:p.x+140,y:p.y+28,vx:-140,vy:0,r:7,life:2.4,damage:1,destructive:true,color:'#ff7038',small:false});
   debugLog('Spawned destructive enemy bullet sprite test.');
 }
+
+function debugVfxPoint(useCursor=false){
+  if(!requireGame()) return null;
+  if(useCursor && typeof mouseWorld==='function') return mouseWorld(game);
+  return {x:game.player.x,y:game.player.y};
+}
+function debugPlayVfx(name,useCursor=false){
+  const pt=debugVfxPoint(useCursor); if(!pt) return;
+  const comp=(typeof VFX_COMPOSITIONS!=='undefined' && VFX_COMPOSITIONS[name]) ? VFX_COMPOSITIONS[name] : null;
+  const radius=comp?.radius || 64;
+  const color=comp?.color || '#ff9f43';
+  if(typeof spawnVfxComposition==='function') spawnVfxComposition(game,name,pt.x,pt.y,{radius,color});
+  debugLog(`Played VFX composition: ${name}${useCursor?' at cursor':' at player'}.`);
+  updateGameAfterDebug();
+}
+function debugPlayRandomVfx(){
+  const names=Object.keys(VFX_COMPOSITIONS || {genericExplosion:{}});
+  debugPlayVfx(names[randi(0,names.length-1)] || 'genericExplosion');
+}
+function debugClearVfx(){
+  if(!requireGame()) return;
+  const before=game.particles.length;
+  game.particles=[];
+  game.arcs=[];
+  debugLog(`Cleared ${before} active VFX/particles.`);
+  updateGameAfterDebug();
+}
+function debugSpawnRandomVfx(count=10){
+  if(!requireGame()) return;
+  const names=Object.keys(VFX_COMPOSITIONS || {genericExplosion:{}});
+  for(let i=0;i<count;i++){
+    const a=rand(0,Math.PI*2), d=rand(20,260);
+    const name=names[randi(0,names.length-1)] || 'genericExplosion';
+    spawnVfxComposition(game,name,game.player.x+Math.cos(a)*d,game.player.y+Math.sin(a)*d);
+  }
+  debugLog(`Spawned ${count} random VFX bursts.`);
+  updateGameAfterDebug();
+}
+let debugVfxStressTimer=null;
+function debugVfxStress5s(){
+  if(!requireGame()) return;
+  if(debugVfxStressTimer){ clearInterval(debugVfxStressTimer); debugVfxStressTimer=null; debugLog('Stopped VFX stress test.'); return; }
+  const end=performance.now()+5000;
+  debugVfxStressTimer=setInterval(()=>{
+    if(!game || performance.now()>end){ clearInterval(debugVfxStressTimer); debugVfxStressTimer=null; debugLog('VFX stress test complete.'); return; }
+    debugSpawnRandomVfx(5);
+  },240);
+  debugLog('Started VFX stress test for 5 seconds.');
+}
+function debugToggleFullVfxBudget(){
+  if(!requireGame()) return;
+  game.debug.forceFullVfx=!game.debug.forceFullVfx;
+  debugLog(`Full VFX regardless of performance budget ${game.debug.forceFullVfx?'enabled':'disabled'}.`);
+  updateGameAfterDebug();
+}
+function debugPlaySelectedVfxSprite(useCursor=false){
+  const pt=debugVfxPoint(useCursor); if(!pt) return;
+  const select=document.getElementById('debugVfxSpriteSelect');
+  const scale=parseFloat(document.getElementById('debugVfxScale')?.value || '1');
+  const lifetime=parseFloat(document.getElementById('debugVfxLifetime')?.value || '0.35');
+  const alpha=parseFloat(document.getElementById('debugVfxAlpha')?.value || '0.9');
+  const spriteId=select?.value || 'explosionCoreFlash01';
+  const size=96*clamp(scale,0.1,5);
+  if(typeof addSpriteParticle==='function') addSpriteParticle(game,spriteId,pt.x,pt.y,clamp(lifetime,0.05,3),size,{
+    targetSize:size*1.18,
+    rotation:rand(0,Math.PI*2),
+    spin:rand(-2,2),
+    alphaMul:clamp(alpha,0.05,1),
+    glowColor:'#ffcc4d',
+    glowBlur:10,
+    additive:true,
+    important:true
+  });
+  if(game.debug) game.debug.lastVfxComposition=`sprite:${spriteId}`;
+  debugLog(`Played VFX sprite: ${spriteId}${useCursor?' at cursor':' at player'}.`);
+  updateGameAfterDebug();
+}
+function makeVfxSpritePreviewControls(){
+  const wrap=document.createElement('div');
+  wrap.className='debugVfxControls';
+  const ids=Object.values(EXPLOSION_VFX_SPRITES || {}).flat();
+  wrap.innerHTML=`
+    <label>Sprite <select id="debugVfxSpriteSelect">${ids.map(id=>`<option value="${id}">${id}</option>`).join('')}</select></label>
+    <label>Scale <input id="debugVfxScale" type="number" value="1.2" min="0.2" max="5" step="0.1"></label>
+    <label>Lifetime <input id="debugVfxLifetime" type="number" value="0.35" min="0.05" max="3" step="0.05"></label>
+    <label>Alpha <input id="debugVfxAlpha" type="number" value="0.9" min="0.05" max="1" step="0.05"></label>
+  `;
+  wrap.appendChild(makeDebugButton('Play Selected Sprite at Player',()=>debugPlaySelectedVfxSprite(false)));
+  wrap.appendChild(makeDebugButton('Play Selected Sprite at Cursor',()=>debugPlaySelectedVfxSprite(true)));
+  return wrap;
+}
+
+window.debugVfx = {
+  play: debugPlayVfx,
+  random: debugPlayRandomVfx,
+  random10: ()=>debugSpawnRandomVfx(10),
+  random50: ()=>debugSpawnRandomVfx(50),
+  stress: debugVfxStress5s,
+  clear: debugClearVfx,
+  fullBudget: debugToggleFullVfxBudget,
+  sprite: debugPlaySelectedVfxSprite,
+};
+
 function buildDebugPanel(){
   if(!DEBUG_MODE) return;
   const toggle = document.createElement('button');
@@ -621,6 +724,29 @@ function buildDebugPanel(){
     makeDebugButton('Enemy Red Bullet Sprite',debugSpawnEnemyRedBulletSprite),
     makeDebugButton('Destructive Bullet Sprite',debugSpawnDestructiveBulletSprite)
   ]);
+  addDebugSection(panel,'VFX Debug / Test',[
+    makeDebugButton('Play Generic Explosion',()=>debugPlayVfx('genericExplosion')),
+    makeDebugButton('Play Large Explosion',()=>debugPlayVfx('largeExplosion')),
+    makeDebugButton('Play Hex Shard Explosion',()=>debugPlayVfx('hexShardExplosion')),
+    makeDebugButton('Play Lava Burst',()=>debugPlayVfx('lavaBurst')),
+    makeDebugButton('Play Arc Overload',()=>debugPlayVfx('arcOverload')),
+    makeDebugButton('Play Missile Impact',()=>debugPlayVfx('missileImpact')),
+    makeDebugButton('Play Enemy Death Burst',()=>debugPlayVfx('enemyDeathBurst')),
+    makeDebugButton('Play Elite Death Burst',()=>debugPlayVfx('eliteDeathBurst')),
+    makeDebugButton('Play Boss Shockwave',()=>debugPlayVfx('bossShockwave')),
+    makeDebugButton('Play Random VFX Burst',debugPlayRandomVfx),
+    makeDebugButton('Clear Active VFX',debugClearVfx),
+    makeDebugButton('Spawn 10 Random VFX',()=>debugSpawnRandomVfx(10)),
+    makeDebugButton('Spawn 50 Random VFX',()=>debugSpawnRandomVfx(50)),
+    makeDebugButton('VFX Stress Test 5 Seconds',debugVfxStress5s),
+    makeDebugButton('Toggle Full VFX Budget',debugToggleFullVfxBudget),
+    makeVfxSpritePreviewControls()
+  ]);
+  const vfxMetrics = document.createElement('section');
+  vfxMetrics.className = 'debugSection';
+  vfxMetrics.innerHTML = '<h3>VFX Debug Metrics</h3><pre class="debugLog" id="debugVfxMetrics">Start a run to view VFX metrics.</pre>';
+  panel.appendChild(vfxMetrics);
+
   addDebugSection(panel,'Pathfinding',[
     makeDebugButton('Toggle Show Enemy Paths',debugToggleEnemyPaths)
   ]);

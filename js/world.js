@@ -220,8 +220,66 @@ function log(g,msg){
   logTimeout = 3;
 }
 
+
+function weightedSpawnPick(options){
+  const available=options.filter(o=>!o.when || o.when());
+  if(!available.length) return options[0]?.type || 'grunt';
+  const total=available.reduce((s,o)=>s+(o.weight ?? 1),0);
+  let roll=Math.random()*total;
+  for(const o of available){ roll-=(o.weight ?? 1); if(roll<=0) return o.type; }
+  return available[available.length-1].type;
+}
+
+function resolveEnemyTypeForSpawn(g,type){
+  const pressure=g?.hollowPressure || 0;
+  const mission=g?.missionIndex || 1;
+  const run=g?.runIndex || 1;
+  const time=g?.time || 0;
+  if(typeof NEW_ENEMY_SPRITE_TYPES !== 'undefined' && NEW_ENEMY_SPRITE_TYPES.includes(type)) return type;
+  if(type==='grunt') return weightedSpawnPick([
+    {type:'clawlingRunner',weight:1.20},
+    {type:'boneSkitter',weight:0.85},
+    {type:'acidTick',weight:0.65},
+    {type:'gloomBat',weight:0.48},
+    {type:'emberCrawler',weight:0.34,when:()=>time>55 || pressure>=1},
+    {type:'riftStalker',weight:0.20,when:()=>mission>=2 || pressure>=2},
+    {type:'grunt',weight:0.25},
+  ]);
+  if(type==='swarmer') return weightedSpawnPick([
+    {type:'needleWisp',weight:1.05},
+    {type:'voidMite',weight:0.85},
+    {type:'boneSkitter',weight:0.58},
+    {type:'gloomBat',weight:0.52},
+    {type:'stormOrb',weight:0.24,when:()=>time>75 || pressure>=1},
+    {type:'swarmer',weight:0.22},
+  ]);
+  if(type==='guard') return weightedSpawnPick([
+    {type:'shellbackGuard',weight:1.0},
+    {type:'ironMaw',weight:0.30,when:()=>time>90 || pressure>=2},
+    {type:'fractureBeetle',weight:0.22,when:()=>mission>=2 || pressure>=2},
+    {type:'guard',weight:0.25},
+  ]);
+  if(type==='exploder') return weightedSpawnPick([
+    {type:'blisterPod',weight:1.0},
+    {type:'hexShardThrower',weight:0.18,when:()=>time>120 || pressure>=2},
+    {type:'exploder',weight:0.20},
+  ]);
+  if(type==='hexShard') return Math.random()<0.65 ? 'hexShardThrower' : 'hexShard';
+  if(type==='elite') return weightedSpawnPick([
+    {type:'elite',weight:0.50},
+    {type:'sporeMother',weight:0.28,when:()=>time>110 || pressure>=2},
+    {type:'crystalLancer',weight:0.35,when:()=>time>85 || pressure>=1},
+    {type:'echoSiren',weight:0.18,when:()=>mission>=2 || pressure>=2},
+    {type:'obsidianTitan',weight:0.08,when:()=>mission>=2 && pressure>=3},
+  ]);
+  if(type==='boss') return (mission>=2 || pressure>=4 || run>=3) && Math.random()<0.35 ? 'hollowTyrantVariant' : 'boss';
+  return type;
+}
+
 function spawnEnemy(g,type){
   const p=g.player;
+  const requestedType=type;
+  type=resolveEnemyTypeForSpawn(g,type);
   let x,y;
   for(let tries=0;tries<50;tries++){
     const ang=rand(0,Math.PI*2), d=rand(650,920);
@@ -231,6 +289,7 @@ function spawnEnemy(g,type){
     if(!isSolid(tileAt(g,tx,ty))) break;
   }
   const e=new Enemy(x,y,type);
+  e.spawnArchetype=requestedType;
   const diff=g.missionDifficulty || missionDifficulty(1);
   const pressure=g.hollowPressure || 0;
   const threatScale=1+pressure*0.08;

@@ -141,12 +141,41 @@ function performanceAdjustedCount(g,count,swarm=false){
 }
 
 function shouldEmitVfx(g,important=false){
+  if(g?.debug?.forceFullVfx) return true;
   if(important || !g?.performance) return true;
-  return Math.random() <= (g.performance.vfxFactor ?? 1);
+  const ok = Math.random() <= (g.performance.vfxFactor ?? 1);
+  if(!ok && g.debug) g.debug.vfxSkipped=(g.debug.vfxSkipped||0)+1;
+  return ok;
+}
+
+function updateVfxDebugMetrics(g){
+  // Safe runtime/debug helper. It is intentionally defined in systems.js because
+  // updatePerformanceDebugPanel() can run before the debug panel is opened.
+  // If the VFX debug metrics DOM does not exist yet, this function must no-op.
+  const box=document.getElementById('debugVfxMetrics');
+  if(!box || !g) return;
+  const perf=g.performance || {};
+  const particles=g.particles || [];
+  const spriteVfx=particles.filter(p=>p.shape==='sprite').length;
+  const proceduralVfx=particles.length - spriteVfx;
+  const skipped=g.debug?.vfxSkipped || 0;
+  const last=g.debug?.lastVfxComposition || 'none';
+  const budget=(perf.vfxFactor ?? 1);
+  box.textContent = [
+    `Active sprite VFX: ${spriteVfx}`,
+    `Procedural particles: ${proceduralVfx}`,
+    `Total particles: ${particles.length}`,
+    `Performance state: ${perf.state || 'unknown'}`,
+    `VFX budget factor: ${Number.isFinite(budget) ? budget.toFixed(2) : budget}`,
+    `Skipped VFX layers: ${skipped}`,
+    `Full VFX override: ${g.debug?.forceFullVfx ? 'ON' : 'OFF'}`,
+    `Last composition: ${last}`
+  ].join('\n');
 }
 
 function updatePerformanceDebugPanel(g){
   const box=document.getElementById('debugPerfMetrics');
+  if(g) updateVfxDebugMetrics(g);
   if(!box || !g?.performance) return;
   const p=g.performance;
   box.textContent = [
@@ -321,7 +350,7 @@ function updateLavaContactDamage(g,dt){
     shake=Math.max(shake,4);
     for(let k=0;k<12;k++) addParticle(g,hit.cx,hit.cy,rand(-80,80),rand(-80,80),'#ff7038',rand(0.15,0.38),rand(2,6), k%3===0?'fragment':'spark');
     addRing(g,hit.cx,hit.cy,'rgba(255,112,56,0.72)',0.18,5,28,3);
-    spawnExplosionVfx(g, hit.cx, hit.cy, 24, '#ff7038', 'lava');
+    spawnVfxComposition(g,'lavaBurst',hit.cx,hit.cy,{radius:24,color:'#ff7038'});
     if(p.hp<=0) gameOver(g);
   }
 }
@@ -1326,6 +1355,7 @@ function updateMissiles(g,dt){
 function missileImpact(g,m,target){
   const splash=m.explosionRadius;
   if(target && target.hp>0) damageEnemy(g,target,m.damage,'#ffcc4d');
+  spawnVfxComposition(g,'missileImpact',m.x,m.y,{radius:splash,color:'#ffcc4d'});
   addRing(g,m.x,m.y,'rgba(255,255,255,0.98)',0.09,4,splash*0.62,3);
   addRing(g,m.x,m.y,'rgba(255,159,67,0.88)',0.20,6,splash,4);
   addParticle(g,m.x,m.y,0,0,'rgba(255,230,165,0.95)',0.08,Math.max(9,splash*0.28));
@@ -2071,7 +2101,7 @@ function hexShardExplode(g,e,r){
     const a=rand(0,Math.PI*2), sp=rand(45,150);
     addParticle(g,e.x,e.y,Math.cos(a)*sp,Math.sin(a)*sp,'rgba(70,55,48,0.65)',rand(0.38,0.85),rand(5,12));
   }
-  spawnExplosionVfx(g, e.x, e.y, r, '#ff7038', 'hex');
+  spawnVfxComposition(g,'hexShardExplosion',e.x,e.y,{radius:r,color:'#ff7038'});
   sfx('explosion',0.95);
 }
 
@@ -2194,6 +2224,7 @@ function updateEnemyBullets(g,dt){
     if(isSolid(t)){
       if(b.destructive && destroyTileByEnemyProjectile(g,tx,ty)){
         shake=Math.max(shake,4);
+        spawnVfxComposition(g,'destructiveImpact',b.x,b.y,{radius:38,color:'#ff7038'});
       }
       b.life=0;
       continue;
@@ -2214,7 +2245,11 @@ function updateEnemyBullets(g,dt){
 
 function killEnemy(g,e){
   g.kills++; sfx('kill', 0.55); dropPickup(g,e.x,e.y,'xp',e.xp);
-  if(e.type==='boss'){
+  const role=ENEMY_TYPES[e.type]?.role || e.role || 'normal';
+  if(role==='boss') spawnVfxComposition(g,'bossShockwave',e.x,e.y,{radius:Math.max(120,e.r*3.2),color:e.color});
+  else if(role==='elite') spawnVfxComposition(g,'eliteDeathBurst',e.x,e.y,{radius:Math.max(56,e.r*2.1),color:e.color});
+  else if(Math.random()<0.70) spawnVfxComposition(g,'enemyDeathBurst',e.x,e.y,{radius:Math.max(24,e.r*1.8),color:e.color});
+  if(e.type==='boss' || e.type==='hollowTyrantVariant'){
     g.bossDefeated=true;
     saveProfile.statistics.totalBossesKilled++;
     log(g,'Sector boss defeated. Extraction signal locked.');
@@ -2254,6 +2289,32 @@ function damageEnemy(g,e,amount,color){
   if(Math.random()<0.25) addParticle(g,e.x,e.y,rand(-70,70),rand(-70,70),color,rand(0.18,0.35),rand(2,5));
 }
 
+
+const VFX_COMPOSITIONS = {
+  genericExplosion: { theme:'default', radius:64, color:'#ff9f43' },
+  largeExplosion: { theme:'default', radius:118, color:'#ff9f43', large:true },
+  seismicCharge: { theme:'default', radius:112, color:'#ffcc4d', large:true },
+  hexShardExplosion: { theme:'hex', radius:95, color:'#ff7038' },
+  lavaBurst: { theme:'lava', radius:42, color:'#ff7038' },
+  missileImpact: { theme:'missile', radius:44, color:'#ffcc4d' },
+  enemyDeathBurst: { theme:'death', radius:28, color:'#ff5b5b' },
+  eliteDeathBurst: { theme:'deathElite', radius:64, color:'#b46bff' },
+  bossShockwave: { theme:'boss', radius:140, color:'#ff4fd8', large:true },
+  arcOverload: { theme:'arc', radius:52, color:'#5dff9a' },
+  stormLatticeHit: { theme:'arc', radius:30, color:'#7df9ff' },
+  destructiveImpact: { theme:'destructive', radius:46, color:'#ff7038' },
+};
+
+function spawnVfxComposition(g,name,x,y,options={}){
+  const comp=VFX_COMPOSITIONS[name] || VFX_COMPOSITIONS.genericExplosion;
+  const radius=options.radius || comp.radius || 56;
+  const color=options.color || comp.color || '#ff9f43';
+  const oldLast=g.debug ? g.debug.lastVfxComposition : null;
+  if(g.debug) g.debug.lastVfxComposition=name;
+  spawnExplosionVfx(g,x,y,radius,color,options.theme || comp.theme || 'default', { composition:name, large:!!comp.large, noDebugName:true });
+  return oldLast;
+}
+
 function pickSpriteVariant(list){
   return list && list.length ? list[randi(0,list.length-1)] : null;
 }
@@ -2284,23 +2345,32 @@ function resolveExplosionTheme(theme,color){
   return 'default';
 }
 
-function spawnExplosionVfx(g,x,y,r,color,theme='auto'){
+function spawnExplosionVfx(g,x,y,r,color,theme='auto',options={}){
   if(typeof EXPLOSION_VFX_SPRITES==='undefined') return;
   const resolved = resolveExplosionTheme(theme,color);
-  const perfMul = clamp(g.performance?.vfxFactor ?? 1, 0.4, 1);
+  if(g.debug && !options.noDebugName) g.debug.lastVfxComposition = resolved;
+  const perfMul = g.debug?.forceFullVfx ? 1 : clamp(g.performance?.vfxFactor ?? 1, 0.4, 1);
   const sizeMul = lerp(0.85,1.0,perfMul);
   const coreId = pickSpriteVariant(EXPLOSION_VFX_SPRITES.coreFlash);
   const fireballPool = resolved==='lava' ? EXPLOSION_VFX_SPRITES.lavaBurst
     : resolved==='hex' ? EXPLOSION_VFX_SPRITES.hexShardBurst
     : resolved==='arc' ? EXPLOSION_VFX_SPRITES.arcOverload
+    : resolved==='missile' ? EXPLOSION_VFX_SPRITES.sparkBurst
+    : resolved==='death' ? EXPLOSION_VFX_SPRITES.fragmentBurst
+    : resolved==='deathElite' ? EXPLOSION_VFX_SPRITES.fragmentBurst
+    : resolved==='boss' ? EXPLOSION_VFX_SPRITES.shockwave
+    : resolved==='destructive' ? EXPLOSION_VFX_SPRITES.fragmentBurst
     : EXPLOSION_VFX_SPRITES.fireball;
   const ringPool = Math.random()<0.5 ? EXPLOSION_VFX_SPRITES.ringBlast : EXPLOSION_VFX_SPRITES.shockwave;
   const accentPool = resolved==='arc' ? EXPLOSION_VFX_SPRITES.arcOverload
     : resolved==='hex' ? EXPLOSION_VFX_SPRITES.fragmentBurst
     : resolved==='lava' ? EXPLOSION_VFX_SPRITES.sparkBurst
+    : resolved==='missile' ? EXPLOSION_VFX_SPRITES.sparkBurst
+    : resolved==='boss' ? EXPLOSION_VFX_SPRITES.ringBlast
     : (Math.random()<0.5 ? EXPLOSION_VFX_SPRITES.fragmentBurst : EXPLOSION_VFX_SPRITES.sparkBurst);
 
-  const coreSize = Math.max(26, r*rand(0.85,1.18))*sizeMul;
+  const largeMul = options.large ? 1.28 : 1;
+  const coreSize = Math.max(26, r*rand(0.85,1.18))*sizeMul*largeMul;
   addSpriteParticle(g, coreId, x, y, rand(0.08,0.14), coreSize, {
     targetSize: coreSize*rand(1.20,1.45),
     rotation: rand(0,Math.PI*2),
