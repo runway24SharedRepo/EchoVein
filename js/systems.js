@@ -321,6 +321,7 @@ function updateLavaContactDamage(g,dt){
     shake=Math.max(shake,4);
     for(let k=0;k<12;k++) addParticle(g,hit.cx,hit.cy,rand(-80,80),rand(-80,80),'#ff7038',rand(0.15,0.38),rand(2,6), k%3===0?'fragment':'spark');
     addRing(g,hit.cx,hit.cy,'rgba(255,112,56,0.72)',0.18,5,28,3);
+    spawnExplosionVfx(g, hit.cx, hit.cy, 24, '#ff7038', 'lava');
     if(p.hp<=0) gameOver(g);
   }
 }
@@ -1012,7 +1013,7 @@ function detonateArcConnection(g){
   for(let i=0;i<chain.length;i++){
     const e = chain[i];
     damageEnemy(g,e,dmg,'#7df9ff');
-    explode(g,e.x,e.y,42+arc.level*5,18+arc.level*5,'#5dff9a',true);
+    explode(g,e.x,e.y,42+arc.level*5,18+arc.level*5,'#5dff9a',true,'arc');
     addRing(g,e.x,e.y,'rgba(125,249,255,0.95)',0.24,e.r+8,e.r+42,4);
     if(i>0){
       const prev=chain[i-1];
@@ -1796,10 +1797,11 @@ function updateEnemies(g,dt){
   for(const e of g.enemies){
     e.hitFlash=Math.max(0,e.hitFlash-dt);
     e.slow=Math.max(0,e.slow-dt);
-    if(e.type==='hexShard'){
+    if((ENEMY_TYPES[e.type]?.behavior || e.behavior) === 'hexBoomerangDetonator') {
       updateHexShardEnemy(g,e,dt);
       continue;
     }
+    updateSpecialEnemyBehaviour(g,e,dt);
     updateEnemyRangedAttack(g,e,dt);
     const moved=Math.hypot(e.x-e.lastX,e.y-e.lastY);
     if(moved<4) e.stuckTimer+=dt; else { e.stuckTimer=0; e.lastX=e.x; e.lastY=e.y; }
@@ -1875,6 +1877,54 @@ function updateEnemies(g,dt){
   for(let i=g.enemies.length-1;i>=0;i--){
     const e=g.enemies[i];
     if(e.hp<=0){ if(!e.noDrop) killEnemy(g,e); g.enemies.splice(i,1); }
+  }
+}
+
+
+function updateSpecialEnemyBehaviour(g,e,dt){
+  const cfg=ENEMY_TYPES[e.type] || {};
+  const behavior=cfg.behavior || e.behavior || 'meleeChase';
+  const p=g.player;
+
+  // Lightweight behaviours for the new sprite roster. They deliberately reuse
+  // the existing movement/collision/ranged systems so sprite integration does
+  // not replace or destabilise core gameplay logic.
+  if(behavior==='spawner'){
+    e.spawnCd = (e.spawnCd ?? rand(3.0,5.5)) - dt;
+    if(e.spawnCd<=0 && g.enemies.length < (g.enemyBudget?.currentMaxEnemies || 120)){
+      e.spawnCd=rand(5.0,8.0);
+      const spawnType=Math.random()<0.55?'needleWisp':'clawlingRunner';
+      for(let i=0;i<2;i++){
+        const a=rand(0,Math.PI*2), d=rand(e.r+18,e.r+42);
+        g.enemies.push(new Enemy(clamp(e.x+Math.cos(a)*d,TILE*2,WORLD_W-TILE*2), clamp(e.y+Math.sin(a)*d,TILE*2,WORLD_H-TILE*2), spawnType));
+      }
+      addRing(g,e.x,e.y,'rgba(115,255,138,0.45)',0.28,e.r,e.r+34,3);
+    }
+  } else if(behavior==='blinkChase'){
+    e.blinkCd = (e.blinkCd ?? rand(4,7)) - dt;
+    if(e.blinkCd<=0 && dist2(e.x,e.y,p.x,p.y)>180*180){
+      e.blinkCd=rand(4.5,7.5);
+      const a=Math.atan2(p.y-e.y,p.x-e.x)+rand(-0.75,0.75);
+      const d=rand(90,145);
+      const nx=clamp(e.x+Math.cos(a)*d,TILE*2,WORLD_W-TILE*2);
+      const ny=clamp(e.y+Math.sin(a)*d,TILE*2,WORLD_H-TILE*2);
+      const [tx,ty]=worldToTile(nx,ny);
+      if(!isSolid(tileAt(g,tx,ty))){ addRing(g,e.x,e.y,'rgba(180,107,255,0.32)',0.22,4,28,2); e.x=nx; e.y=ny; addRing(g,e.x,e.y,'rgba(180,107,255,0.50)',0.22,4,32,2); }
+    }
+  } else if(behavior==='supportBuffer'){
+    e.buffPulse=(e.buffPulse||0)+dt;
+    if(e.buffPulse>0.65){
+      e.buffPulse=0;
+      for(const other of g.enemies){
+        if(other!==e && other.role!=='boss' && dist2(e.x,e.y,other.x,other.y)<210*210){
+          other.sirenBoost=0.8;
+          other.speed=Math.min((ENEMY_TYPES[other.type]?.speed || other.speed)*1.18, other.speed*1.04+12);
+        }
+      }
+      if(shouldEmitVfx(g,false)) addRing(g,e.x,e.y,'rgba(66,214,255,0.28)',0.30,e.r,e.r+46,2);
+    }
+  } else if(behavior==='zigzagChase'){
+    e.phase += dt*7;
   }
 }
 
@@ -2021,12 +2071,14 @@ function hexShardExplode(g,e,r){
     const a=rand(0,Math.PI*2), sp=rand(45,150);
     addParticle(g,e.x,e.y,Math.cos(a)*sp,Math.sin(a)*sp,'rgba(70,55,48,0.65)',rand(0.38,0.85),rand(5,12));
   }
+  spawnExplosionVfx(g, e.x, e.y, r, '#ff7038', 'hex');
   sfx('explosion',0.95);
 }
 
 function smallEnemyProjectileConfig(g,e){
-  if(e.type==='elite' || e.type==='boss') return null;
-  if(e.type==='exploder') return null;
+  const cfgType=ENEMY_TYPES[e.type] || {};
+  if((cfgType.role || e.role)==='elite' || (cfgType.role || e.role)==='boss') return null;
+  if(e.type==='exploder' || cfgType.behavior==='proximityExploder') return null;
   if(g.debug && g.debug.enemyBulletsEnabled===false) return null;
   const stage=Math.max(0,g.time/60);
   const runLevel=g.runIndex || 1;
@@ -2044,17 +2096,18 @@ function smallEnemyProjectileConfig(g,e){
 }
 
 function eliteProjectileConfig(g,e){
-  if(e.type!=='elite' && e.type!=='boss') return null;
+  const role=(ENEMY_TYPES[e.type]?.role || e.role || 'normal');
+  if(role!=='elite' && role!=='boss') return null;
   if(g.debug && g.debug.enemyBulletsEnabled===false) return null;
   const runLevel=g.runIndex || 1;
   const mission=g.missionIndex || 1;
-  const destructive=e.type==='boss' || runLevel>=3;
+  const destructive=role==='boss' || runLevel>=3;
   const pressure=g.hollowPressure || 0;
   return {
-    cooldown:(e.type==='boss'?1.75:3.8)/(1+runLevel*0.12+(mission-1)*0.05+pressure*0.12),
-    speed:(e.type==='boss'?360:300)*(1+runLevel*0.05+pressure*0.045),
-    damage:Math.round((e.type==='boss'?18:12)*(1+(mission-1)*0.08+pressure*0.06)),
-    projectileCount:e.type==='boss' ? Math.max(3,5+pressure) : Math.max(1,1+pressure),
+    cooldown:(role==='boss'?1.75:3.8)/(1+runLevel*0.12+(mission-1)*0.05+pressure*0.12),
+    speed:(role==='boss'?360:300)*(1+runLevel*0.05+pressure*0.045),
+    damage:Math.round((role==='boss'?18:12)*(1+(mission-1)*0.08+pressure*0.06)),
+    projectileCount:role==='boss' ? Math.max(3,5+pressure) : Math.max(1,1+pressure),
     destructive,
     color:destructive?'#ff7038':'#ff3636',
     radius:destructive?7:5
@@ -2067,8 +2120,9 @@ function updateEnemyRangedAttack(g,e,dt){
   e.rangedCd-=dt;
   const p=g.player;
   const d=Math.hypot(p.x-e.x,p.y-e.y);
-  const minRange=(e.type==='elite'||e.type==='boss')?190:150;
-  const maxRange=(e.type==='elite'||e.type==='boss')?850:620;
+  const role=(ENEMY_TYPES[e.type]?.role || e.role || 'normal');
+  const minRange=(role==='elite'||role==='boss')?190:150;
+  const maxRange=(role==='elite'||role==='boss')?850:620;
   if(d<minRange || d>maxRange || e.rangedCd>0) return;
   const bulletCap=getEnemyBulletCap(g);
   if(g.enemyBullets.length>=bulletCap){
@@ -2077,34 +2131,34 @@ function updateEnemyRangedAttack(g,e,dt){
     return;
   }
   const perfState=g.performance?.state || PERF_STATES.HEALTHY;
-  if(perfState===PERF_STATES.CRITICAL && e.type!=='boss' && !(e.type==='elite' && d<460)){
+  if(perfState===PERF_STATES.CRITICAL && role!=='boss' && !(role==='elite' && d<460)){
     if(g.performance) g.performance.skippedBullets=(g.performance.skippedBullets||0)+1;
     e.rangedCd=rand(cfg.cooldown*1.2,cfg.cooldown*1.8);
     return;
   }
-  if(perfState===PERF_STATES.WARNING && e.type!=='elite' && e.type!=='boss' && Math.random()<0.45){
+  if(perfState===PERF_STATES.WARNING && role!=='elite' && role!=='boss' && Math.random()<0.45){
     if(g.performance) g.performance.skippedBullets=(g.performance.skippedBullets||0)+1;
     e.rangedCd=rand(cfg.cooldown*0.9,cfg.cooldown*1.45);
     return;
   }
-  if(e.type!=='elite' && e.type!=='boss' && Math.random()>cfg.fireChance){
+  if(role!=='elite' && role!=='boss' && Math.random()>cfg.fireChance){
     e.rangedCd=rand(cfg.cooldown*0.65,cfg.cooldown*1.15);
     return;
   }
   e.rangedCd=rand(cfg.cooldown*0.82,cfg.cooldown*1.28);
-  const spread=(e.type==='elite'||e.type==='boss')?0.16:0.18;
+  const spread=(role==='elite'||role==='boss')?0.16:0.18;
   const baseA=Math.atan2(p.y-e.y,p.x-e.x)+rand(-spread*0.35,spread*0.35);
   const count=cfg.projectileCount || 1;
   const center=(count-1)/2;
   for(let i=0;i<count;i++){
     let a=baseA+(i-center)*spread;
-    if(e.type==='boss' && (g.hollowPressure||0)>=3 && i>0) a=baseA+(i-center)*(Math.PI*2/count); // escalated radial boss pressure
+    if(role==='boss' && (g.hollowPressure||0)>=3 && i>0) a=baseA+(i-center)*(Math.PI*2/count); // escalated radial boss pressure
     g.enemyBullets.push({
       x:e.x+Math.cos(a)*(e.r+8), y:e.y+Math.sin(a)*(e.r+8),
       vx:Math.cos(a)*cfg.speed, vy:Math.sin(a)*cfg.speed,
-      r:cfg.radius, life:e.type==='boss'?3.4:(e.type==='elite'?2.8:2.4), damage:cfg.damage,
+      r:cfg.radius, life:role==='boss'?3.4:(role==='elite'?2.8:2.4), damage:cfg.damage,
       destructive:!!cfg.destructive, color:cfg.color,
-      small:e.type!=='elite' && e.type!=='boss'
+      small:role!=='elite' && role!=='boss'
     });
   }
   addRing(g,e.x,e.y,cfg.destructive?'rgba(255,112,56,0.72)':'rgba(255,54,54,0.52)',0.14,e.r,e.r+(cfg.small?13:22),cfg.small?2:3);
@@ -2200,12 +2254,128 @@ function damageEnemy(g,e,amount,color){
   if(Math.random()<0.25) addParticle(g,e.x,e.y,rand(-70,70),rand(-70,70),color,rand(0.18,0.35),rand(2,5));
 }
 
-function explode(g,x,y,r,damage,color,noShake=false){
+function pickSpriteVariant(list){
+  return list && list.length ? list[randi(0,list.length-1)] : null;
+}
+
+function addSpriteParticle(g,spriteId,x,y,life,size,options={}){
+  const important = options.important ?? false;
+  if(!shouldEmitVfx(g,important)) return;
+  g.particles.push({
+    x,y,vx:options.vx||0,vy:options.vy||0,
+    color:options.color || '#ffffff',
+    life,maxLife:life,size,
+    targetSize:options.targetSize,
+    shape:'sprite',spriteId,
+    rotation:options.rotation || 0,
+    spin:options.spin || 0,
+    alphaMul:options.alphaMul ?? 1,
+    glowColor:options.glowColor || null,
+    glowBlur:options.glowBlur || 0,
+    additive:options.additive ?? false,
+  });
+}
+
+function resolveExplosionTheme(theme,color){
+  if(theme && theme!=='auto') return theme;
+  if(color==='#5dff9a' || color==='#7df9ff') return 'arc';
+  if(color==='#ff7038') return Math.random()<0.55 ? 'hex' : 'lava';
+  if(color==='#ff9f43' || color==='#ffcc4d') return Math.random()<0.4 ? 'lava' : 'default';
+  return 'default';
+}
+
+function spawnExplosionVfx(g,x,y,r,color,theme='auto'){
+  if(typeof EXPLOSION_VFX_SPRITES==='undefined') return;
+  const resolved = resolveExplosionTheme(theme,color);
+  const perfMul = clamp(g.performance?.vfxFactor ?? 1, 0.4, 1);
+  const sizeMul = lerp(0.85,1.0,perfMul);
+  const coreId = pickSpriteVariant(EXPLOSION_VFX_SPRITES.coreFlash);
+  const fireballPool = resolved==='lava' ? EXPLOSION_VFX_SPRITES.lavaBurst
+    : resolved==='hex' ? EXPLOSION_VFX_SPRITES.hexShardBurst
+    : resolved==='arc' ? EXPLOSION_VFX_SPRITES.arcOverload
+    : EXPLOSION_VFX_SPRITES.fireball;
+  const ringPool = Math.random()<0.5 ? EXPLOSION_VFX_SPRITES.ringBlast : EXPLOSION_VFX_SPRITES.shockwave;
+  const accentPool = resolved==='arc' ? EXPLOSION_VFX_SPRITES.arcOverload
+    : resolved==='hex' ? EXPLOSION_VFX_SPRITES.fragmentBurst
+    : resolved==='lava' ? EXPLOSION_VFX_SPRITES.sparkBurst
+    : (Math.random()<0.5 ? EXPLOSION_VFX_SPRITES.fragmentBurst : EXPLOSION_VFX_SPRITES.sparkBurst);
+
+  const coreSize = Math.max(26, r*rand(0.85,1.18))*sizeMul;
+  addSpriteParticle(g, coreId, x, y, rand(0.08,0.14), coreSize, {
+    targetSize: coreSize*rand(1.20,1.45),
+    rotation: rand(0,Math.PI*2),
+    spin: rand(-2.8,2.8),
+    alphaMul: rand(0.88,1),
+    glowColor: color,
+    glowBlur: 18,
+    additive: true,
+    important: true,
+  });
+
+  const fireballCount = perfMul < 0.6 ? 1 : (Math.random()<0.65 ? 2 : 1);
+  for(let i=0;i<fireballCount;i++){
+    const id = pickSpriteVariant(fireballPool);
+    const angle = rand(0,Math.PI*2), drift = rand(0,r*0.10);
+    const size = Math.max(34, r*rand(1.10,1.70))*sizeMul;
+    addSpriteParticle(g, id, x+Math.cos(angle)*drift, y+Math.sin(angle)*drift, rand(0.16,0.30), size, {
+      targetSize: size*rand(1.08,1.28),
+      rotation: rand(0,Math.PI*2),
+      spin: rand(-1.8,1.8),
+      alphaMul: rand(0.65,0.92),
+      glowColor: color,
+      glowBlur: resolved==='arc' ? 22 : 14,
+      additive: resolved!=='hex',
+    });
+  }
+
+  const ringId = pickSpriteVariant(ringPool);
+  const ringSize = Math.max(44, r*rand(1.65,2.05))*sizeMul;
+  addSpriteParticle(g, ringId, x, y, rand(0.20,0.34), ringSize*0.75, {
+    targetSize: ringSize,
+    rotation: rand(0,Math.PI*2),
+    spin: rand(-0.8,0.8),
+    alphaMul: rand(0.55,0.85),
+    glowColor: resolved==='arc' ? '#7df9ff' : color,
+    glowBlur: resolved==='arc' ? 18 : 8,
+    additive: true,
+    important: true,
+  });
+
+  if(perfMul > 0.45 || Math.random()<0.8){
+    const smokeId = pickSpriteVariant(EXPLOSION_VFX_SPRITES.smokeBloom);
+    const smokeSize = Math.max(54, r*rand(1.55,2.20))*sizeMul;
+    addSpriteParticle(g, smokeId, x+rand(-r*0.08,r*0.08), y+rand(-r*0.08,r*0.08), rand(0.36,0.62), smokeSize, {
+      targetSize: smokeSize*rand(1.10,1.32),
+      rotation: rand(0,Math.PI*2),
+      spin: rand(-0.7,0.7),
+      alphaMul: rand(0.35,0.58),
+      glowBlur: 0,
+      additive: false,
+    });
+  }
+
+  if(Math.random()<0.82){
+    const accentId = pickSpriteVariant(accentPool);
+    const accentSize = Math.max(30, r*rand(0.92,1.42))*sizeMul;
+    addSpriteParticle(g, accentId, x+rand(-r*0.05,r*0.05), y+rand(-r*0.05,r*0.05), rand(0.14,0.24), accentSize, {
+      targetSize: accentSize*rand(1.05,1.22),
+      rotation: rand(0,Math.PI*2),
+      spin: rand(-2.4,2.4),
+      alphaMul: rand(0.52,0.86),
+      glowColor: color,
+      glowBlur: resolved==='arc' ? 18 : 10,
+      additive: true,
+    });
+  }
+}
+
+function explode(g,x,y,r,damage,color,noShake=false,theme='auto'){
   if(!noShake) shake=Math.max(shake,9);
   for(const e of g.enemies){
     const d=Math.hypot(e.x-x,e.y-y);
     if(d<r+e.r) damageEnemy(g,e,damage*(1-d/(r+e.r)*0.45),color);
   }
+  spawnExplosionVfx(g,x,y,r,color,theme);
   addRing(g,x,y,color,0.34,Math.max(6,r*0.10),r*1.10,8);
   addRing(g,x,y,'rgba(255,244,214,0.95)',0.18,Math.max(4,r*0.06),r*0.78,6);
   addParticle(g,x,y,0,0,'rgba(255,240,220,0.95)',0.10,Math.max(10,r*0.26));
@@ -2307,7 +2477,8 @@ function updateParticles(g,dt){
   if(g.particles.length>particleCap) g.particles.splice(0,g.particles.length-particleCap);
   for(const p of g.particles){
     p.x+=p.vx*dt; p.y+=p.vy*dt; p.vx*=Math.pow(0.02,dt); p.vy*=Math.pow(0.02,dt); p.life-=dt;
-    if(p.shape==='ring') p.size = lerp(p.size, p.targetSize || p.size, dt*10);
+    if(p.shape==='ring' || p.shape==='sprite') p.size = lerp(p.size, p.targetSize || p.size, dt*10);
+    if(p.shape==='sprite') p.rotation = (p.rotation || 0) + (p.spin || 0)*dt;
   }
   g.particles=g.particles.filter(p=>p.life>0);
   for(const a of g.arcs){ a.life-=dt; }

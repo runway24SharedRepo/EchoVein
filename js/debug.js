@@ -1,5 +1,12 @@
 'use strict';
 
+const NEW_ENEMY_SPRITE_TYPES = [
+  'clawlingRunner','needleWisp','shellbackGuard','blisterPod','hexShardThrower',
+  'sporeMother','emberCrawler','crystalLancer','voidMite','acidTick',
+  'ironMaw','stormOrb','riftStalker','boneSkitter','magmaBurrower',
+  'echoSiren','fractureBeetle','gloomBat','obsidianTitan','hollowTyrantVariant'
+];
+
 const DEBUG_MODE = true;
 const debugState = { panelOpen:false, log:[] };
 
@@ -57,6 +64,40 @@ function debugSpawnEnemies(type,count){
   debugLog(`Spawned ${count} ${type} test enemies.`);
   updateGameAfterDebug();
 }
+
+function debugSpawnNewEnemy(type){
+  if(!requireGame()) return;
+  debugSpawnEnemies(type,1);
+  debugLog(`Spawned ${ENEMY_TYPES[type]?.displayName || type}.`);
+}
+
+function debugSpawnRandomNewEnemies(count=10){
+  if(!requireGame()) return;
+  for(let i=0;i<count;i++){
+    const type=NEW_ENEMY_SPRITE_TYPES[randi(0,NEW_ENEMY_SPRITE_TYPES.length-1)];
+    const a=rand(0,Math.PI*2), d=rand(180,330);
+    const x=clamp(game.player.x+Math.cos(a)*d,TILE*3,WORLD_W-TILE*3);
+    const y=clamp(game.player.y+Math.sin(a)*d,TILE*3,WORLD_H-TILE*3);
+    game.enemies.push(new Enemy(x,y,type));
+  }
+  debugLog(`Spawned ${count} random new enemy-pack enemies.`);
+  updateGameAfterDebug();
+}
+
+function debugClearNewEnemies(){
+  if(!requireGame()) return;
+  const before=game.enemies.length;
+  game.enemies=game.enemies.filter(e=>!NEW_ENEMY_SPRITE_TYPES.includes(e.type));
+  debugLog(`Cleared ${before-game.enemies.length} new enemy-pack enemies.`);
+  updateGameAfterDebug();
+}
+
+window.debugEnemySprites = {
+  spawn: debugSpawnNewEnemy,
+  random10: ()=>debugSpawnRandomNewEnemies(10),
+  clear: debugClearNewEnemies,
+  types: NEW_ENEMY_SPRITE_TYPES
+};
 
 function debugSpawnXpCluster(){
   if(!requireGame()) return;
@@ -539,6 +580,30 @@ function buildDebugPanel(){
     makeDebugButton('Toggle Lava Contact Damage',debugToggleLavaDamage),
     makeDebugButton('Toggle Lava Collision Zones',debugToggleLavaZones),
     makeDebugButton('Toggle Hex Ranges',debugToggleHexRanges)
+  ]);
+  addDebugSection(panel,'New Enemy Sprite Pack',[
+    makeDebugButton('Spawn Clawling Runner',()=>debugSpawnNewEnemy('clawlingRunner')),
+    makeDebugButton('Spawn Needle Wisp',()=>debugSpawnNewEnemy('needleWisp')),
+    makeDebugButton('Spawn Shellback Guard',()=>debugSpawnNewEnemy('shellbackGuard')),
+    makeDebugButton('Spawn Blister Pod',()=>debugSpawnNewEnemy('blisterPod')),
+    makeDebugButton('Spawn Hex Shard Thrower',()=>debugSpawnNewEnemy('hexShardThrower')),
+    makeDebugButton('Spawn Spore Mother',()=>debugSpawnNewEnemy('sporeMother')),
+    makeDebugButton('Spawn Ember Crawler',()=>debugSpawnNewEnemy('emberCrawler')),
+    makeDebugButton('Spawn Crystal Lancer',()=>debugSpawnNewEnemy('crystalLancer')),
+    makeDebugButton('Spawn Void Mite',()=>debugSpawnNewEnemy('voidMite')),
+    makeDebugButton('Spawn Acid Tick',()=>debugSpawnNewEnemy('acidTick')),
+    makeDebugButton('Spawn Iron Maw',()=>debugSpawnNewEnemy('ironMaw')),
+    makeDebugButton('Spawn Storm Orb',()=>debugSpawnNewEnemy('stormOrb')),
+    makeDebugButton('Spawn Rift Stalker',()=>debugSpawnNewEnemy('riftStalker')),
+    makeDebugButton('Spawn Bone Skitter',()=>debugSpawnNewEnemy('boneSkitter')),
+    makeDebugButton('Spawn Magma Burrower',()=>debugSpawnNewEnemy('magmaBurrower')),
+    makeDebugButton('Spawn Echo Siren',()=>debugSpawnNewEnemy('echoSiren')),
+    makeDebugButton('Spawn Fracture Beetle',()=>debugSpawnNewEnemy('fractureBeetle')),
+    makeDebugButton('Spawn Gloom Bat',()=>debugSpawnNewEnemy('gloomBat')),
+    makeDebugButton('Spawn Obsidian Titan',()=>debugSpawnNewEnemy('obsidianTitan')),
+    makeDebugButton('Spawn Hollow Tyrant Variant',()=>debugSpawnNewEnemy('hollowTyrantVariant')),
+    makeDebugButton('Spawn 10 random new enemies',()=>debugSpawnRandomNewEnemies(10)),
+    makeDebugButton('Clear new enemies',debugClearNewEnemies)
   ]);
   addDebugSection(panel,'Sprite Integration Tests',[
     makeDebugButton('Show Sprite Test Panel',showSpriteTestPanel),

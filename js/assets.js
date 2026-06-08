@@ -43,11 +43,96 @@ const SPRITES = {
   pathfinderTrap: 'assets/sprites/pathfinder_trap.png',
   arcConnectionIcon: 'assets/sprites/arc_connection_icon.png',
   vectorBurstIcon: 'assets/sprites/vector_burst_icon.png',
-  extractionCraft: 'assets/sprites/extraction_craft.png'
+  extractionCraft: 'assets/sprites/extraction_craft.png',
+
+
+  // Explosion VFX pack.
+  explosionCoreFlash01: 'assets/sprites/vfx/explosion_core_flash_01.png',
+  explosionCoreFlash02: 'assets/sprites/vfx/explosion_core_flash_02.png',
+  explosionFireball01: 'assets/sprites/vfx/explosion_fireball_01.png',
+  explosionFireball02: 'assets/sprites/vfx/explosion_fireball_02.png',
+  explosionRingBlast01: 'assets/sprites/vfx/explosion_ring_blast_01.png',
+  explosionRingBlast02: 'assets/sprites/vfx/explosion_ring_blast_02.png',
+  explosionFragmentBurst01: 'assets/sprites/vfx/explosion_fragment_burst_01.png',
+  explosionFragmentBurst02: 'assets/sprites/vfx/explosion_fragment_burst_02.png',
+  explosionSmokeBloom01: 'assets/sprites/vfx/explosion_smoke_bloom_01.png',
+  explosionSmokeBloom02: 'assets/sprites/vfx/explosion_smoke_bloom_02.png',
+  explosionShockwave01: 'assets/sprites/vfx/explosion_shockwave_01.png',
+  explosionShockwave02: 'assets/sprites/vfx/explosion_shockwave_02.png',
+  explosionSparkBurst01: 'assets/sprites/vfx/explosion_spark_burst_01.png',
+  explosionSparkBurst02: 'assets/sprites/vfx/explosion_spark_burst_02.png',
+  explosionLavaBurst01: 'assets/sprites/vfx/explosion_lava_burst_01.png',
+  explosionLavaBurst02: 'assets/sprites/vfx/explosion_lava_burst_02.png',
+  explosionHexShardBurst01: 'assets/sprites/vfx/explosion_hex_shard_burst_01.png',
+  explosionHexShardBurst02: 'assets/sprites/vfx/explosion_hex_shard_burst_02.png',
+  explosionArcOverload01: 'assets/sprites/vfx/explosion_arc_overload_01.png',
+  explosionArcOverload02: 'assets/sprites/vfx/explosion_arc_overload_02.png',
+  explosionVfxPreviewSheet: 'assets/sprites/vfx/explosion_vfx_preview_sheet.png',
+
+  // New enemy roster sprites. These live in assets/sprites/enemies/ so the
+  // gameplay code can swap sprites through IDs instead of hardcoded paths.
+  clawlingRunner: 'assets/sprites/enemies/clawling_runner.png',
+  needleWisp: 'assets/sprites/enemies/needle_wisp.png',
+  shellbackGuard: 'assets/sprites/enemies/shellback_guard.png',
+  blisterPod: 'assets/sprites/enemies/blister_pod.png',
+  hexShardThrower: 'assets/sprites/enemies/hex_shard_thrower.png',
+  sporeMother: 'assets/sprites/enemies/spore_mother.png',
+  emberCrawler: 'assets/sprites/enemies/ember_crawler.png',
+  crystalLancer: 'assets/sprites/enemies/crystal_lancer.png',
+  voidMite: 'assets/sprites/enemies/void_mite.png',
+  acidTick: 'assets/sprites/enemies/acid_tick.png',
+  ironMaw: 'assets/sprites/enemies/iron_maw.png',
+  stormOrb: 'assets/sprites/enemies/storm_orb.png',
+  riftStalker: 'assets/sprites/enemies/rift_stalker.png',
+  boneSkitter: 'assets/sprites/enemies/bone_skitter.png',
+  magmaBurrower: 'assets/sprites/enemies/magma_burrower.png',
+  echoSiren: 'assets/sprites/enemies/echo_siren.png',
+  fractureBeetle: 'assets/sprites/enemies/fracture_beetle.png',
+  gloomBat: 'assets/sprites/enemies/gloom_bat.png',
+  obsidianTitan: 'assets/sprites/enemies/obsidian_titan.png',
+  hollowTyrantVariant: 'assets/sprites/enemies/hollow_tyrant_variant.png'
 };
 
 // Compatibility alias used by older rendering code.
 const SPRITE_PATHS = SPRITES;
+
+// Separate enemy-sprite view requested by the new sprite-pack instructions.
+const ENEMY_SPRITES = {
+  clawlingRunner: SPRITES.clawlingRunner,
+  needleWisp: SPRITES.needleWisp,
+  shellbackGuard: SPRITES.shellbackGuard,
+  blisterPod: SPRITES.blisterPod,
+  hexShardThrower: SPRITES.hexShardThrower,
+  sporeMother: SPRITES.sporeMother,
+  emberCrawler: SPRITES.emberCrawler,
+  crystalLancer: SPRITES.crystalLancer,
+  voidMite: SPRITES.voidMite,
+  acidTick: SPRITES.acidTick,
+  ironMaw: SPRITES.ironMaw,
+  stormOrb: SPRITES.stormOrb,
+  riftStalker: SPRITES.riftStalker,
+  boneSkitter: SPRITES.boneSkitter,
+  magmaBurrower: SPRITES.magmaBurrower,
+  echoSiren: SPRITES.echoSiren,
+  fractureBeetle: SPRITES.fractureBeetle,
+  gloomBat: SPRITES.gloomBat,
+  obsidianTitan: SPRITES.obsidianTitan,
+  hollowTyrantVariant: SPRITES.hollowTyrantVariant,
+};
+
+
+const EXPLOSION_VFX_SPRITES = {
+  coreFlash: ['explosionCoreFlash01','explosionCoreFlash02'],
+  fireball: ['explosionFireball01','explosionFireball02'],
+  ringBlast: ['explosionRingBlast01','explosionRingBlast02'],
+  fragmentBurst: ['explosionFragmentBurst01','explosionFragmentBurst02'],
+  smokeBloom: ['explosionSmokeBloom01','explosionSmokeBloom02'],
+  shockwave: ['explosionShockwave01','explosionShockwave02'],
+  sparkBurst: ['explosionSparkBurst01','explosionSparkBurst02'],
+  lavaBurst: ['explosionLavaBurst01','explosionLavaBurst02'],
+  hexShardBurst: ['explosionHexShardBurst01','explosionHexShardBurst02'],
+  arcOverload: ['explosionArcOverload01','explosionArcOverload02'],
+};
 
 const spriteImages = Object.create(null);
 const spriteLoadState = Object.create(null);

@@ -224,28 +224,36 @@ function drawEnemies(g){
   for(const e of g.enemies){
     ctx.save();
     let shakeX=0, shakeY=0;
-    if(e.type==='hexShard' && e.detonationStarted){
+    if((ENEMY_TYPES[e.type]?.behavior || e.behavior) === 'hexBoomerangDetonator' && e.detonationStarted){
       const amp=e.shakeAmount || 4;
       shakeX=rand(-amp,amp); shakeY=rand(-amp,amp);
     }
     ctx.translate(e.x+shakeX,e.y+shakeY);
 
-    const warning = e.type==='hexShard' && e.detonationStarted;
+    const cfg = ENEMY_TYPES[e.type] || {};
+    const isHexLike = (cfg.behavior || e.behavior) === 'hexBoomerangDetonator';
+    const warning = isHexLike && e.detonationStarted;
     const pulse = 0.5 + 0.5*Math.sin(g.time*(warning?18:6)+e.phase);
     let spriteDrawn=false;
 
     // Enemy sprites are purely visual. If any sprite is missing, the existing
-    // procedural fallback below still renders the enemy safely.
-    if(e.type==='hexShard'){
-      const size = e.r*2.45*(warning ? 1+0.08*pulse : 1);
-      spriteDrawn = drawSpriteCentered(ctx,'hexShardEnemy',0,0,size,size,{
-        rotation: g.time*0.8 + Math.sin(g.time*4+e.phase)*0.10,
-        alpha: e.hitFlash>0 ? 0.65 : 1,
+    // procedural fallback below still renders the enemy safely. New enemy-pack
+    // enemies all flow through cfg.spriteId so future sprite swaps are data-only.
+    const spriteId = cfg.spriteId || e.spriteId;
+    if(spriteId){
+      const role = cfg.role || e.role || 'normal';
+      const baseScale = role==='boss' ? 3.25 : role==='elite' ? 3.15 : 3.05;
+      const minSize = role==='boss' ? 110 : role==='elite' ? 64 : 44;
+      const size = Math.max(minSize, e.r*baseScale) * (warning ? 1+0.08*pulse : 1);
+      const rotation = isHexLike ? g.time*0.8 + Math.sin(g.time*4+e.phase)*0.10 : Math.sin(g.time*2+e.phase)*0.06;
+      spriteDrawn = drawSpriteCentered(ctx,spriteId,0,0,size,size,{
+        rotation,
+        alpha: e.hitFlash>0 ? 0.72 : (cfg.behavior==='riftStalker'?0.82:1),
         glowColor: warning ? '#ff3d22' : e.color,
-        glowBlur: warning ? 24 : 10
+        glowBlur: warning ? 24 : (role==='boss'?26:(role==='elite'?16:8))
       });
       if(spriteDrawn && warning){
-        drawSpriteCentered(ctx,'hexShardWarningGlow',0,0,size*1.35,size*1.35,{
+        drawSpriteCentered(ctx,cfg.warningSpriteId || 'hexShardWarningGlow',0,0,size*1.35,size*1.35,{
           rotation: -g.time*1.6,
           alpha: 0.38+0.50*pulse,
           glowColor:'#ff7038',
@@ -255,26 +263,10 @@ function drawEnemies(g){
         ctx.lineWidth=3;
         ctx.beginPath(); ctx.arc(0,0,70+8*pulse,0,Math.PI*2); ctx.stroke();
       }
-    } else if(e.type==='boss'){
-      const size = Math.max(96,e.r*2.55);
-      spriteDrawn = drawSpriteCentered(ctx,'hollowTyrantBoss',0,0,size,size,{
-        rotation: Math.sin(g.time*1.4+e.phase)*0.04,
-        alpha: e.hitFlash>0 ? 0.72 : 1,
-        glowColor:e.color,
-        glowBlur:26
-      });
-    } else if(e.type==='elite' || e.type==='guard'){
-      const size = Math.max(58,e.r*2.65);
-      spriteDrawn = drawSpriteCentered(ctx,'eliteShellbackEnemy',0,0,size,size,{
-        rotation: Math.sin(g.time*2+e.phase)*0.08,
-        alpha: e.hitFlash>0 ? 0.72 : 1,
-        glowColor:e.color,
-        glowBlur:e.type==='elite'?18:10
-      });
     }
 
     if(!spriteDrawn){
-      if(e.type==='hexShard'){
+      if((ENEMY_TYPES[e.type]?.behavior || e.behavior) === 'hexBoomerangDetonator'){
         ctx.fillStyle=e.hitFlash>0?'#fff':(warning?`rgba(255,112,56,${0.78+0.22*pulse})`:e.color);
         ctx.strokeStyle=warning?'#ffe0a8':'rgba(255,220,170,0.82)';
         ctx.lineWidth=warning?3:2;
@@ -297,7 +289,8 @@ function drawEnemies(g){
         }
       } else {
         ctx.fillStyle=e.hitFlash>0?'#fff':e.color;
-        ctx.shadowColor=e.color; ctx.shadowBlur=e.type==='boss'?28:(e.type==='elite'?18:6);
+        const fallbackRole=ENEMY_TYPES[e.type]?.role || e.role || 'normal';
+        ctx.shadowColor=e.color; ctx.shadowBlur=fallbackRole==='boss'?28:(fallbackRole==='elite'?18:6);
         ctx.beginPath();
         for(let i=0;i<8;i++){
           const a=i*Math.PI*2/8;
@@ -310,12 +303,12 @@ function drawEnemies(g){
 
     ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(-e.r,-e.r-10,e.r*2,4);
     ctx.fillStyle='#ff5b5b'; ctx.fillRect(-e.r,-e.r-10,e.r*2*clamp(e.hp/e.maxHp,0,1),4);
-    if(e.type==='boss'){
+    if((ENEMY_TYPES[e.type]?.role || e.role)==='boss'){
       ctx.strokeStyle='rgba(255,255,255,0.75)';
       ctx.lineWidth=3;
       ctx.beginPath(); ctx.arc(0,0,e.r+8+Math.sin(g.time*5)*3,0,Math.PI*2); ctx.stroke();
     }
-    if(g.debug?.showHexRanges && e.type==='hexShard'){
+    if(g.debug?.showHexRanges && (ENEMY_TYPES[e.type]?.behavior || e.behavior)==='hexBoomerangDetonator'){
       ctx.shadowBlur=0;
       ctx.strokeStyle='rgba(255,112,56,0.32)'; ctx.lineWidth=1.5;
       ctx.beginPath(); ctx.arc(0,0,70,0,Math.PI*2); ctx.stroke();
@@ -770,6 +763,18 @@ function drawParticles(g){
       ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
       ctx.stroke();
       continue;
+    }
+    if(p.shape==='sprite' && p.spriteId){
+      const prevComp = ctx.globalCompositeOperation;
+      if(p.additive) ctx.globalCompositeOperation='lighter';
+      const ok = drawSpriteCentered(ctx,p.spriteId,p.x,p.y,p.size,p.size,{
+        rotation:p.rotation || 0,
+        alpha:alpha * (p.alphaMul ?? 1),
+        glowColor:p.glowColor || null,
+        glowBlur:p.glowBlur || 0
+      });
+      ctx.globalCompositeOperation = prevComp;
+      if(ok) continue;
     }
     if(p.shape==='fragment'){
       const angle=Math.atan2(p.vy,p.vx)+p.life*6;
