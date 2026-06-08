@@ -606,6 +606,12 @@ window.debugVfx = {
   sprite: debugPlaySelectedVfxSprite,
 };
 
+
+function debugOpenRunStatsScreen(){ if(requireGame()){ if(typeof showRunStatsScreen==='function') showRunStatsScreen(game,{title:'Debug Run Statistics',cause:'Manual debug open'}); debugLog('Opened run statistics screen.'); } }
+function debugAddObjectiveProgress(){ if(requireGame()){ for(const o of game.objectives||[]){ if(!o.completed){ addObjectiveProgress(game,o.id,10); break; } } updateGameAfterDebug(); debugLog('Added +10 objective progress.'); } }
+function debugForceCompleteObjective(){ if(requireGame()){ const o=(game.objectives||[]).find(x=>!x.completed); if(o){ addObjectiveProgress(game,o.id,(o.targetAmount||0)-(o.currentAmount||0)); updateGameAfterDebug(); debugLog('Forced objective complete.'); } } }
+function debugClearRunStats(){ if(requireGame()){ game.runStats=typeof createRunStats==='function'?createRunStats():null; updateGameAfterDebug(); debugLog('Cleared run stats.'); } }
+
 function buildDebugPanel(){
   if(!DEBUG_MODE) return;
   const toggle = document.createElement('button');
@@ -779,6 +785,16 @@ function buildDebugPanel(){
     makeDebugButton('Toggle Accuracy Cone',debugToggleAccuracyCone)
   ]);
 
+
+  addDebugSection(panel,'Run Stats and Mission Goals',[
+    makeDebugButton('Force complete objective',debugForceCompleteObjective),
+    makeDebugButton('Add +10 objective progress',debugAddObjectiveProgress),
+    makeDebugButton('Generate fake run stats',debugGenerateFakeRunStats),
+    makeDebugButton('Open run statistics screen',debugOpenRunStatsScreen),
+    makeDebugButton('Clear run stats',debugClearRunStats),
+    makeDebugButton('Print current runStats object',debugPrintRunStats)
+  ]);
+
   addDebugSection(panel,'Player State',[
     makeDebugButton('Heal player to full HP',debugHealPlayer),
     makeDebugButton('Add XP',debugAddXp),
@@ -814,3 +830,13 @@ window.debugFog = {
 };
 
 window.addEventListener('DOMContentLoaded', buildDebugPanel);
+
+
+window.debugRunStats = {
+  fake: debugGenerateFakeRunStats,
+  open: debugOpenRunStatsScreen,
+  clear: debugClearRunStats,
+  print: debugPrintRunStats,
+  objective: debugForceCompleteObjective,
+  progress: debugAddObjectiveProgress
+};

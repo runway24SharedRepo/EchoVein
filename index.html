@@ -15,6 +15,7 @@
   <script defer src="js/world.js"></script>
   <script defer src="js/systems.js"></script>
   <script defer src="js/render-ui.js"></script>
+  <script defer src="js/run-stats.js"></script>
   <script defer src="js/main.js"></script>
   <script defer src="js/debug.js"></script>
 </head>
@@ -83,6 +84,28 @@
     <div class="buttonRow">
       <button onclick="restartGame()">Retry Run</button>
       <button onclick="showMainMenu()">Main Menu</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="runStatsOverlay">
+  <div class="modal runStatsModal">
+    <h1 id="runStatsTitle">Run Statistics</h1>
+    <p id="runStatsReason" class="subtitle"></p>
+    <div id="runStatsBody"></div>
+    <h3>Trend Graph</h3>
+    <div class="chartTabs">
+      <button data-run-chart="enemiesKilled">Kills</button>
+      <button data-run-chart="totalOreCollected">Ore</button>
+      <button data-run-chart="damageTaken">Damage</button>
+      <button data-run-chart="playerLevel">Level</button>
+      <button data-run-chart="fpsAverage">FPS</button>
+    </div>
+    <canvas id="runStatsChart" class="runStatsChart"></canvas>
+    <div class="buttonRow">
+      <button onclick="runStatsContinue()">Continue</button>
+      <button onclick="runStatsRetry()">Retry Run</button>
+      <button onclick="runStatsMainMenu()">Main Menu</button>
     </div>
   </div>
 </div>

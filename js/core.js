@@ -418,6 +418,7 @@ function triggerDash(g, source='input'){
   if(p.dashCd>0) return false;
   p.dashCd=cd;
   p.dashT=0.15;
+  if(g.runStats) g.runStats.dashesUsed=(g.runStats.dashesUsed||0)+1;
   sfx('dash');
   return true;
 }

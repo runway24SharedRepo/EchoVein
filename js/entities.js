@@ -261,7 +261,8 @@ function makeGame(cls){
     spawnTimer:2.2, eliteTimer:90, nextWave:55,
     camera:{x:0,y:0},
     log:['Mission started. Descend, extract, survive.'],
-    selectedClass:cls
+    selectedClass:cls,
+    runStats:(typeof createRunStats==='function' ? createRunStats() : null)
   };
   generateCave(g);
   applyPermanentUpgrades(g);

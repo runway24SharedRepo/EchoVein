@@ -237,7 +237,8 @@ function completeRun(g){
     missionCompleted=true;
   }
   saveGame();
-  showRunComplete(g, missionCompleted);
+  if(typeof showRunStatsScreen==='function') showRunStatsScreen(g,{title:missionCompleted ? 'Mission Complete' : 'Run Extracted', cause:missionCompleted ? 'Mission completed' : 'Extracted'});
+  else showRunComplete(g, missionCompleted);
 }
 
 function failRun(g,reason){
@@ -245,9 +246,12 @@ function failRun(g,reason){
   g.runResolved=true;
   g.state='failed';
   sfx('gameover');
-  ui.gameOverText.innerHTML=`${reason}<br><br>Unbanked run resources were lost. Your saved mission remains at Mission <b>${saveProfile.missionIndex}</b>, Run <b>${saveProfile.runIndex}</b>.`;
-  ui.gameOverOverlay.classList.add('show');
   saveGame();
+  if(typeof showRunStatsScreen==='function') showRunStatsScreen(g,{title:'Run Failed', cause:reason || 'Failed'});
+  else {
+    ui.gameOverText.innerHTML=`${reason}<br><br>Unbanked run resources were lost. Your saved mission remains at Mission <b>${saveProfile.missionIndex}</b>, Run <b>${saveProfile.runIndex}</b>.`;
+    ui.gameOverOverlay.classList.add('show');
+  }
 }
 
 function startRunWithClass(clsOrId){
@@ -267,12 +271,14 @@ function hideAllOverlays(){
   ui.startOverlay.classList.remove('show');
   ui.gameOverOverlay.classList.remove('show');
   ui.upgradeOverlay.classList.remove('show');
+  document.getElementById('runStatsOverlay')?.classList.remove('show');
 }
 
 function clearMenu(){
   ui.startOverlay.classList.add('show');
   ui.gameOverOverlay.classList.remove('show');
   ui.upgradeOverlay.classList.remove('show');
+  document.getElementById('runStatsOverlay')?.classList.remove('show');
   ui.classCards.innerHTML='';
   ui.menuButtons.innerHTML='';
   ui.menuContent.innerHTML='';

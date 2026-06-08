@@ -206,6 +206,7 @@ function update(g,dt){
   logTimeout = Math.max(0, logTimeout-dt);
   updateGamepadActions(g);
   updatePlayer(g,dt);
+  if(typeof updateRunStatsFrame==='function') updateRunStatsFrame(g,dt);
   updateLavaContactDamage(g,dt);
   updateWeapons(g,dt);
   updateWardenDrones(g,dt);
@@ -338,6 +339,7 @@ function updateLavaContactDamage(g,dt){
   if(p.lavaDamageCd<=0){
     const damage=Math.max(1,Math.round(10*(p.armourMul || 1)));
     p.hp-=damage;
+    if(typeof recordRunDamageTaken==='function') recordRunDamageTaken(g,damage,'lava');
     p.lavaDamageCd=0.72;
     p.iframes=Math.max(p.iframes,0.22);
     flashDamage();
@@ -552,6 +554,7 @@ function mineTile(g,p,tx,ty,dt){
   sfx('mine', 0.65);
   if(g.tileHp[i]<=0){
     g.tiles[i]=TILE_EMPTY;
+    if(g.runStats) g.runStats.blocksMined=(g.runStats.blocksMined||0)+1;
     g.tileHp[i]=0;
     g.navigationVersion++;
     for(const e of g.enemies){
@@ -876,6 +879,7 @@ function addObjectiveProgress(g,id,amount){
     obj.completed=true;
     log(g, `${obj.displayName} complete.`);
     sfx('level',0.75);
+    if(g.runStats) g.runStats.objectivesCompleted=(g.runStats.objectivesCompleted||0)+1;
   }
 }
 
@@ -1038,6 +1042,7 @@ function detonateArcConnection(g){
   const chain = liveArcSelections(g).slice();
   if(chain.length < 2) return;
   const dmg = 42 + arc.level * 16;
+  if(g.runStats) g.runStats.arcDetonations=(g.runStats.arcDetonations||0)+1;
   shake = Math.max(shake, 8);
   for(let i=0;i<chain.length;i++){
     const e = chain[i];
@@ -1280,6 +1285,7 @@ function launchMissileSalvo(g,targets,weapon){
     launched++;
   }
   if(launched){
+    if(g.runStats) g.runStats.missilesFired=(g.runStats.missilesFired||0)+launched;
     shake=Math.max(shake,3.0 + Math.min(4, launched*0.25));
     sfx('missileLock',0.75);
     sfx('missileLaunch',Math.min(1.4,0.65+launched*0.08));
@@ -1746,6 +1752,7 @@ function weaponSpreadRadians(accuracy){
 }
 
 function fireSpread(g,p,target,count,damage,speed,spread,color,pierce=0){
+  if(typeof recordShotFired==='function') recordShotFired(g,count);
   const base=Math.atan2(target.y-p.y,target.x-p.x);
   const accuracySpread=weaponSpreadRadians(p.accuracy ?? 0.35);
   for(let i=0;i<count;i++){
@@ -1759,6 +1766,7 @@ function launchBoomerang(g,p,target,level,color='#ffd36b'){
   const a=Math.atan2(target.y-p.y,target.x-p.x);
   const speed = 420 + level*22;
   const outTime = 0.34 + level*0.03;
+  if(g.runStats) g.runStats.boomerangsFired=(g.runStats.boomerangsFired||0)+1;
   g.boomerangs.push({
     weaponId:'boomerang', x:p.x+Math.cos(a)*p.r, y:p.y+Math.sin(a)*p.r,
     vx:Math.cos(a)*speed, vy:Math.sin(a)*speed, r:13, age:0, life:1.65, outTime,
@@ -1782,6 +1790,7 @@ function updateBoomerangs(g,dt){
     for(const e of g.enemies){
       if(e.hp>0 && !b.hitSet.has(e) && dist2(b.x,b.y,e.x,e.y)<(b.r+e.r)*(b.r+e.r)){
         b.hitSet.add(e); damageEnemy(g,e,b.damage,b.color);
+        if(typeof recordShotHit==='function') recordShotHit(g,1);
         addRing(g,b.x,b.y,'rgba(255,211,107,0.9)',rand(0.08,0.14), 5, 18, 4);
         for(let k=0;k<4;k++) addParticle(g,b.x,b.y,rand(-120,120),rand(-120,120),b.color,rand(0.10,0.18),rand(2,4), 'spark');
       }
@@ -1797,6 +1806,7 @@ function placeTrap(g){
   if(isSolid(tileAt(g,tx,ty))) return false;
   const maxTraps = p.classId==='pathfinder' ? 8 : 4;
   if(g.traps.length>=maxTraps) g.traps.shift();
+  if(g.runStats) g.runStats.trapsPlaced=(g.runStats.trapsPlaced||0)+1;
   g.traps.push({x:p.x,y:p.y,r:16,triggerR:28,age:0,armed:false,life:32,pulse:0,damage:90*p.trapDamageMul,radius:88*p.trapRadiusMul});
   p.trapCd=p.trapMaxCd;
   floating(g,p.x,p.y-25,'Seismic trap armed','#ffcc4d');
@@ -1895,7 +1905,7 @@ function updateEnemies(g,dt){
     if(dist2(p.x,p.y,e.x,e.y)<touch*touch){
       if(p.iframes<=0){
         const damage=Math.max(1,Math.round(e.damage*(p.armourMul || 1)));
-        p.hp-=damage; p.iframes=0.65; flashDamage(); shake=Math.max(shake,8);
+        p.hp-=damage; if(typeof recordRunDamageTaken==='function') recordRunDamageTaken(g,damage,'enemyContact'); p.iframes=0.65; flashDamage(); shake=Math.max(shake,8);
         floating(g,p.x,p.y-25,`-${damage}`,'#ff5b5b'); sfx('hit', 1.0);
         if(p.hp<=0) gameOver(g);
       }
@@ -2014,7 +2024,7 @@ function updateHexShardEnemy(g,e,dt){
   const touch = (p.collisionR||p.r)+e.r;
   if(d<touch && p.iframes<=0){
     const damage=Math.max(1,Math.round(e.damage*(p.armourMul || 1)));
-    p.hp-=damage; p.iframes=0.45; flashDamage(); shake=Math.max(shake,5);
+    p.hp-=damage; if(typeof recordRunDamageTaken==='function') recordRunDamageTaken(g,damage,'enemyContact'); p.iframes=0.45; flashDamage(); shake=Math.max(shake,5);
     floating(g,p.x,p.y-25,`-${damage}`,'#ff7a38'); sfx('hit',0.75);
     if(p.hp<=0) gameOver(g);
   }
@@ -2066,7 +2076,7 @@ function updateEnemyBoomerangs(g,dt){
     if(isSolid(tileAt(g,txi,tyi))){ b.life=0; continue; }
     if(!b.hitPlayer && dist2(p.x,p.y,b.x,b.y)<((p.collisionR||p.r)+b.r)*((p.collisionR||p.r)+b.r)){
       const damage=Math.max(1,Math.round(b.damage*(p.armourMul || 1)));
-      p.hp-=damage; p.iframes=Math.max(p.iframes,0.28); b.hitPlayer=true; b.life=0;
+      p.hp-=damage; if(typeof recordRunDamageTaken==='function') recordRunDamageTaken(g,damage,'enemyProjectile'); p.iframes=Math.max(p.iframes,0.28); b.hitPlayer=true; b.life=0;
       floating(g,p.x,p.y-24,`-${damage}`,'#ff7038'); flashDamage(); sfx('hit',0.8);
       if(p.hp<=0) gameOver(g);
     }
@@ -2084,6 +2094,7 @@ function hexShardExplode(g,e,r){
     const falloff=1-clamp(d/(r+(p.collisionR||p.r)),0,1)*0.45;
     const damage=Math.max(1,Math.round((34+(g.hollowPressure||0)*3)*falloff*(p.armourMul || 1)));
     p.hp-=damage;
+    if(typeof recordRunDamageTaken==='function') recordRunDamageTaken(g,damage,'hexExplosion');
     p.iframes=Math.max(p.iframes,0.55);
     floating(g,p.x,p.y-26,`-${damage}`,'#ff7038');
     flashDamage();
@@ -2244,6 +2255,12 @@ function updateEnemyBullets(g,dt){
 }
 
 function killEnemy(g,e){
+  if(g.runStats){
+    g.runStats.enemiesKilled=(g.runStats.enemiesKilled||0)+1;
+    const roleStat=ENEMY_TYPES[e.type]?.role || e.role || 'normal';
+    if(roleStat==='elite') g.runStats.elitesKilled=(g.runStats.elitesKilled||0)+1;
+    if(roleStat==='boss' || e.type==='boss' || e.type==='hollowTyrantVariant') g.runStats.bossesKilled=(g.runStats.bossesKilled||0)+1;
+  }
   g.kills++; sfx('kill', 0.55); dropPickup(g,e.x,e.y,'xp',e.xp);
   const role=ENEMY_TYPES[e.type]?.role || e.role || 'normal';
   if(role==='boss') spawnVfxComposition(g,'bossShockwave',e.x,e.y,{radius:Math.max(120,e.r*3.2),color:e.color});
@@ -2284,6 +2301,7 @@ function updateBullets(g,dt){
 }
 
 function damageEnemy(g,e,amount,color){
+  if(typeof recordRunDamageDealt==='function') recordRunDamageDealt(g,amount);
   if((color==='#7df9ff' || color==='#5dff9a') && g.player.arcDamageMul) amount*=g.player.arcDamageMul;
   e.hp-=amount; e.hitFlash=0.08; e.slow=Math.max(e.slow,0.05);
   if(Math.random()<0.25) addParticle(g,e.x,e.y,rand(-70,70),rand(-70,70),color,rand(0.18,0.35),rand(2,5));
@@ -2466,10 +2484,12 @@ function explode(g,x,y,r,damage,color,noShake=false,theme='auto'){
 function collectRunResource(g,resourceId,amount,options={}){
   if(!g.resources) g.resources={};
   g.resources[resourceId]=(g.resources[resourceId] || 0)+amount;
+  if(typeof recordRunResource==='function') recordRunResource(g,resourceId,amount);
   if(resourceId==='gild') g.gold=(g.resources.gild || 0);
   if(resourceId==='voltarite') g.nitra=(g.resources.voltarite || 0);
   if(resourceId==='echo' && options.asXp!==false){
     gainXp(g,amount);
+    if(g.runStats) g.runStats.xpCollected=(g.runStats.xpCollected||0)+amount;
     g.objectiveEchoCollected=(g.objectiveEchoCollected || 0)+amount;
   }
   addObjectiveProgress(g,`collect_${resourceId}`,amount);
