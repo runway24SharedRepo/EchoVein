@@ -67,6 +67,7 @@ function render(g){
   drawSifterDrones(g);
   drawPlayer(g);
   drawMiningDebug(g);
+  drawScaledTileDebug(g,cam);
   drawParticles(g);
   drawArcs(g);
   drawTargetingCursor(g);
@@ -77,6 +78,7 @@ function render(g){
   drawFogDebugOverlay(g,cam,sx,sy);
   drawEnemyBudgetOverlay(g);
   drawControllerDebugOverlay(g);
+  drawTileScaleInfoOverlay(g);
   drawAccuracyCone(g);
   if(paused) drawPause();
 }
@@ -376,16 +378,82 @@ function drawEnemyPaths(g){
       ctx.lineWidth=3;
       ctx.beginPath(); ctx.arc(e.x,e.y,e.r+14,0,Math.PI*2); ctx.stroke();
     }
+    if(g.debug.showEnemyPathingRadius){
+      ctx.strokeStyle='rgba(255,255,255,0.24)';
+      ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(e.x,e.y,e.pathingRadius || e.r,0,Math.PI*2); ctx.stroke();
+    }
+    if(g.debug.showRawEnemyPaths && e.rawPath && e.rawPath.length){
+      ctx.strokeStyle='rgba(255,112,56,0.50)';
+      ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(e.x,e.y);
+      for(const p of e.rawPath) ctx.lineTo(p.x,p.y);
+      ctx.stroke();
+    }
     if(!e.path || e.pathIndex>=e.path.length) continue;
-    ctx.strokeStyle='rgba(93,255,154,0.48)';
-    ctx.lineWidth=2;
+    ctx.strokeStyle=g.debug.showSmoothedEnemyPaths!==false ? 'rgba(93,255,154,0.58)' : 'rgba(93,255,154,0.32)';
+    ctx.lineWidth=2.25;
     ctx.beginPath();
     ctx.moveTo(e.x,e.y);
     for(let i=e.pathIndex;i<e.path.length;i++) ctx.lineTo(e.path[i].x,e.path[i].y);
     ctx.stroke();
+    if(g.debug.showCornerCurvePoints!==false){
+      for(const p of e.path){
+        if(!p.curve && !p.corner) continue;
+        ctx.fillStyle=p.corner?'rgba(255,228,90,0.95)':'rgba(255,228,90,0.65)';
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.corner?4:2.6,0,Math.PI*2); ctx.fill();
+      }
+      if(e.pathClearanceFailures){
+        ctx.strokeStyle='rgba(255,60,80,0.92)'; ctx.lineWidth=2;
+        for(const f of e.pathClearanceFailures){
+          ctx.beginPath(); ctx.moveTo(f.x-6,f.y-6); ctx.lineTo(f.x+6,f.y+6); ctx.moveTo(f.x+6,f.y-6); ctx.lineTo(f.x-6,f.y+6); ctx.stroke();
+        }
+      }
+    }
     const wp=e.path[e.pathIndex];
     ctx.fillStyle='rgba(66,214,255,0.85)';
     ctx.beginPath(); ctx.arc(wp.x,wp.y,4,0,Math.PI*2); ctx.fill();
+    if(g.debug.showEnemyLookaheadTargets!==false && e.currentLookaheadTarget){
+      ctx.fillStyle=e.currentLookaheadTarget.clearanceAdjusted?'rgba(255,120,255,0.95)':'rgba(90,170,255,0.95)';
+      ctx.beginPath(); ctx.arc(e.currentLookaheadTarget.x,e.currentLookaheadTarget.y,5,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(90,170,255,0.42)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(e.x,e.y); ctx.lineTo(e.currentLookaheadTarget.x,e.currentLookaheadTarget.y); ctx.stroke();
+    }
+    if(g.debug.showPathFollowingOverlay && e.closestPathPoint){
+      ctx.fillStyle='rgba(255,228,90,0.96)';
+      ctx.beginPath(); ctx.arc(e.closestPathPoint.x,e.closestPathPoint.y,4,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(255,140,60,0.78)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(e.x,e.y); ctx.lineTo(e.closestPathPoint.x,e.closestPathPoint.y); ctx.stroke();
+      if(e.pathTangent){
+        ctx.strokeStyle='rgba(120,255,220,0.78)'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(e.closestPathPoint.x,e.closestPathPoint.y); ctx.lineTo(e.closestPathPoint.x+e.pathTangent.x*26,e.closestPathPoint.y+e.pathTangent.y*26); ctx.stroke();
+      }
+      if(e.desiredVelocity){
+        ctx.strokeStyle='rgba(93,255,154,0.82)'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(e.x,e.y); ctx.lineTo(e.x+e.desiredVelocity.x*0.16,e.y+e.desiredVelocity.y*0.16); ctx.stroke();
+      }
+      if(g.debug.showOfftrackDistanceOverlay){
+        ctx.fillStyle='rgba(255,255,255,0.92)';
+        ctx.font='700 11px Segoe UI, Arial';
+        ctx.textAlign='center';
+        ctx.fillText(`${(e.offtrackDistance||0).toFixed(1)}px`, e.x, e.y-(e.r||12)-20);
+        ctx.fillText(e.pathFollowMode||'path', e.x, e.y-(e.r||12)-8);
+      }
+    }
+    if(g.debug.showPathClearanceOverlay && e.pathUnsafeSections){
+      ctx.strokeStyle='rgba(255,55,75,0.92)'; ctx.lineWidth=2;
+      for(const u of e.pathUnsafeSections){
+        ctx.beginPath(); ctx.moveTo(u.x-7,u.y-7); ctx.lineTo(u.x+7,u.y+7); ctx.moveTo(u.x+7,u.y-7); ctx.lineTo(u.x-7,u.y+7); ctx.stroke();
+      }
+    }
+    if(e.cornerFallbackTarget){
+      ctx.strokeStyle='rgba(220,70,255,0.92)'; ctx.lineWidth=2;
+      ctx.strokeRect(e.cornerFallbackTarget.tx*TILE+4,e.cornerFallbackTarget.ty*TILE+4,TILE-8,TILE-8);
+    }
+    if(e.tunnelCentreBias){
+      ctx.strokeStyle='rgba(126,249,255,0.45)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(e.x,e.y); ctx.lineTo(e.x+e.tunnelCentreBias.x*22,e.y+e.tunnelCentreBias.y*22); ctx.stroke();
+    }
   }
   ctx.restore();
 }
@@ -1003,6 +1071,58 @@ window.startGame=startGame;
 window.restartGame=function(){ startGame(game?.selectedClass || CLASSES[0]); };
 window.showStart=function(){ showClassSelect(); };
 
+
+
+function drawScaledTileDebug(g,cam){
+  if(!g?.debug?.showScaledTileGrid && !g?.debug?.showCollisionTiles) return;
+  const minx=clamp(Math.floor(cam.x/TILE)-1,0,MAP_W-1), maxx=clamp(Math.ceil((cam.x+innerWidth)/TILE)+1,0,MAP_W-1);
+  const miny=clamp(Math.floor(cam.y/TILE)-1,0,MAP_H-1), maxy=clamp(Math.ceil((cam.y+innerHeight)/TILE)+1,0,MAP_H-1);
+  ctx.save();
+  if(g.debug.showScaledTileGrid){
+    ctx.strokeStyle='rgba(100,232,255,0.20)';
+    ctx.lineWidth=1;
+    for(let x=minx;x<=maxx+1;x++){
+      ctx.beginPath(); ctx.moveTo(x*TILE,miny*TILE); ctx.lineTo(x*TILE,(maxy+1)*TILE); ctx.stroke();
+    }
+    for(let y=miny;y<=maxy+1;y++){
+      ctx.beginPath(); ctx.moveTo(minx*TILE,y*TILE); ctx.lineTo((maxx+1)*TILE,y*TILE); ctx.stroke();
+    }
+  }
+  if(g.debug.showCollisionTiles){
+    for(let y=miny;y<=maxy;y++) for(let x=minx;x<=maxx;x++){
+      const t=g.tiles[tileIdx(x,y)];
+      if(!isSolid(t)) continue;
+      ctx.strokeStyle=t===TILE_HARD?'rgba(255,255,255,0.35)':(t===TILE_LAVA_ROCK?'rgba(255,112,56,0.50)':'rgba(255,204,77,0.30)');
+      ctx.lineWidth=2;
+      ctx.strokeRect(x*TILE+2,y*TILE+2,TILE-4,TILE-4);
+    }
+  }
+  ctx.restore();
+}
+
+function drawTileScaleInfoOverlay(g){
+  if(!g?.debug?.showScaledTileGrid && !g?.debug?.showCollisionTiles) return;
+  const [ptx,pty]=worldToTile(g.player.x,g.player.y);
+  const nearest=g.enemies?.[0];
+  const enemyTile=nearest ? worldToTile(nearest.x,nearest.y).join(',') : '-';
+  const lines=[
+    `Tile base: ${TILE_SIZE_BASE}px`,
+    `Tile scale: ${TILE_SIZE_SCALE}x`,
+    `Effective tile: ${TILE}px`,
+    `Map pixels: ${WORLD_W} x ${WORLD_H}`,
+    `Player tile: ${ptx},${pty}`,
+    `First enemy tile: ${enemyTile}`
+  ];
+  ctx.save();
+  ctx.font='12px Consolas, Monaco, monospace';
+  ctx.textAlign='left';
+  const x=14, y=innerHeight-258;
+  ctx.fillStyle='rgba(0,0,0,0.66)';
+  ctx.fillRect(x-8,y-16,260,lines.length*16+18);
+  ctx.fillStyle='#b7f7ff';
+  for(let i=0;i<lines.length;i++) ctx.fillText(lines[i],x,y+i*16);
+  ctx.restore();
+}
 
 function drawControllerDebugOverlay(g){
   if(!g?.debug?.showController) return;

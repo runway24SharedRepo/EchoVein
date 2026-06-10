@@ -168,7 +168,61 @@ window.debugController = {
 };
 
 function debugResetCooldowns(){ if(requireGame()){ game.player.dashCd=0; game.player.trapCd=0; for(const w of game.weapons) w.cd=0; debugLog('Reset cooldowns.'); updateGameAfterDebug(); } }
+
+function debugToggleScaledTileGrid(){
+  if(requireGame()){
+    game.debug.showScaledTileGrid=!game.debug.showScaledTileGrid;
+    debugLog(`Scaled tile grid ${game.debug.showScaledTileGrid?'enabled':'disabled'} (${TILE_SIZE_BASE}px x ${TILE_SIZE_SCALE} = ${TILE}px).`);
+    updateGameAfterDebug();
+  }
+}
+function debugToggleCollisionTiles(){
+  if(requireGame()){
+    game.debug.showCollisionTiles=!game.debug.showCollisionTiles;
+    debugLog(`Collision tile overlay ${game.debug.showCollisionTiles?'enabled':'disabled'}.`);
+    updateGameAfterDebug();
+  }
+}
+function debugPrintTileScaleInfo(){
+  const info=typeof getTileScaleInfo==='function'?getTileScaleInfo():{base:TILE_SIZE_BASE,scale:TILE_SIZE_SCALE,effective:TILE,mapPixelWidth:WORLD_W,mapPixelHeight:WORLD_H};
+  console.log('Tile scale info', info);
+  debugLog(`Tile scale: base ${info.base}px, scale ${info.scale}x, effective ${info.effective}px, map ${info.mapPixelWidth}x${info.mapPixelHeight}.`);
+}
+
 function debugToggleEnemyPaths(){ if(requireGame()){ game.debug.showEnemyPaths=!game.debug.showEnemyPaths; debugLog(`Enemy path debug ${game.debug.showEnemyPaths ? 'enabled' : 'disabled'}.`); updateGameAfterDebug(); } }
+function debugToggleRawEnemyPaths(){ if(requireGame()){ game.debug.showRawEnemyPaths=!game.debug.showRawEnemyPaths; debugLog(`Raw enemy path overlay ${game.debug.showRawEnemyPaths ? 'enabled' : 'disabled'}.`); game.debug.showEnemyPaths=true; updateGameAfterDebug(); } }
+function debugToggleSmoothedEnemyPaths(){ if(requireGame()){ game.debug.showSmoothedEnemyPaths=game.debug.showSmoothedEnemyPaths===false; debugLog(`Smoothed enemy path overlay ${game.debug.showSmoothedEnemyPaths!==false ? 'enabled' : 'disabled'}.`); game.debug.showEnemyPaths=true; updateGameAfterDebug(); } }
+function debugToggleCornerCurvePoints(){ if(requireGame()){ game.debug.showCornerCurvePoints=game.debug.showCornerCurvePoints===false; debugLog(`Corner curve points ${game.debug.showCornerCurvePoints!==false ? 'enabled' : 'disabled'}.`); game.debug.showEnemyPaths=true; updateGameAfterDebug(); } }
+function debugToggleEnemyLookaheadTargets(){ if(requireGame()){ game.debug.showEnemyLookaheadTargets=game.debug.showEnemyLookaheadTargets===false; debugLog(`Enemy lookahead targets ${game.debug.showEnemyLookaheadTargets!==false ? 'enabled' : 'disabled'}.`); game.debug.showEnemyPaths=true; updateGameAfterDebug(); } }
+function debugToggleEnemyPathingRadius(){ if(requireGame()){ game.debug.showEnemyPathingRadius=!game.debug.showEnemyPathingRadius; debugLog(`Enemy pathing radius overlay ${game.debug.showEnemyPathingRadius ? 'enabled' : 'disabled'}.`); game.debug.showEnemyPaths=true; updateGameAfterDebug(); } }
+
+function debugTogglePathFollowingOverlay(){ if(requireGame()){ game.debug.showPathFollowingOverlay=!game.debug.showPathFollowingOverlay; game.debug.showEnemyPaths=true; debugLog(`Path-following overlay ${game.debug.showPathFollowingOverlay?'enabled':'disabled'}.`); updateGameAfterDebug(); } }
+function debugToggleOfftrackOverlay(){ if(requireGame()){ game.debug.showOfftrackDistanceOverlay=!game.debug.showOfftrackDistanceOverlay; game.debug.showPathFollowingOverlay=true; game.debug.showEnemyPaths=true; debugLog(`Off-track distance overlay ${game.debug.showOfftrackDistanceOverlay?'enabled':'disabled'}.`); updateGameAfterDebug(); } }
+function debugTogglePathClearanceOverlay(){ if(requireGame()){ game.debug.showPathClearanceOverlay=!game.debug.showPathClearanceOverlay; game.debug.showEnemyPaths=true; debugLog(`Path clearance overlay ${game.debug.showPathClearanceOverlay?'enabled':'disabled'}.`); updateGameAfterDebug(); } }
+function debugRecalculateEnemyPaths(){ if(requireGame()){ for(const e of game.enemies){ e.pathTimer=0; e.pathVersion=-1; e.pathProgressDistance=0; e.pathProgressStallTimer=0; } debugLog('Forced enemy path recalculation.'); updateGameAfterDebug(); } }
+function debugToggleFreezeEnemies(){ if(requireGame()){ game.debug.freezeEnemies=!game.debug.freezeEnemies; debugLog(`Enemy movement freeze ${game.debug.freezeEnemies?'enabled':'disabled'}.`); updateGameAfterDebug(); } }
+function debugPrintPathFollowingStats(){ if(!requireGame()) return; const m=typeof collectEnemyPathFollowingMetrics==='function'?collectEnemyPathFollowingMetrics(game):{}; console.log('Path-following metrics',m); debugLog(`Path following: avg offtrack ${(m.avg||0).toFixed(1)}px, max ${(m.max||0).toFixed(1)}px, warning ${m.warning||0}, critical ${m.critical||0}, stalling ${m.stalling||0}.`); }
+function debugPathFollowingStressTest(){ if(!requireGame()) return; debugSmoothCornerTestMap(); game.debug.showPathFollowingOverlay=true; game.debug.showOfftrackDistanceOverlay=true; game.debug.showPathClearanceOverlay=true; for(let i=0;i<18;i++){ const p=game.player; game.enemies.push(new Enemy(p.x-rand(360,520),p.y-rand(200,420), i%4===0?'guard':i%3===0?'swarmer':'grunt')); } debugLog('Path-following stress test spawned extra enemies and enabled overlays.'); updateGameAfterDebug(); }
+function debugToggleCornerSmoothing(){ if(typeof ENEMY_CORNER_SMOOTHING!=='undefined'){ ENEMY_CORNER_SMOOTHING.enabled=!ENEMY_CORNER_SMOOTHING.enabled; if(game){ for(const e of game.enemies){ e.pathTimer=0; e.pathVersion=-1; } } debugLog(`Enemy corner smoothing ${ENEMY_CORNER_SMOOTHING.enabled ? 'enabled' : 'disabled'}.`); updateGameAfterDebug(); } }
+function debugSmoothCornerTestMap(){
+  if(!requireGame()) return;
+  const p=game.player;
+  const cx=Math.floor(p.x/TILE), cy=Math.floor(p.y/TILE);
+  for(let y=cy-5;y<=cy+5;y++) for(let x=cx-5;x<=cx+7;x++){
+    if(!inMap(x,y)) continue;
+    game.tiles[tileIdx(x,y)]=TILE_ROCK;
+    game.tileHp[tileIdx(x,y)]=28;
+  }
+  for(let x=cx-4;x<=cx+2;x++){ game.tiles[tileIdx(x,cy)]=TILE_EMPTY; game.tileHp[tileIdx(x,cy)]=0; }
+  for(let y=cy;y<=cy+5;y++){ game.tiles[tileIdx(cx+2,y)]=TILE_EMPTY; game.tileHp[tileIdx(cx+2,y)]=0; }
+  p.x=tileToWorldCenterX(cx+2); p.y=tileToWorldCenterY(cy+5);
+  game.enemies=[];
+  for(let i=0;i<10;i++) game.enemies.push(new Enemy(tileToWorldCenterX(cx-4-i%3),tileToWorldCenterY(cy-1+Math.floor(i/3)),'grunt'));
+  game.navigationVersion++;
+  game.debug.showEnemyPaths=true; game.debug.showRawEnemyPaths=true; game.debug.showCornerCurvePoints=true; game.debug.showEnemyLookaheadTargets=true;
+  debugLog('Created smooth-corner L-tunnel test map. Enemies should curve through the 90-degree turn.');
+  updateGameAfterDebug();
+}
 
 function debugToggleEnemyBullets(){ if(requireGame()){ game.debug.enemyBulletsEnabled = game.debug.enemyBulletsEnabled===false ? true : false; debugLog(`Enemy bullets ${game.debug.enemyBulletsEnabled ? 'enabled' : 'disabled'}.`); updateGameAfterDebug(); } }
 function debugToggleEnemyBulletHitboxes(){ if(requireGame()){ game.debug.showEnemyBulletHitboxes=!game.debug.showEnemyBulletHitboxes; debugLog(`Enemy bullet hitboxes ${game.debug.showEnemyBulletHitboxes ? 'enabled' : 'disabled'}.`); updateGameAfterDebug(); } }
@@ -753,8 +807,32 @@ function buildDebugPanel(){
   vfxMetrics.innerHTML = '<h3>VFX Debug Metrics</h3><pre class="debugLog" id="debugVfxMetrics">Start a run to view VFX metrics.</pre>';
   panel.appendChild(vfxMetrics);
 
-  addDebugSection(panel,'Pathfinding',[
-    makeDebugButton('Toggle Show Enemy Paths',debugToggleEnemyPaths)
+  addDebugSection(panel,'Pathfinding / Smooth Corners',[
+    makeDebugButton('Toggle Show Enemy Paths',debugToggleEnemyPaths),
+    makeDebugButton('Toggle Raw Paths',debugToggleRawEnemyPaths),
+    makeDebugButton('Toggle Smoothed Paths',debugToggleSmoothedEnemyPaths),
+    makeDebugButton('Toggle Corner Curve Points',debugToggleCornerCurvePoints),
+    makeDebugButton('Toggle Lookahead Targets',debugToggleEnemyLookaheadTargets),
+    makeDebugButton('Toggle Pathing Radius',debugToggleEnemyPathingRadius),
+    makeDebugButton('Toggle Path-Follow Overlay',debugTogglePathFollowingOverlay),
+    makeDebugButton('Toggle Off-Track Distance',debugToggleOfftrackOverlay),
+    makeDebugButton('Toggle Path Clearance',debugTogglePathClearanceOverlay),
+    makeDebugButton('Force Recalculate Paths',debugRecalculateEnemyPaths),
+    makeDebugButton('Freeze Enemies',debugToggleFreezeEnemies),
+    makeDebugButton('Print Path-Follow Stats',debugPrintPathFollowingStats),
+    makeDebugButton('Path-Follow Stress Test',debugPathFollowingStressTest),
+    makeDebugButton('Toggle Corner Smoothing',debugToggleCornerSmoothing),
+    makeDebugButton('Smooth Corner L-Test Map',debugSmoothCornerTestMap)
+  ]);
+  const pathFollowMetrics = document.createElement('section');
+  pathFollowMetrics.className = 'debugSection';
+  pathFollowMetrics.innerHTML = '<h3>Path-Following Metrics</h3><pre class="debugLog" id="debugPathFollowMetrics">Start a run to view path-following metrics.</pre>';
+  panel.appendChild(pathFollowMetrics);
+
+  addDebugSection(panel,'Block Size Scale Test',[
+    makeDebugButton('Toggle Scaled Tile Grid',debugToggleScaledTileGrid),
+    makeDebugButton('Toggle Collision Tiles',debugToggleCollisionTiles),
+    makeDebugButton('Print Tile Scale Info',debugPrintTileScaleInfo)
   ]);
   const perfSection = document.createElement('section');
   perfSection.className = 'debugSection';
@@ -831,6 +909,25 @@ window.debugFog = {
 
 window.addEventListener('DOMContentLoaded', buildDebugPanel);
 
+
+
+
+window.debugPathFollowing = {
+  overlay: debugTogglePathFollowingOverlay,
+  offtrack: debugToggleOfftrackOverlay,
+  clearance: debugTogglePathClearanceOverlay,
+  recalc: debugRecalculateEnemyPaths,
+  freeze: debugToggleFreezeEnemies,
+  stats: debugPrintPathFollowingStats,
+  stress: debugPathFollowingStressTest,
+};
+
+window.debugTileScale = {
+  grid: debugToggleScaledTileGrid,
+  collision: debugToggleCollisionTiles,
+  info: debugPrintTileScaleInfo,
+  scale: ()=>({base:TILE_SIZE_BASE, scale:TILE_SIZE_SCALE, effective:TILE, world:{w:WORLD_W,h:WORLD_H}})
+};
 
 window.debugRunStats = {
   fake: debugGenerateFakeRunStats,

@@ -77,9 +77,31 @@ class Enemy {
     this.phase=Math.random()*Math.PI*2;
     initialiseEnemyVisualMotion(this,cfg);
     this.path=[];
+    this.rawPath=[];
+    this.smoothPath=[];
+    this.pathSamples=[];
     this.pathIndex=0;
     this.pathTimer=0;
     this.pathVersion=-1;
+    this.pathingRadius=this.collisionR || Math.max(6,this.r*0.88);
+    this.cornerState=null;
+    this.currentLookaheadTarget=null;
+    this.closestPathPoint=null;
+    this.pathTangent=null;
+    this.offtrackVector=null;
+    this.desiredVelocity=null;
+    this.pathProgressDistance=0;
+    this.lastPathProgressDistance=0;
+    this.closestSegmentIndex=0;
+    this.offtrackDistance=0;
+    this.maxOfftrackDistanceSeen=0;
+    this.pathCorrectionGain=4.0;
+    this.pathLookaheadDistance=Math.max(28,(this.pathingRadius||this.r||12)*2+18);
+    this.pathFollowMode='normal';
+    this.pathProgressStallTimer=0;
+    this.pathUnsafeSections=[];
+    this.pathClearanceFailures=[];
+    this.cornerFallbackTarget=null;
     this.lastPlayerTileX=null;
     this.lastPlayerTileY=null;
     this.stuckTimer=0;
@@ -222,7 +244,7 @@ function makeGame(cls){
     upgradeMenuState:{ open:false, selectedIndex:0, lastMoveTime:-999, moveRepeatDelay:0.20 },
     controllerCursor:{ active:false, screenX:innerWidth/2, screenY:innerHeight/2, worldX:WORLD_W/2, worldY:WORLD_H/2, lastMoveTime:-999, lastMoveRealTime:-999, primaryHoldTimer:0, axisPair:null },
     navigationVersion:0,
-    debug:{ showEnemyPaths:false, enemyBulletsEnabled:true, showEnemyBulletHitboxes:false, showMiningArc:false, lowSpeedMiningTest:false, showMiningCandidates:true, showEnemyBudget:false, showFogRadius:false, forcePerformanceState:null, perfDespawnLog:false, lavaDamageEnabled:true, showLavaZones:false, showHexRanges:false, showController:false, showAccuracyCone:false },
+    debug:{ showEnemyPaths:false, enemyBulletsEnabled:true, showEnemyBulletHitboxes:false, showMiningArc:false, lowSpeedMiningTest:false, showMiningCandidates:true, showEnemyBudget:false, showFogRadius:false, forcePerformanceState:null, perfDespawnLog:false, lavaDamageEnabled:true, showLavaZones:false, showHexRanges:false, showController:false, showAccuracyCone:false, showScaledTileGrid:false, showCollisionTiles:false, showRawEnemyPaths:false, showSmoothedEnemyPaths:true, showCornerCurvePoints:true, showEnemyLookaheadTargets:true, showEnemyPathingRadius:false },
     performance:{
       currentFPS:60,
       averageFPS:60,

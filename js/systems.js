@@ -173,9 +173,26 @@ function updateVfxDebugMetrics(g){
   ].join('\n');
 }
 
+function updatePathFollowingDebugMetrics(g){
+  const box=document.getElementById('debugPathFollowMetrics');
+  if(!box || !g) return;
+  const m=typeof collectEnemyPathFollowingMetrics==='function'?collectEnemyPathFollowingMetrics(g):{count:0,avg:0,max:0,warning:0,critical:0,stalling:0};
+  box.textContent = [
+    `Path-tracked enemies: ${m.count||0}`,
+    `Average off-track: ${(m.avg||0).toFixed(1)} px`,
+    `Maximum off-track: ${(m.max||0).toFixed(1)} px`,
+    `Warning count: ${m.warning||0}`,
+    `Critical count: ${m.critical||0}`,
+    `Stalling/correcting: ${m.stalling||0}`,
+    `Path following: ${ENEMY_PATH_FOLLOWING.enabled?'ON':'OFF'}`,
+    `Corner smoothing: ${ENEMY_CORNER_SMOOTHING.enabled?'ON':'OFF'}`,
+    `Freeze enemies: ${g.debug?.freezeEnemies?'ON':'OFF'}`
+  ].join('\n');
+}
+
 function updatePerformanceDebugPanel(g){
   const box=document.getElementById('debugPerfMetrics');
-  if(g) updateVfxDebugMetrics(g);
+  if(g) { updateVfxDebugMetrics(g); updatePathFollowingDebugMetrics(g); }
   if(!box || !g?.performance) return;
   const p=g.performance;
   box.textContent = [
@@ -568,10 +585,10 @@ function mineTile(g,p,tx,ty,dt){
       const amount=resourceAmountForTile(t);
       if(resourceId==='echo'){
         dropPickup(g,tx*TILE+18,ty*TILE+18,'xp',12);
-        floating(g,tx*TILE+18,ty*TILE+12,'+Echo Shards',MINERALS.echo.color);
+        floating(g,tileToWorldCenterX(tx),tileToWorldCenterY(ty)-TILE*0.18,'+Echo Shards',MINERALS.echo.color);
       } else {
         collectRunResource(g,resourceId,amount);
-        floating(g,tx*TILE+18,ty*TILE+12,`+${MINERALS[resourceId].displayName}`,MINERALS[resourceId].color);
+        floating(g,tileToWorldCenterX(tx),tileToWorldCenterY(ty)-TILE*0.18,`+${MINERALS[resourceId].displayName}`,MINERALS[resourceId].color);
       }
       if(saveProfile?.statistics) saveProfile.statistics.totalOreMined+=amount;
       sfx('mineral');
@@ -656,7 +673,7 @@ function tileWalkable(g,tx,ty){
 }
 
 function tileCenter(tx,ty){
-  return {x:tx*TILE+TILE/2,y:ty*TILE+TILE/2};
+  return tileToWorldCenter(tx,ty);
 }
 
 function lineOfSightClear(g,x1,y1,x2,y2){
@@ -756,6 +773,372 @@ function circleClearOfSolids(g,x,y,r){
     }
   }
   return true;
+}
+
+
+const ENEMY_CORNER_SMOOTHING = {
+  enabled: true,
+  maxSamplesPerCorner: 6,
+  maxSmoothedPoints: 80,
+  safetyMargin: 4,
+  lookaheadBase: 18,
+};
+
+function clonePathPoint(p){ return {x:p.x,y:p.y,curve:!!p.curve,corner:!!p.corner,raw:!!p.raw}; }
+function pointSub(a,b){ return {x:a.x-b.x,y:a.y-b.y}; }
+function pointLen(v){ return Math.hypot(v.x,v.y) || 1; }
+function pointNorm(v){ const l=pointLen(v); return {x:v.x/l,y:v.y/l}; }
+function pointDot(a,b){ return a.x*b.x+a.y*b.y; }
+function quadraticBezierPoint(a,b,c,t){
+  const u=1-t;
+  return {x:u*u*a.x+2*u*t*b.x+t*t*c.x, y:u*u*a.y+2*u*t*b.y+t*t*c.y, curve:true};
+}
+
+function lineSegmentHasClearance(g,x1,y1,x2,y2,r){
+  const dist=Math.hypot(x2-x1,y2-y1);
+  const steps=Math.max(2,Math.ceil(dist/Math.max(5,r*0.55)));
+  for(let i=1;i<=steps;i++){
+    const t=i/steps;
+    const x=lerp(x1,x2,t), y=lerp(y1,y2,t);
+    if(!circleClearOfSolids(g,x,y,r)) return false;
+  }
+  return true;
+}
+
+function validateCurvePoints(g,points,r){
+  for(const p of points){
+    if(!circleClearOfSolids(g,p.x,p.y,r)) return false;
+  }
+  for(let i=1;i<points.length;i++){
+    if(!lineSegmentHasClearance(g,points[i-1].x,points[i-1].y,points[i].x,points[i].y,r)) return false;
+  }
+  return true;
+}
+
+function simplifyEnemyPath(raw){
+  if(!raw || raw.length<3) return (raw||[]).map(clonePathPoint);
+  const out=[clonePathPoint(raw[0])];
+  for(let i=1;i<raw.length-1;i++){
+    const a=out[out.length-1], b=raw[i], c=raw[i+1];
+    const ab=pointNorm(pointSub(b,a));
+    const bc=pointNorm(pointSub(c,b));
+    if(Math.abs(ab.x-bc.x)<0.04 && Math.abs(ab.y-bc.y)<0.04) continue;
+    out.push(clonePathPoint(b));
+  }
+  out.push(clonePathPoint(raw[raw.length-1]));
+  return out;
+}
+
+function buildCornerCurve(g,enemy,p0,p1,p2,curveDistance){
+  const r=(enemy.pathingRadius || enemy.collisionR || enemy.r || 12) + ENEMY_CORNER_SMOOTHING.safetyMargin;
+  const vIn=pointNorm(pointSub(p1,p0));
+  const vOut=pointNorm(pointSub(p2,p1));
+  const entry={x:p1.x-vIn.x*curveDistance,y:p1.y-vIn.y*curveDistance,corner:true};
+  const exit={x:p1.x+vOut.x*curveDistance,y:p1.y+vOut.y*curveDistance,corner:true};
+  const samples=clamp(Math.round(curveDistance/(TILE*0.08)),4,ENEMY_CORNER_SMOOTHING.maxSamplesPerCorner);
+  const curve=[entry];
+  for(let i=1;i<=samples;i++){
+    const t=i/samples;
+    curve.push(quadraticBezierPoint(entry,p1,exit,t));
+  }
+  curve[curve.length-1].corner=true;
+  if(validateCurvePoints(g,curve,r)) return curve;
+
+  // Retry with a smaller curve before giving up. This is safer in one-tile tunnels.
+  const small=Math.max(enemy.r+2,curveDistance*0.55);
+  const entry2={x:p1.x-vIn.x*small,y:p1.y-vIn.y*small,corner:true};
+  const exit2={x:p1.x+vOut.x*small,y:p1.y+vOut.y*small,corner:true};
+  const curve2=[entry2];
+  for(let i=1;i<=Math.max(3,samples-2);i++) curve2.push(quadraticBezierPoint(entry2,p1,exit2,i/Math.max(3,samples-2)));
+  curve2[curve2.length-1].corner=true;
+  if(validateCurvePoints(g,curve2,r)) return curve2;
+  return null;
+}
+
+function smoothPathCorners(g,enemy,rawPath){
+  if(!ENEMY_CORNER_SMOOTHING.enabled || !rawPath || rawPath.length<3) return (rawPath||[]).map(clonePathPoint);
+  const path=simplifyEnemyPath(rawPath);
+  if(path.length<3) return path;
+  const smooth=[clonePathPoint(path[0])];
+  const clearanceFailures=[];
+  for(let i=1;i<path.length-1;i++){
+    const p0=path[i-1], p1=path[i], p2=path[i+1];
+    const vIn=pointNorm(pointSub(p1,p0));
+    const vOut=pointNorm(pointSub(p2,p1));
+    const dot=pointDot(vIn,vOut);
+    if(dot<0.85){
+      const legIn=Math.hypot(p1.x-p0.x,p1.y-p0.y);
+      const legOut=Math.hypot(p2.x-p1.x,p2.y-p1.y);
+      const desired=clamp((enemy.pathingRadius||enemy.r||12)+6,TILE*0.22,TILE*0.45);
+      const curveDistance=Math.max(8,Math.min(desired,legIn*0.48,legOut*0.48));
+      const curve=buildCornerCurve(g,enemy,p0,p1,p2,curveDistance);
+      if(curve){
+        // Avoid duplicate entry point if it is almost the same as the previous point.
+        for(const cp of curve){
+          const last=smooth[smooth.length-1];
+          if(!last || Math.hypot(cp.x-last.x,cp.y-last.y)>4) smooth.push(cp);
+          if(smooth.length>=ENEMY_CORNER_SMOOTHING.maxSmoothedPoints) break;
+        }
+      } else {
+        clearanceFailures.push({x:p1.x,y:p1.y});
+        smooth.push({...clonePathPoint(p1), raw:true});
+      }
+    } else {
+      smooth.push(clonePathPoint(p1));
+    }
+    if(smooth.length>=ENEMY_CORNER_SMOOTHING.maxSmoothedPoints) break;
+  }
+  if(smooth.length<ENEMY_CORNER_SMOOTHING.maxSmoothedPoints) smooth.push(clonePathPoint(path[path.length-1]));
+  enemy.smoothPath=smooth;
+  enemy.rawPath=rawPath.map(clonePathPoint);
+  enemy.pathClearanceFailures=clearanceFailures;
+  return smooth;
+}
+
+function findPointAlongPathFrom(enemy,startIndex,lookaheadDistance){
+  const path=enemy.path || [];
+  if(!path.length || startIndex>=path.length) return null;
+  let x=enemy.x, y=enemy.y;
+  let remaining=lookaheadDistance;
+  for(let i=startIndex;i<path.length;i++){
+    const p=path[i];
+    const d=Math.hypot(p.x-x,p.y-y);
+    if(d>=remaining){
+      const t=remaining/Math.max(1,d);
+      return {x:lerp(x,p.x,t),y:lerp(y,p.y,t),index:i};
+    }
+    remaining-=d; x=p.x; y=p.y;
+  }
+  const last=path[path.length-1];
+  return {x:last.x,y:last.y,index:path.length-1};
+}
+
+function getEnemyLookaheadTarget(enemy){
+  const dist=(enemy.pathingRadius || enemy.r || 12)*2 + ENEMY_CORNER_SMOOTHING.lookaheadBase;
+  return findPointAlongPathFrom(enemy,enemy.pathIndex||0,dist);
+}
+
+const ENEMY_PATH_FOLLOWING = {
+  enabled: true,
+  correctionGain: 4.0,
+  maxCorrectionSpeedMul: 0.95,
+  warningRadiusMul: 0.75,
+  criticalRadiusMul: 1.5,
+  maxBacktrack: 18,
+  minProgressBeforeRepath: 5,
+  stallTriggerTime: 0.55,
+};
+
+function buildPathPolylineSamples(path){
+  const samples=[];
+  if(!path || !path.length) return samples;
+  let arc=0;
+  samples.push({x:path[0].x,y:path[0].y,arc:0,source:path[0]});
+  for(let i=1;i<path.length;i++){
+    const a=samples[samples.length-1], b=path[i];
+    const d=Math.hypot(b.x-a.x,b.y-a.y);
+    if(d<0.5) continue;
+    arc+=d;
+    samples.push({x:b.x,y:b.y,arc,source:b});
+  }
+  return samples;
+}
+
+function prepareEnemyPathFollower(g,enemy){
+  enemy.pathSamples=buildPathPolylineSamples(enemy.path || []);
+  enemy.pathProgressDistance=0;
+  enemy.lastPathProgressDistance=0;
+  enemy.closestSegmentIndex=0;
+  enemy.offtrackDistance=0;
+  enemy.maxOfftrackDistanceSeen=0;
+  enemy.pathFollowMode='normal';
+  enemy.pathProgressStallTimer=0;
+  enemy.pathUnsafeSections=[];
+  const r=(enemy.pathingRadius || enemy.r || 12)*0.92;
+  const samples=enemy.pathSamples || [];
+  for(let i=0;i<samples.length;i+=Math.max(1,Math.floor(samples.length/40))){
+    const sm=samples[i];
+    if(!circleClearOfSolids(g,sm.x,sm.y,r)) enemy.pathUnsafeSections.push({x:sm.x,y:sm.y,index:i});
+  }
+}
+
+function closestPointOnSegment(px,py,ax,ay,bx,by){
+  const vx=bx-ax, vy=by-ay;
+  const lenSq=vx*vx+vy*vy || 1;
+  const t=clamp(((px-ax)*vx+(py-ay)*vy)/lenSq,0,1);
+  return {x:ax+vx*t,y:ay+vy*t,t,distSq:(px-(ax+vx*t))**2+(py-(ay+vy*t))**2};
+}
+
+function getClosestPathInfo(enemy){
+  const samples=enemy.pathSamples || [];
+  if(samples.length<2) return null;
+  let best=null;
+  const prev=enemy.closestSegmentIndex || 0;
+  const start=Math.max(0,prev-8), end=Math.min(samples.length-2,prev+12);
+  const scan=(i)=>{
+    const a=samples[i], b=samples[i+1];
+    const cp=closestPointOnSegment(enemy.x,enemy.y,a.x,a.y,b.x,b.y);
+    if(!best || cp.distSq<best.distSq){
+      const segLen=Math.hypot(b.x-a.x,b.y-a.y) || 1;
+      best={...cp, segmentIndex:i, arcLength:a.arc+segLen*cp.t, tangent:{x:(b.x-a.x)/segLen,y:(b.y-a.y)/segLen}, distSq:cp.distSq};
+    }
+  };
+  for(let i=start;i<=end;i++) scan(i);
+  // If the local window is poor, fall back to full scan. This happens after collisions or teleports.
+  if(!best || best.distSq>(enemy.r*enemy.r*9)){
+    best=null;
+    for(let i=0;i<samples.length-1;i++) scan(i);
+  }
+  return best;
+}
+
+function getPathPointAtArc(samples,arc){
+  if(!samples || !samples.length) return null;
+  if(arc<=0) return {x:samples[0].x,y:samples[0].y,index:0,arc:0};
+  const last=samples[samples.length-1];
+  if(arc>=last.arc) return {x:last.x,y:last.y,index:samples.length-1,arc:last.arc};
+  let lo=0, hi=samples.length-1;
+  while(lo<hi){
+    const mid=(lo+hi)>>1;
+    if(samples[mid].arc<arc) lo=mid+1; else hi=mid;
+  }
+  const i=Math.max(1,lo);
+  const a=samples[i-1], b=samples[i];
+  const span=Math.max(1,b.arc-a.arc);
+  const t=clamp((arc-a.arc)/span,0,1);
+  return {x:lerp(a.x,b.x,t),y:lerp(a.y,b.y,t),index:i-1,arc};
+}
+
+function getLocalPathCurvature(samples,segmentIndex){
+  if(!samples || samples.length<3) return 0;
+  const i=clamp(segmentIndex,1,samples.length-2);
+  const a=samples[i-1], b=samples[i], c=samples[i+1];
+  const v1=pointNorm({x:b.x-a.x,y:b.y-a.y});
+  const v2=pointNorm({x:c.x-b.x,y:c.y-b.y});
+  return Math.acos(clamp(pointDot(v1,v2),-1,1));
+}
+
+function getEnemyPathFollowingSteering(g,enemy,dt){
+  if(!ENEMY_PATH_FOLLOWING.enabled || !enemy.path || !enemy.path.length) return null;
+  if(!enemy.pathSamples || enemy.pathSamples.length<2) prepareEnemyPathFollower(g,enemy);
+  const samples=enemy.pathSamples || [];
+  if(samples.length<2) return null;
+  const info=getClosestPathInfo(enemy);
+  if(!info) return null;
+  enemy.closestSegmentIndex=info.segmentIndex;
+  const radius=enemy.pathingRadius || enemy.r || 12;
+  const offX=info.x-enemy.x, offY=info.y-enemy.y;
+  const offDist=Math.hypot(offX,offY);
+  enemy.offtrackDistance=offDist;
+  enemy.maxOfftrackDistanceSeen=Math.max(enemy.maxOfftrackDistanceSeen||0,offDist);
+  enemy.closestPathPoint={x:info.x,y:info.y,segmentIndex:info.segmentIndex,arc:info.arcLength};
+  enemy.pathTangent={x:info.tangent.x,y:info.tangent.y};
+  enemy.offtrackVector={x:offX,y:offY};
+
+  const allowedBacktrack=ENEMY_PATH_FOLLOWING.maxBacktrack;
+  const rawProgress=info.arcLength;
+  const prevProgress=enemy.pathProgressDistance || 0;
+  const progress = rawProgress < prevProgress-allowedBacktrack ? Math.max(0,prevProgress-allowedBacktrack) : Math.max(prevProgress,rawProgress);
+  enemy.lastPathProgressDistance=prevProgress;
+  enemy.pathProgressDistance=progress;
+  const progressDelta=progress-prevProgress;
+  if(progressDelta<ENEMY_PATH_FOLLOWING.minProgressBeforeRepath*dt && offDist>radius*0.65) enemy.pathProgressStallTimer=(enemy.pathProgressStallTimer||0)+dt;
+  else enemy.pathProgressStallTimer=Math.max(0,(enemy.pathProgressStallTimer||0)-dt*2);
+
+  const curvature=getLocalPathCurvature(samples,info.segmentIndex);
+  const highCurvature=curvature>0.45 || samples[Math.min(samples.length-1,info.segmentIndex+1)]?.source?.curve;
+  const warning=offDist>radius*ENEMY_PATH_FOLLOWING.warningRadiusMul;
+  const critical=offDist>radius*ENEMY_PATH_FOLLOWING.criticalRadiusMul;
+  let lookahead=enemy.pathLookaheadDistance || Math.max(28,radius*2+18);
+  if(highCurvature) lookahead*=0.55;
+  if(warning) lookahead*=0.75;
+  if(critical) lookahead*=0.45;
+  lookahead=clamp(lookahead,Math.max(10,radius*0.85),Math.max(34,radius*4.6));
+  const look=getPathPointAtArc(samples,progress+lookahead) || samples[samples.length-1];
+  enemy.currentLookaheadTarget={x:look.x,y:look.y,index:look.index,arc:look.arc,curvature,offtrack:offDist};
+
+  let fx=look.x-enemy.x, fy=look.y-enemy.y;
+  let fl=Math.hypot(fx,fy);
+  if(fl<0.001){ fx=info.tangent.x; fy=info.tangent.y; fl=1; }
+  fx/=fl; fy/=fl;
+  const correctionGain=(enemy.pathCorrectionGain || ENEMY_PATH_FOLLOWING.correctionGain) * (highCurvature?1.45:1) * (warning?1.35:1) * (critical?1.65:1);
+  const corrMax=enemy.speed*ENEMY_PATH_FOLLOWING.maxCorrectionSpeedMul;
+  const corrSpeed=Math.min(corrMax,offDist*correctionGain);
+  const cx=offDist>0.001 ? offX/offDist*corrSpeed : 0;
+  const cy=offDist>0.001 ? offY/offDist*corrSpeed : 0;
+  let speedMul=critical?0.62:(warning?0.82:1.0);
+  if(highCurvature) speedMul*=0.88;
+  let vx=fx*enemy.speed*speedMul + cx;
+  let vy=fy*enemy.speed*speedMul + cy;
+  const vl=Math.hypot(vx,vy) || 1;
+  const maxSpeed=enemy.speed*Math.max(0.55,speedMul);
+  if(vl>maxSpeed){ vx=vx/vl*maxSpeed; vy=vy/vl*maxSpeed; }
+  const ul=Math.hypot(vx,vy) || 1;
+  enemy.desiredVelocity={x:vx,y:vy};
+  enemy.pathFollowMode=critical?'critical-correcting':warning?'correcting':highCurvature?'corner-tracking':'normal';
+  if((critical && enemy.pathProgressStallTimer>ENEMY_PATH_FOLLOWING.stallTriggerTime) || (enemy.pathUnsafeSections && enemy.pathUnsafeSections.length && enemy.stuckTimer>0.5)){
+    enemy.pathFollowMode='mining-fallback';
+    enemy.pathTimer=0;
+    enemy.cornerFallbackTarget=findNearbyCornerMiningFallback(g,enemy,look.x,look.y);
+    if(g.tunnelAiMetrics) g.tunnelAiMetrics.enemyMiningTriggeredByPathFailure=(g.tunnelAiMetrics.enemyMiningTriggeredByPathFailure||0)+1;
+  }
+  return {x:vx/ul,y:vy/ul,speedMul:Math.min(1,Math.max(0.45,Math.hypot(vx,vy)/Math.max(1,enemy.speed))), vx, vy, info, lookahead:look};
+}
+
+function collectEnemyPathFollowingMetrics(g){
+  const metrics={count:0,total:0,max:0,warning:0,critical:0,avg:0,stalling:0};
+  if(!g?.enemies) return metrics;
+  for(const e of g.enemies){
+    if(!e.path || !e.path.length) continue;
+    const d=e.offtrackDistance || 0;
+    const r=e.pathingRadius || e.r || 12;
+    metrics.count++;
+    metrics.total+=d;
+    metrics.max=Math.max(metrics.max,d);
+    if(d>r*ENEMY_PATH_FOLLOWING.warningRadiusMul) metrics.warning++;
+    if(d>r*ENEMY_PATH_FOLLOWING.criticalRadiusMul) metrics.critical++;
+    if((e.pathProgressStallTimer||0)>0.35) metrics.stalling++;
+  }
+  metrics.avg=metrics.count?metrics.total/metrics.count:0;
+  return metrics;
+}
+
+function getTunnelCentrelineBias(g,enemy,dirX,dirY){
+  const [tx,ty]=worldToTile(enemy.x,enemy.y);
+  if(!inMap(tx,ty)) return {x:0,y:0,strength:0};
+  const centre=tileCenter(tx,ty);
+  const left=tileWalkable(g,tx-1,ty), right=tileWalkable(g,tx+1,ty);
+  const up=tileWalkable(g,tx,ty-1), down=tileWalkable(g,tx,ty+1);
+  let bx=0, by=0, strength=0;
+  if(Math.abs(dirX)>Math.abs(dirY)){
+    // Horizontal corridor: keep to row centre when vertical walls form a tunnel.
+    if(!up || !down){ by=(centre.y-enemy.y)/Math.max(1,TILE*0.5); strength=0.34; }
+  } else {
+    // Vertical corridor: keep to column centre when horizontal walls form a tunnel.
+    if(!left || !right){ bx=(centre.x-enemy.x)/Math.max(1,TILE*0.5); strength=0.34; }
+  }
+  // Extra nudge away from close solid side walls.
+  const margin=(enemy.pathingRadius||enemy.r||12)+5;
+  const localX=enemy.x-tx*TILE, localY=enemy.y-ty*TILE;
+  if(!left && localX<margin){ bx+=0.45; strength=Math.max(strength,0.28); }
+  if(!right && TILE-localX<margin){ bx-=0.45; strength=Math.max(strength,0.28); }
+  if(!up && localY<margin){ by+=0.45; strength=Math.max(strength,0.28); }
+  if(!down && TILE-localY<margin){ by-=0.45; strength=Math.max(strength,0.28); }
+  return {x:bx,y:by,strength};
+}
+
+function findNearbyCornerMiningFallback(g,enemy,targetX,targetY){
+  const [etx,ety]=worldToTile(enemy.x,enemy.y);
+  const dx=Math.sign(targetX-enemy.x), dy=Math.sign(targetY-enemy.y);
+  const candidates=[];
+  if(dx||dy) candidates.push([etx+dx,ety+dy]);
+  if(dx) candidates.push([etx+dx,ety]);
+  if(dy) candidates.push([etx,ety+dy]);
+  if(dx&&dy){ candidates.push([etx+dx,ety-dy],[etx-dx,ety+dy]); }
+  for(const [tx,ty] of candidates){
+    if(inMap(tx,ty) && typeof isEnemyMineableTile==='function' && isEnemyMineableTile(g,tx,ty)) return {tx,ty,reason:'smoothCornerFallback'};
+  }
+  return null;
 }
 
 function openTileScore(g,tx,ty,radiusTiles=2){
@@ -1864,34 +2247,63 @@ function updateEnemies(g,dt){
     );
     if(needsPath){
       const maxNodes=closeToPlayer?1200:650;
-      e.path=findPathAStar(g,etx,ety,ptx,pty,maxNodes);
+      const rawPath=findPathAStar(g,etx,ety,ptx,pty,maxNodes);
+      e.rawPath=rawPath;
+      e.path=smoothPathCorners(g,e,rawPath);
+      e.smoothPath=e.path;
       e.pathIndex=0;
       e.pathVersion=g.navigationVersion;
+      prepareEnemyPathFollower(g,e);
       e.lastPlayerTileX=ptx; e.lastPlayerTileY=pty;
       e.pathTimer=rand(closeToPlayer?0.25:0.55*farPathSlow, closeToPlayer?0.55:1.05*farPathSlow);
       if(!e.path.length) e.noPathTimer=0.55;
     }
-    let targetX=p.x, targetY=p.y;
+    let ux=0, uy=0, pathSpeedMul=1;
+    let baseUx=0, baseUy=0;
     if(!hasLos && e.path.length){
-      while(e.pathIndex<e.path.length && Math.hypot(e.path[e.pathIndex].x-e.x,e.path[e.pathIndex].y-e.y)<12) e.pathIndex++;
-      if(e.pathIndex<e.path.length){
-        targetX=e.path[e.pathIndex].x;
-        targetY=e.path[e.pathIndex].y;
+      const steer=getEnemyPathFollowingSteering(g,e,dt);
+      if(steer){
+        ux=steer.x; uy=steer.y; pathSpeedMul=steer.speedMul || 1;
+        baseUx=ux; baseUy=uy;
+        e.pathIndex=Math.min(e.path.length-1,Math.max(0,(steer.info?.segmentIndex || 0)));
+      } else {
+        const acceptRadius=Math.max(8, Math.min(18, (e.pathingRadius || e.r || 12)*0.85));
+        while(e.pathIndex<e.path.length && Math.hypot(e.path[e.pathIndex].x-e.x,e.path[e.pathIndex].y-e.y)<acceptRadius) e.pathIndex++;
+        const fallbackPoint=e.path[Math.min(e.pathIndex,e.path.length-1)] || {x:p.x,y:p.y};
+        const dx=fallbackPoint.x-e.x, dy=fallbackPoint.y-e.y, l=Math.max(0.001,len(dx,dy));
+        baseUx=dx/l; baseUy=dy/l; ux=baseUx; uy=baseUy;
       }
-    } else if(!hasLos && e.noPathTimer>0){
-      const fallback=findClosestWalkableTile(g,ptx,pty,14);
-      if(fallback){
-        const c=tileCenter(fallback.tx,fallback.ty);
-        targetX=c.x; targetY=c.y;
+    } else {
+      let targetX=p.x, targetY=p.y;
+      if(!hasLos && e.noPathTimer>0){
+        const fallback=findClosestWalkableTile(g,ptx,pty,14);
+        if(fallback){
+          const c=tileCenter(fallback.tx,fallback.ty);
+          targetX=c.x; targetY=c.y;
+        }
+        e.noPathTimer-=dt;
       }
-      e.noPathTimer-=dt;
+      const dx=targetX-e.x, dy=targetY-e.y, l=Math.max(0.001,len(dx,dy));
+      baseUx=dx/l; baseUy=dy/l;
+      const wobble=Math.sin(g.time*4+e.phase)*0.18;
+      ux=baseUx*Math.cos(wobble)-baseUy*Math.sin(wobble)*0.12;
+      uy=baseUy*Math.cos(wobble)+baseUx*Math.sin(wobble)*0.12;
+      e.closestPathPoint=null;
+      e.offtrackVector=null;
+      e.desiredVelocity=null;
+      e.offtrackDistance=0;
+      e.pathFollowMode=hasLos?'direct-los':'fallback';
     }
-    const dx=targetX-e.x, dy=targetY-e.y, l=len(dx,dy);
-    const baseUx=dx/l, baseUy=dy/l;
-    let ux=baseUx, uy=baseUy;
-    const wobble=Math.sin(g.time*4+e.phase)*0.18;
-    ux=baseUx*Math.cos(wobble)-baseUy*Math.sin(wobble)*0.12;
-    uy=baseUy*Math.cos(wobble)+baseUx*Math.sin(wobble)*0.12;
+    const centreBias=getTunnelCentrelineBias(g,e,baseUx,baseUy);
+    if(centreBias.strength>0){
+      const biasStrength=(!hasLos && e.path.length) ? centreBias.strength*0.55 : centreBias.strength;
+      ux += centreBias.x*biasStrength;
+      uy += centreBias.y*biasStrength;
+      const bl=Math.max(0.001,len(ux,uy)); ux/=bl; uy/=bl;
+      e.tunnelCentreBias={x:centreBias.x,y:centreBias.y,strength:biasStrength};
+    } else {
+      e.tunnelCentreBias=null;
+    }
     if(e.stuckTimer>0.75){
       e.unstickAngle += dt*5.5;
       ux += Math.cos(e.unstickAngle)*0.45;
@@ -1899,8 +2311,8 @@ function updateEnemies(g,dt){
       const ul=len(ux,uy); ux/=ul; uy/=ul;
       e.pathTimer=0;
     }
-    const slow=e.slow>0?0.55:1;
-    moveCircle(g,e,ux*e.speed*slow*dt,uy*e.speed*slow*dt);
+    const slow=(e.slow>0?0.55:1)*pathSpeedMul;
+    if(!g.debug?.freezeEnemies) moveCircle(g,e,ux*e.speed*slow*dt,uy*e.speed*slow*dt);
     const touch = p.r+e.r;
     if(dist2(p.x,p.y,e.x,e.y)<touch*touch){
       if(p.iframes<=0){
@@ -2217,11 +2629,11 @@ function destroyTileByEnemyProjectile(g,tx,ty){
   g.tileHp[i]=0;
   g.navigationVersion++;
   for(const e of g.enemies){
-    if(dist2(e.x,e.y,tx*TILE+TILE/2,ty*TILE+TILE/2)<520*520) e.pathTimer=0;
+    if(dist2(e.x,e.y,tileToWorldCenterX(tx),tileToWorldCenterY(ty))<520*520) e.pathTimer=0;
   }
   const color=wasOre?'#ff6b35':'#9a6a45';
-  for(let k=0;k<12;k++) addParticle(g,tx*TILE+TILE/2,ty*TILE+TILE/2,rand(-150,150),rand(-150,150),color,rand(0.22,0.52),rand(2,6),'spark');
-  if(wasOre) floating(g,tx*TILE+18,ty*TILE+12,'Ore lost','#ff9f43');
+  for(let k=0;k<12;k++) addParticle(g,tileToWorldCenterX(tx),tileToWorldCenterY(ty),rand(-150,150),rand(-150,150),color,rand(0.22,0.52),rand(2,6),'spark');
+  if(wasOre) floating(g,tileToWorldCenterX(tx),tileToWorldCenterY(ty)-TILE*0.18,'Ore lost','#ff9f43');
   return true;
 }
 

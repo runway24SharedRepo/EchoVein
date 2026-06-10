@@ -8,7 +8,11 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
 
-const TILE = 36;
+// Logical cave tile sizing.  This test build increases every block by 1.5x.
+// Set TILE_SIZE_SCALE back to 1.0 for direct A/B comparison with the previous build.
+const TILE_SIZE_BASE = 36;
+const TILE_SIZE_SCALE = 1.5;
+const TILE = Math.round(TILE_SIZE_BASE * TILE_SIZE_SCALE);
 const MAP_W = 96;
 const MAP_H = 96;
 const WORLD_W = MAP_W * TILE;

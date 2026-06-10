@@ -3,7 +3,15 @@
 /* Cave generation, map/tile helpers, mining support, enemy spawning, and mission log. */
 
 function tileIdx(tx,ty){ return ty*MAP_W+tx; }
-function worldToTile(x,y){ return [Math.floor(x/TILE), Math.floor(y/TILE)]; }
+function worldToTileX(x){ return Math.floor(x/TILE); }
+function worldToTileY(y){ return Math.floor(y/TILE); }
+function worldToTile(x,y){ return [worldToTileX(x), worldToTileY(y)]; }
+function tileToWorldX(tx){ return tx*TILE; }
+function tileToWorldY(ty){ return ty*TILE; }
+function tileToWorldCenterX(tx){ return tx*TILE + TILE/2; }
+function tileToWorldCenterY(ty){ return ty*TILE + TILE/2; }
+function tileToWorldCenter(tx,ty){ return {x:tileToWorldCenterX(tx), y:tileToWorldCenterY(ty)}; }
+function getTileScaleInfo(){ return {base:TILE_SIZE_BASE, scale:TILE_SIZE_SCALE, effective:TILE, mapPixelWidth:WORLD_W, mapPixelHeight:WORLD_H}; }
 function inMap(tx,ty){ return tx>=0 && ty>=0 && tx<MAP_W && ty<MAP_H; }
 function tileAt(g,tx,ty){ if(!inMap(tx,ty)) return TILE_HARD; return g.tiles[tileIdx(tx,ty)]; }
 function isSolid(t){ return t===TILE_ROCK || t===TILE_HARD || t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL || t===TILE_FERRITE_BARK || t===TILE_LUMINA_SPORES || t===TILE_AETHER_QUARTZ || t===TILE_CRYSALITH || t===TILE_EMBERGLASS || t===TILE_LAVA_ROCK; }
@@ -72,7 +80,7 @@ function placeLooseResourcePickups(g,count){
       if(g.tiles[tileIdx(tx,ty)]!==TILE_EMPTY) continue;
       const sx=Math.floor(MAP_W/2), sy=Math.floor(MAP_H/2);
       if(Math.hypot(tx-sx,ty-sy)<8) continue;
-      x=tx*TILE+TILE/2; y=ty*TILE+TILE/2; ok=true; break;
+      x=tileToWorldCenterX(tx); y=tileToWorldCenterY(ty); ok=true; break;
     }
     if(!ok) continue;
     const def=eligible[randi(0,eligible.length-1)];

@@ -9,6 +9,7 @@ let runStatsLastChartKey = 'enemiesKilled';
 function createRunStats(){
   return {
     startTime: performance.now(), endTime:null, durationSec:0, lastSampleTime:0,
+    tileSizeBase:typeof TILE_SIZE_BASE!=='undefined'?TILE_SIZE_BASE:0, tileSizeScale:typeof TILE_SIZE_SCALE!=='undefined'?TILE_SIZE_SCALE:1, effectiveTileSize:typeof TILE!=='undefined'?TILE:0,
     enemiesKilled:0, elitesKilled:0, bossesKilled:0, playerLevelMax:1, xpCollected:0,
     resourcesCollected:{}, blocksMined:0, distanceTravelled:0, damageDealt:0, damageTaken:0,
     shotsFired:0, shotsHit:0, dashesUsed:0, trapsPlaced:0, dronesDeployed:0, dronesPeak:0,
@@ -46,7 +47,7 @@ function createRunStatSample(g){
     t:g.time||0, enemiesKilled:s.enemiesKilled||0, elitesKilled:s.elitesKilled||0,
     playerLevel:g.level||1, xpCollected:s.xpCollected||0, totalOreCollected:totalRunResources(s),
     damageTaken:s.damageTaken||0, damageDealt:s.damageDealt||0, enemiesAlive:g.enemies?.length||0,
-    enemyBulletsAlive:g.enemyBullets?.length||0, fpsAverage:g.performance?.averageFPS||60, blocksMined:s.blocksMined||0
+    enemyBulletsAlive:g.enemyBullets?.length||0, fpsAverage:g.performance?.averageFPS||60, blocksMined:s.blocksMined||0, tileSize:typeof TILE!=='undefined'?TILE:0
   };
 }
 function updateRunStatSampling(g){
