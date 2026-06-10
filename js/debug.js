@@ -661,6 +661,72 @@ window.debugVfx = {
 };
 
 
+
+function debugSpawnChargingWaveNow(count=null){
+  if(!requireGame()) return;
+  const cw=ensureChargingWaveState(game);
+  cw.warningActive=false;
+  cw.active=false;
+  cw.activeEnemyIds=[];
+  cw.nextAllowedTime=0;
+  const spawned=spawnChargingWave(game,{count:count || undefined, angle:rand(0,Math.PI*2)});
+  debugLog(`Spawned charging wave now: ${spawned} Rift Chargers.`);
+  updateGameAfterDebug();
+}
+function debugSpawnSmallChargingWave(){ debugSpawnChargingWaveNow(10); }
+function debugSpawnFullChargingWave(){ debugSpawnChargingWaveNow(60); }
+function debugForceNextChargingWaveCheck(){
+  if(!requireGame()) return;
+  const cw=ensureChargingWaveState(game);
+  cw.forceNextCheck=true;
+  cw.checkTimer=0;
+  cw.nextAllowedTime=Math.min(cw.nextAllowedTime||0,game.time||0);
+  debugLog('Forced next charging-wave scheduler check.');
+}
+function debugToggleRandomChargingWaves(){
+  if(!requireGame()) return;
+  const cw=ensureChargingWaveState(game);
+  cw.enabled=!cw.enabled;
+  debugLog(`Random charging waves ${cw.enabled?'enabled':'disabled'}.`);
+  updateGameAfterDebug();
+}
+function debugToggleChargingWaveSpawnDirection(){ if(requireGame()){ game.debug.showChargingWaveSpawnDirection=!game.debug.showChargingWaveSpawnDirection; debugLog(`Charging wave spawn direction ${game.debug.showChargingWaveSpawnDirection?'shown':'hidden'}.`); updateGameAfterDebug(); } }
+function debugToggleChargingWaveFormationTargets(){ if(requireGame()){ game.debug.showChargingWaveFormationTargets=!game.debug.showChargingWaveFormationTargets; debugLog(`Charging wave formation targets ${game.debug.showChargingWaveFormationTargets?'shown':'hidden'}.`); updateGameAfterDebug(); } }
+function debugToggleChargingWaveTriggerRadius(){ if(requireGame()){ game.debug.showChargingWaveTriggerRadius=!game.debug.showChargingWaveTriggerRadius; debugLog(`Charging wave trigger radius ${game.debug.showChargingWaveTriggerRadius?'shown':'hidden'}.`); updateGameAfterDebug(); } }
+function debugToggleChargingWaveDamageRadius(){ if(requireGame()){ game.debug.showChargingWaveDamageRadius=!game.debug.showChargingWaveDamageRadius; debugLog(`Charging wave damage radius ${game.debug.showChargingWaveDamageRadius?'shown':'hidden'}.`); updateGameAfterDebug(); } }
+function debugPrintChargingWaveMetrics(){
+  if(!requireGame()) return;
+  const m=debugChargingWaveMetrics(game);
+  console.log('Charging wave metrics',m,game.chargingWave);
+  debugLog(`Charging wave metrics printed. Alive ${m.alive}, budget ${m.budget}, skip: ${m.skip}`);
+}
+function updateChargingWaveDebugPanel(g){
+  const box=document.getElementById('debugChargingWaveMetrics');
+  if(!box || !g) return;
+  const cw=ensureChargingWaveState(g);
+  const m=typeof debugChargingWaveMetrics==='function' ? debugChargingWaveMetrics(g) : {};
+  box.textContent=[
+    `Charging waves enabled: ${m.enabled?'yes':'no'}`,
+    `Time since last charging wave: ${(m.timeSinceLast||0).toFixed(1)}s`,
+    `Next allowed charging wave time: ${(m.nextAllowed||0).toFixed(1)}s`,
+    `Current charging wave active: ${m.active?'yes':'no'}`,
+    `Warning active: ${m.warning?'yes':'no'} (${(cw.warningTimer||0).toFixed(1)}s)`,
+    `Charging wave enemies alive: ${m.alive||0}`,
+    `Charging wave spawn budget: ${m.budget||0}`,
+    `Last charging wave skip reason: ${m.skip || cw.lastSkipReason || '-'}`
+  ].join('\n');
+}
+
+window.debugChargingWave={
+  spawn:()=>debugSpawnChargingWaveNow(),
+  small:debugSpawnSmallChargingWave,
+  full:debugSpawnFullChargingWave,
+  forceCheck:debugForceNextChargingWaveCheck,
+  toggle:debugToggleRandomChargingWaves,
+  metrics:debugPrintChargingWaveMetrics,
+};
+window.updateChargingWaveDebugPanel=updateChargingWaveDebugPanel;
+
 function debugOpenRunStatsScreen(){ if(requireGame()){ if(typeof showRunStatsScreen==='function') showRunStatsScreen(game,{title:'Debug Run Statistics',cause:'Manual debug open'}); debugLog('Opened run statistics screen.'); } }
 function debugAddObjectiveProgress(){ if(requireGame()){ for(const o of game.objectives||[]){ if(!o.completed){ addObjectiveProgress(game,o.id,10); break; } } updateGameAfterDebug(); debugLog('Added +10 objective progress.'); } }
 function debugForceCompleteObjective(){ if(requireGame()){ const o=(game.objectives||[]).find(x=>!x.completed); if(o){ addObjectiveProgress(game,o.id,(o.targetAmount||0)-(o.currentAmount||0)); updateGameAfterDebug(); debugLog('Forced objective complete.'); } } }
@@ -725,6 +791,22 @@ function buildDebugPanel(){
     makeDebugButton('Clear pickups',debugClearPickups),
     makeDebugButton('Clear projectiles',debugClearProjectiles)
   ]);
+  addDebugSection(panel,'Charging Waves',[
+    makeDebugButton('Spawn charging wave now',()=>debugSpawnChargingWaveNow()),
+    makeDebugButton('Spawn small charging wave (10)',debugSpawnSmallChargingWave),
+    makeDebugButton('Spawn full charging wave (60)',debugSpawnFullChargingWave),
+    makeDebugButton('Force next random wave check',debugForceNextChargingWaveCheck),
+    makeDebugButton('Toggle random charging waves',debugToggleRandomChargingWaves),
+    makeDebugButton('Show charging wave spawn direction',debugToggleChargingWaveSpawnDirection),
+    makeDebugButton('Show formation target points',debugToggleChargingWaveFormationTargets),
+    makeDebugButton('Show explosion trigger radius',debugToggleChargingWaveTriggerRadius),
+    makeDebugButton('Show explosion damage radius',debugToggleChargingWaveDamageRadius),
+    makeDebugButton('Print budget/skip reason',debugPrintChargingWaveMetrics)
+  ]);
+  const chargingWaveMetrics = document.createElement('section');
+  chargingWaveMetrics.className = 'debugSection';
+  chargingWaveMetrics.innerHTML = '<h3>Charging Wave Metrics</h3><pre class="debugLog" id="debugChargingWaveMetrics">Start a run to view charging wave metrics.</pre>';
+  panel.appendChild(chargingWaveMetrics);
   addDebugSection(panel,'Movement, Mining & Enemy Bullets',[
     makeDebugButton('Toggle Mining Contact Arc',debugToggleMiningArc),
     makeDebugButton('Toggle Low-Speed Mining Test',debugToggleLowSpeedMining),

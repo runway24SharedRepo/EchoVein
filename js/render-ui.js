@@ -63,6 +63,7 @@ function render(g){
   drawArcConnection(g);
   drawEnemies(g);
   drawEnemyPaths(g);
+  drawChargingWaveWorldDebug(g);
   drawWardenDrones(g);
   drawSifterDrones(g);
   drawPlayer(g);
@@ -75,6 +76,7 @@ function render(g){
   ctx.restore();
   drawFogOfWar(g,cam,sx,sy);
   drawVignette();
+  drawChargingWaveScreenOverlay(g);
   drawFogDebugOverlay(g,cam,sx,sy);
   drawEnemyBudgetOverlay(g);
   drawControllerDebugOverlay(g);
@@ -325,6 +327,17 @@ function drawEnemies(g){
       ctx.lineWidth=3;
       ctx.beginPath(); ctx.arc(0,0,e.r+8+Math.sin(g.time*5)*3,0,Math.PI*2); ctx.stroke();
     }
+    if(e.isChargingWaveEnemy && (g.debug?.showChargingWaveTriggerRadius || g.debug?.showChargingWaveDamageRadius)){
+      ctx.shadowBlur=0;
+      if(g.debug.showChargingWaveTriggerRadius){
+        ctx.strokeStyle='rgba(255,228,90,0.55)'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.arc(0,0,e.explosionTriggerRadius || 55,0,Math.PI*2); ctx.stroke();
+      }
+      if(g.debug.showChargingWaveDamageRadius){
+        ctx.strokeStyle='rgba(255,112,56,0.36)'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.arc(0,0,e.explosionRadius || 95,0,Math.PI*2); ctx.stroke();
+      }
+    }
     if(g.debug?.showHexRanges && (ENEMY_TYPES[e.type]?.behavior || e.behavior)==='hexBoomerangDetonator'){
       ctx.shadowBlur=0;
       ctx.strokeStyle='rgba(255,112,56,0.32)'; ctx.lineWidth=1.5;
@@ -334,6 +347,66 @@ function drawEnemies(g){
     }
     ctx.restore();
   }
+}
+
+
+function drawChargingWaveWorldDebug(g){
+  if(!g?.chargingWave) return;
+  const cw=g.chargingWave;
+  ctx.save();
+  if(g.debug?.showChargingWaveSpawnDirection && cw.lastSpawnCenter){
+    ctx.strokeStyle='rgba(255,112,56,0.72)';
+    ctx.lineWidth=3;
+    ctx.setLineDash([10,7]);
+    ctx.beginPath(); ctx.moveTo(cw.lastSpawnCenter.x,cw.lastSpawnCenter.y); ctx.lineTo(g.player.x,g.player.y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(255,112,56,0.95)';
+    ctx.beginPath(); ctx.arc(cw.lastSpawnCenter.x,cw.lastSpawnCenter.y,8,0,Math.PI*2); ctx.fill();
+  }
+  if(g.debug?.showChargingWaveFormationTargets){
+    const targets=[];
+    for(const e of g.enemies||[]) if(e.isChargingWaveEnemy && e.formationTarget) targets.push(e.formationTarget);
+    if(!targets.length && cw.lastFormationTargets) targets.push(...cw.lastFormationTargets);
+    ctx.fillStyle='rgba(255,228,90,0.82)';
+    ctx.strokeStyle='rgba(255,112,56,0.38)';
+    for(const t of targets){ ctx.beginPath(); ctx.arc(t.x,t.y,3.4,0,Math.PI*2); ctx.fill(); }
+  }
+  ctx.restore();
+}
+
+function drawChargingWaveScreenOverlay(g){
+  const cw=g?.chargingWave;
+  if(!cw) return;
+  const warning=cw.warningActive && cw.warningTimer>0;
+  const alive=(g.enemies||[]).filter(e=>e.isChargingWaveEnemy && e.hp>0).length;
+  if(!warning && alive<=0) return;
+  ctx.save();
+  const pulse=0.5+0.5*Math.sin((g.time||0)*14);
+  if(warning){
+    const alpha=0.16+0.13*pulse;
+    ctx.fillStyle=`rgba(255,72,32,${alpha})`;
+    ctx.fillRect(0,0,innerWidth,innerHeight);
+    ctx.font='900 34px Segoe UI, Arial';
+    ctx.textAlign='center';
+    ctx.fillStyle=`rgba(255,240,210,${0.80+0.20*pulse})`;
+    ctx.shadowColor='#ff3d22'; ctx.shadowBlur=18;
+    ctx.fillText('CHARGING WAVE INCOMING!',innerWidth/2,112);
+    ctx.font='700 15px Segoe UI, Arial';
+    ctx.fillText(`${Math.max(0,cw.warningTimer).toFixed(1)}s · Dodge the Rift Chargers`,innerWidth/2,140);
+  }
+  // Directional incoming arrow is visible even when fog hides the enemies.
+  const a=cw.incomingDirection || 0;
+  const cx=innerWidth/2 + Math.cos(a)*Math.min(innerWidth,innerHeight)*0.34;
+  const cy=innerHeight/2 + Math.sin(a)*Math.min(innerWidth,innerHeight)*0.34;
+  ctx.translate(cx,cy);
+  ctx.rotate(a+Math.PI);
+  ctx.fillStyle=`rgba(255,112,56,${0.55+0.35*pulse})`;
+  ctx.strokeStyle='rgba(255,245,210,0.88)';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(0,-24); ctx.lineTo(38,0); ctx.lineTo(0,24); ctx.lineTo(10,7); ctx.lineTo(-36,7); ctx.lineTo(-36,-7); ctx.lineTo(10,-7);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
 }
 
 function drawExtractionCraft(g){

@@ -192,7 +192,7 @@ function updatePathFollowingDebugMetrics(g){
 
 function updatePerformanceDebugPanel(g){
   const box=document.getElementById('debugPerfMetrics');
-  if(g) { updateVfxDebugMetrics(g); updatePathFollowingDebugMetrics(g); }
+  if(g) { updateVfxDebugMetrics(g); updatePathFollowingDebugMetrics(g); if(typeof updateChargingWaveDebugPanel==='function') updateChargingWaveDebugPanel(g); }
   if(!box || !g?.performance) return;
   const p=g.performance;
   box.textContent = [
@@ -219,6 +219,7 @@ function update(g,dt){
   g.time += dt;
   updatePerformanceBudgets(g,dt);
   updateHollowPressure(g,dt);
+  updateChargingWaveScheduler(g,dt);
   shake = Math.max(0, shake - dt*18);
   logTimeout = Math.max(0, logTimeout-dt);
   updateGamepadActions(g);
@@ -341,6 +342,7 @@ function updatePlayer(g,dt){
 function updateLavaContactDamage(g,dt){
   const p=g.player;
   p.lavaDamageCd=Math.max(0,(p.lavaDamageCd || 0)-dt);
+  p.chargingWaveExplosionDamageCd=Math.max(0,(p.chargingWaveExplosionDamageCd || 0)-dt);
   if(g.debug && g.debug.lavaDamageEnabled===false) return;
   const r=p.collisionR || p.r;
   const minx=Math.floor((p.x-r-2)/TILE), maxx=Math.floor((p.x+r+2)/TILE);
@@ -1252,6 +1254,356 @@ function updateSpawning(g,dt){
       sfx('wave');
     }
   }
+}
+
+
+const CHARGING_WAVE_CONFIG = {
+  firstPossibleTime: 90,
+  checkIntervalMin: 5,
+  checkIntervalMax: 10,
+  baseChancePerCheck: 0.07,
+  minCooldown: 150,
+  maxCooldown: 180,
+  healthyMin: 40,
+  healthyMax: 60,
+  warningMin: 20,
+  warningMax: 35,
+  minBudget: 20,
+  warningDuration: 2.0,
+  spawnDistanceMin: 700,
+  spawnDistanceMax: 1100,
+  formationSpacing: 27,
+  speedMultiplier: 1.8,
+  steeringRate: 5.2,
+  explosionTriggerRadius: 55,
+  explosionRadius: 95,
+  explosionDamage: 10,
+  damageCooldown: 0.12,
+  stuckBreakDelay: 0.18
+};
+
+function ensureChargingWaveState(g){
+  if(!g.chargingWave){
+    g.chargingWave={enabled:true,active:false,warningActive:false,warningTimer:0,warningDuration:CHARGING_WAVE_CONFIG.warningDuration,pendingOptions:null,incomingDirection:0,lastSpawnTime:-9999,nextAllowedTime:CHARGING_WAVE_CONFIG.firstPossibleTime,checkTimer:rand(CHARGING_WAVE_CONFIG.checkIntervalMin,CHARGING_WAVE_CONFIG.checkIntervalMax),cooldown:CHARGING_WAVE_CONFIG.minCooldown,activeEnemyIds:[],lastSpawnCenter:null,lastFormationTargets:[],lastSkipReason:'Initialised',forceNextCheck:false,nextWaveId:1};
+  }
+  return g.chargingWave;
+}
+
+function updateChargingWaveScheduler(g,dt){
+  const cw=ensureChargingWaveState(g);
+  if(!cw.enabled) { cw.lastSkipReason='Disabled'; updateChargingWaveActiveState(g); return; }
+  updateChargingWaveActiveState(g);
+  if(cw.warningActive){
+    cw.warningTimer=Math.max(0,(cw.warningTimer||0)-dt);
+    cw.warningPulseTimer=(cw.warningPulseTimer||0)-dt;
+    if(cw.warningPulseTimer<=0){ cw.warningPulseTimer=0.35; sfx('wave',0.55); }
+    if(cw.warningTimer<=0){
+      const opts=cw.pendingOptions || {};
+      cw.warningActive=false;
+      cw.pendingOptions=null;
+      spawnChargingWave(g,opts);
+    }
+    return;
+  }
+  cw.checkTimer=(cw.checkTimer||0)-dt;
+  if(!cw.forceNextCheck && cw.checkTimer>0) return;
+  cw.checkTimer=rand(CHARGING_WAVE_CONFIG.checkIntervalMin,CHARGING_WAVE_CONFIG.checkIntervalMax);
+  cw.forceNextCheck=false;
+  const can=canSpawnChargingWave(g);
+  if(!can.ok){ cw.lastSkipReason=can.reason; return; }
+  const pressure=g.hollowPressure || 0;
+  const mission=g.missionIndex || 1;
+  const chance=clamp(CHARGING_WAVE_CONFIG.baseChancePerCheck + pressure*0.012 + (mission-1)*0.006, 0.05, 0.12);
+  if(Math.random()<chance) startChargingWaveWarning(g,{count:can.count,budget:can.budget});
+  else cw.lastSkipReason=`Random roll missed (${Math.round(chance*100)}% check chance)`;
+}
+
+function updateChargingWaveActiveState(g){
+  const cw=ensureChargingWaveState(g);
+  const before=cw.activeEnemyIds?.length || 0;
+  cw.activeEnemyIds=(cw.activeEnemyIds||[]).filter(id=>g.enemies.some(e=>e.chargingWaveId===id && e.hp>0));
+  cw.active=cw.warningActive || cw.activeEnemyIds.length>0;
+  if(before && !cw.activeEnemyIds.length && !cw.warningActive) cw.lastSkipReason='Previous charging wave cleared';
+}
+
+function canSpawnChargingWave(g){
+  const cw=ensureChargingWaveState(g);
+  if(g.state!=='playing') return {ok:false,reason:'Game is not in active gameplay'};
+  if(!g.player || g.player.hp<=0) return {ok:false,reason:'Player is not alive'};
+  if(g.extraction && g.extractionTimer>0) return {ok:false,reason:'Extraction sequence active'};
+  if(cw.warningActive || cw.active) return {ok:false,reason:'A charging wave is already active'};
+  if((g.time||0)<CHARGING_WAVE_CONFIG.firstPossibleTime) return {ok:false,reason:`Waiting for first possible time (${CHARGING_WAVE_CONFIG.firstPossibleTime}s)`};
+  if((g.time||0)<(cw.nextAllowedTime||0)) return {ok:false,reason:`Cooldown active (${Math.max(0,cw.nextAllowedTime-g.time).toFixed(1)}s)`};
+  const perf=g.performance?.state || PERF_STATES.HEALTHY;
+  if(perf===PERF_STATES.CRITICAL) return {ok:false,reason:'Performance state is critical'};
+  const cap=g.enemyBudget?.currentMaxEnemies || PERFORMANCE_CONFIG.baseMaxEnemies;
+  const budget=Math.max(0,cap-(g.enemies?.length||0));
+  if(budget<CHARGING_WAVE_CONFIG.minBudget) return {ok:false,reason:`Insufficient enemy budget (${budget}/${CHARGING_WAVE_CONFIG.minBudget})`,budget};
+  const min=perf===PERF_STATES.WARNING ? CHARGING_WAVE_CONFIG.warningMin : CHARGING_WAVE_CONFIG.healthyMin;
+  const max=perf===PERF_STATES.WARNING ? CHARGING_WAVE_CONFIG.warningMax : CHARGING_WAVE_CONFIG.healthyMax;
+  const count=Math.min(budget,randi(min,max));
+  if(count<CHARGING_WAVE_CONFIG.minBudget) return {ok:false,reason:`Wave count below minimum after budget (${count})`,budget};
+  return {ok:true,reason:'OK',count,budget,perf};
+}
+
+function startChargingWaveWarning(g,options={}){
+  const cw=ensureChargingWaveState(g);
+  const angle=rand(0,Math.PI*2);
+  cw.warningActive=true;
+  cw.active=true;
+  cw.warningTimer=CHARGING_WAVE_CONFIG.warningDuration;
+  cw.warningDuration=CHARGING_WAVE_CONFIG.warningDuration;
+  cw.incomingDirection=angle;
+  cw.pendingOptions={...options,angle};
+  cw.lastSkipReason='Warning active';
+  log(g,'CHARGING WAVE INCOMING!');
+  sfx('wave',1.15);
+  shake=Math.max(shake,5);
+}
+
+function findChargingWaveSpawnCenter(g,angle){
+  const p=g.player;
+  const preferred=rand(CHARGING_WAVE_CONFIG.spawnDistanceMin,CHARGING_WAVE_CONFIG.spawnDistanceMax);
+  const candidateAngles=[angle, angle+0.28, angle-0.28, angle+0.65, angle-0.65, angle+Math.PI*0.5, angle-Math.PI*0.5];
+  for(const a of candidateAngles){
+    for(let d=preferred; d>=520; d-=70){
+      const x=clamp(p.x+Math.cos(a)*d,TILE*2,WORLD_W-TILE*2);
+      const y=clamp(p.y+Math.sin(a)*d,TILE*2,WORLD_H-TILE*2);
+      const [tx,ty]=worldToTile(x,y);
+      if(!inMap(tx,ty)) continue;
+      if(isSolid(tileAt(g,tx,ty))) continue;
+      if(dist2(x,y,p.x,p.y)<500*500) continue;
+      return {x,y,angle:a,distance:d};
+    }
+  }
+  const x=clamp(p.x+Math.cos(angle)*700,TILE*2,WORLD_W-TILE*2);
+  const y=clamp(p.y+Math.sin(angle)*700,TILE*2,WORLD_H-TILE*2);
+  return {x,y,angle,distance:700};
+}
+
+function spawnChargingWave(g,options={}){
+  const cw=ensureChargingWaveState(g);
+  const can=canSpawnChargingWave(g);
+  const count=options.count || (can.ok ? can.count : CHARGING_WAVE_CONFIG.minBudget);
+  const spawnInfo=findChargingWaveSpawnCenter(g,options.angle ?? rand(0,Math.PI*2));
+  const center={x:spawnInfo.x,y:spawnInfo.y};
+  const dirToPlayer=normalizeVec(g.player.x-center.x,g.player.y-center.y);
+  const waveId=(cw.nextWaveId||1);
+  cw.nextWaveId=waveId+1;
+  cw.lastSpawnCenter=center;
+  cw.lastFormationTargets=[];
+  cw.activeEnemyIds=[];
+  const spawned=spawnChargingWaveFormation(g,center,dirToPlayer,count,waveId);
+  cw.lastSpawnTime=g.time||0;
+  cw.cooldown=rand(CHARGING_WAVE_CONFIG.minCooldown,CHARGING_WAVE_CONFIG.maxCooldown);
+  cw.nextAllowedTime=(g.time||0)+cw.cooldown;
+  cw.active=spawned>0;
+  cw.warningActive=false;
+  cw.lastSkipReason=spawned>0 ? `Spawned ${spawned} Rift Chargers` : 'No valid formation slots';
+  if(g.runStats){ g.runStats.chargingWavesSpawned=(g.runStats.chargingWavesSpawned||0)+1; g.runStats.chargingWaveEnemiesSpawned=(g.runStats.chargingWaveEnemiesSpawned||0)+spawned; }
+  log(g,`Rift Charger wave: ${spawned} enemies!`);
+  sfx('elite',0.75);
+  return spawned;
+}
+
+function normalizeVec(x,y){ const l=Math.max(0.001,Math.hypot(x,y)); return {x:x/l,y:y/l}; }
+
+function formationOffsetForIndex(i,count,spacing){
+  const cols=Math.ceil(Math.sqrt(count*1.35));
+  const row=Math.floor(i/cols);
+  const col=i%cols;
+  const rows=Math.ceil(count/cols);
+  const wedge=Math.abs(col-(cols-1)/2)*0.38;
+  return {x:(col-(cols-1)/2)*spacing + rand(-4,4), y:(row-(rows-1)/2)*spacing + wedge*spacing + rand(-4,4)};
+}
+
+function spawnChargingWaveFormation(g,center,dir,count,waveId){
+  const cw=ensureChargingWaveState(g);
+  const right={x:-dir.y,y:dir.x};
+  const back={x:-dir.x,y:-dir.y};
+  const spacing=CHARGING_WAVE_CONFIG.formationSpacing;
+  let spawned=0;
+  for(let i=0;i<count;i++){
+    const off=formationOffsetForIndex(i,count,spacing);
+    let x=center.x + right.x*off.x + back.x*off.y;
+    let y=center.y + right.y*off.x + back.y*off.y;
+    x=clamp(x,TILE*2,WORLD_W-TILE*2); y=clamp(y,TILE*2,WORLD_H-TILE*2);
+    const [tx,ty]=worldToTile(x,y);
+    if(isSolid(tileAt(g,tx,ty))){
+      const open=findClosestWalkableTile(g,tx,ty,5);
+      if(open){ const c=tileCenter(open.tx,open.ty); x=c.x; y=c.y; }
+      else continue;
+    }
+    const e=new Enemy(x,y,'charging_exploder');
+    e.isChargingWaveEnemy=true;
+    e.chargingWaveId=waveId;
+    e.displayName='Rift Charger';
+    e.visualDisplayName='Rift Charger';
+    e.spawnArchetype='charging_exploder';
+    e.noPathTimer=999;
+    e.path=[]; e.rawPath=[]; e.smoothPath=[];
+    e.chargeSpeedMultiplier=CHARGING_WAVE_CONFIG.speedMultiplier*rand(0.92,1.08);
+    e.speed=(ENEMY_TYPES.charging_exploder.speed || 250)*e.chargeSpeedMultiplier;
+    e.explosionTriggerRadius=CHARGING_WAVE_CONFIG.explosionTriggerRadius;
+    e.explosionRadius=CHARGING_WAVE_CONFIG.explosionRadius;
+    e.explosionDamage=CHARGING_WAVE_CONFIG.explosionDamage;
+    e.canMineBlocks=true;
+    e.countsForKillObjective=true;
+    e.formationOffset=off;
+    e.formationTarget={x,y};
+    e.chargeDir={x:dir.x,y:dir.y};
+    e.stuckBreakTimer=0;
+    e.rangedCd=9999;
+    e.xp=Math.max(1,e.xp||2);
+    cw.activeEnemyIds.push(waveId);
+    cw.lastFormationTargets.push({x,y});
+    g.enemies.push(e);
+    spawned++;
+  }
+  return spawned;
+}
+
+function updateChargingWaveEnemy(g,e,dt){
+  const p=g.player;
+  const dx=p.x-e.x, dy=p.y-e.y;
+  const d=Math.hypot(dx,dy);
+  if(d <= (e.explosionTriggerRadius || CHARGING_WAVE_CONFIG.explosionTriggerRadius)){
+    explodeChargingWaveEnemy(g,e);
+    return;
+  }
+  const target=normalizeVec(dx + (p.lastDx||0)*36, dy + (p.lastDy||0)*36);
+  const steer=clamp((e.steeringRate || CHARGING_WAVE_CONFIG.steeringRate)*dt,0,1);
+  e.chargeDir=e.chargeDir || {x:target.x,y:target.y};
+  e.chargeDir.x=lerp(e.chargeDir.x,target.x,steer);
+  e.chargeDir.y=lerp(e.chargeDir.y,target.y,steer);
+  const l=Math.max(0.001,Math.hypot(e.chargeDir.x,e.chargeDir.y)); e.chargeDir.x/=l; e.chargeDir.y/=l;
+
+  // Slight, deterministic-looking rank cohesion: each charger is pulled toward
+  // a translated formation point, but the whole pack still steers at the player.
+  const cw=ensureChargingWaveState(g);
+  const center=cw.lastSpawnCenter || {x:e.x,y:e.y};
+  const travel=Math.max(0,(g.time||0)-(cw.lastSpawnTime||g.time||0))*e.speed*0.72;
+  const right={x:-e.chargeDir.y,y:e.chargeDir.x};
+  const back={x:-e.chargeDir.x,y:-e.chargeDir.y};
+  const off=e.formationOffset || {x:0,y:0};
+  e.formationTarget={x:center.x+e.chargeDir.x*travel+right.x*off.x+back.x*off.y, y:center.y+e.chargeDir.y*travel+right.y*off.x+back.y*off.y};
+  let ux=e.chargeDir.x, uy=e.chargeDir.y;
+  const cd=dist2(e.x,e.y,e.formationTarget.x,e.formationTarget.y);
+  if(cd>45*45){
+    const cdir=normalizeVec(e.formationTarget.x-e.x,e.formationTarget.y-e.y);
+    ux=lerp(ux,cdir.x,0.22); uy=lerp(uy,cdir.y,0.22);
+    const nl=Math.max(0.001,Math.hypot(ux,uy)); ux/=nl; uy/=nl;
+  }
+  ux+=Math.sin((g.time||0)*8+e.phase)*0.045; uy+=Math.cos((g.time||0)*7+e.phase)*0.045;
+  const nl=Math.max(0.001,Math.hypot(ux,uy)); ux/=nl; uy/=nl;
+
+  if(e.canMineBlocks) tryChargingWaveBreakAhead(g,e,ux,uy,dt);
+  const oldX=e.x, oldY=e.y;
+  if(!g.debug?.freezeEnemies) moveCircle(g,e,ux*e.speed*dt,uy*e.speed*dt);
+  const moved=Math.hypot(e.x-oldX,e.y-oldY);
+  if(moved<2.0) e.stuckBreakTimer=(e.stuckBreakTimer||0)+dt; else e.stuckBreakTimer=0;
+  if(e.stuckBreakTimer>CHARGING_WAVE_CONFIG.stuckBreakDelay){
+    breakNearbyChargingWaveBlocks(g,e,ux,uy);
+    e.stuckBreakTimer=0;
+  }
+  if(shouldEmitVfx(g,false) && Math.random()<0.55){
+    addParticle(g,e.x-ux*e.r,e.y-uy*e.r,-ux*rand(60,160)+rand(-20,20),-uy*rand(60,160)+rand(-20,20),'#ff7038',rand(0.12,0.24),rand(2,4),'spark');
+  }
+}
+
+function tryChargingWaveBreakAhead(g,e,ux,uy,dt){
+  const look=Math.max(TILE*0.45,e.r+e.speed*dt*0.8);
+  const pts=[0, -e.r*0.65, e.r*0.65];
+  const right={x:-uy,y:ux};
+  for(const side of pts){
+    const x=e.x+ux*look+right.x*side;
+    const y=e.y+uy*look+right.y*side;
+    const [tx,ty]=worldToTile(x,y);
+    if(destroyTileByChargingWave(g,tx,ty,e)) return true;
+  }
+  return false;
+}
+
+function breakNearbyChargingWaveBlocks(g,e,ux,uy){
+  const [cx,cy]=worldToTile(e.x+ux*(e.r+8),e.y+uy*(e.r+8));
+  let broke=false;
+  for(let r=0;r<=1 && !broke;r++){
+    for(let ty=cy-r;ty<=cy+r && !broke;ty++) for(let tx=cx-r;tx<=cx+r;tx++){
+      if(destroyTileByChargingWave(g,tx,ty,e)){ broke=true; break; }
+    }
+  }
+  return broke;
+}
+
+function destroyTileByChargingWave(g,tx,ty,e){
+  if(!inMap(tx,ty)) return false;
+  const i=tileIdx(tx,ty);
+  const t=g.tiles[i];
+  if(t===TILE_EMPTY || t===TILE_HARD || t===TILE_LAVA_ROCK) return false;
+  if(!isMineableForPlayer(t)) return false;
+  const wasOre=t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL || t===TILE_FERRITE_BARK || t===TILE_LUMINA_SPORES || t===TILE_AETHER_QUARTZ || t===TILE_CRYSALITH || t===TILE_EMBERGLASS;
+  g.tiles[i]=TILE_EMPTY; g.tileHp[i]=0; g.navigationVersion++;
+  if(g.runStats){
+    g.runStats.blocksBrokenByChargingWaves=(g.runStats.blocksBrokenByChargingWaves||0)+1;
+    if(wasOre) g.runStats.oresDestroyedByChargingWaves=(g.runStats.oresDestroyedByChargingWaves||0)+1;
+  }
+  const x=tileToWorldCenterX(tx), y=tileToWorldCenterY(ty);
+  for(let k=0;k<8;k++) addParticle(g,x,y,rand(-120,120),rand(-120,120),wasOre?'#ff9f43':'#8f6a4a',rand(0.18,0.42),rand(2,5),'spark');
+  if(wasOre) floating(g,x,y-TILE*0.18,'Ore destroyed','#ff7038');
+  return true;
+}
+
+function explodeChargingWaveEnemy(g,e){
+  if(e.hp<=0 || e.exploded) return;
+  e.exploded=true;
+  e.noDrop=true;
+  e.hp=0;
+  if(g.runStats) g.runStats.chargingWaveEnemiesExploded=(g.runStats.chargingWaveEnemiesExploded||0)+1;
+  applyChargingWaveExplosionDamage(g,e);
+  const r=e.explosionRadius || CHARGING_WAVE_CONFIG.explosionRadius;
+  shake=Math.max(shake,9);
+  addRing(g,e.x,e.y,'rgba(255,112,56,0.92)',0.28,6,r,6);
+  addRing(g,e.x,e.y,'rgba(255,228,150,0.75)',0.16,3,r*0.55,4);
+  addParticle(g,e.x,e.y,0,0,'rgba(255,245,220,0.96)',0.10,22);
+  for(let k=0;k<28;k++){
+    const a=rand(0,Math.PI*2), sp=rand(100,360);
+    addParticle(g,e.x,e.y,Math.cos(a)*sp,Math.sin(a)*sp,k%3===0?'#ffd36b':'#ff7038',rand(0.16,0.48),rand(1.8,4.6),k%4===0?'fragment':'spark');
+  }
+  spawnVfxComposition(g,'chargingWaveExplosion',e.x,e.y,{radius:r,color:'#ff7038'});
+  sfx('explosion',0.72);
+}
+
+function applyChargingWaveExplosionDamage(g,e){
+  const p=g.player;
+  const r=(e.explosionRadius || CHARGING_WAVE_CONFIG.explosionRadius)+(p.collisionR||p.r);
+  const d=Math.hypot(p.x-e.x,p.y-e.y);
+  if(d>r) return;
+  if((p.chargingWaveExplosionDamageCd||0)>0) return;
+  const falloff=1-clamp(d/r,0,1)*0.35;
+  const damage=Math.max(1,Math.round((e.explosionDamage || CHARGING_WAVE_CONFIG.explosionDamage)*falloff*(p.armourMul || 1)));
+  p.hp-=damage;
+  p.chargingWaveExplosionDamageCd=CHARGING_WAVE_CONFIG.damageCooldown;
+  p.iframes=Math.max(p.iframes,0.18);
+  if(typeof recordRunDamageTaken==='function') recordRunDamageTaken(g,damage,'chargingWaveExplosion');
+  if(g.runStats) g.runStats.damageTakenFromChargingWaves=(g.runStats.damageTakenFromChargingWaves||0)+damage;
+  floating(g,p.x,p.y-25,`-${damage}`,'#ff7038');
+  flashDamage();
+  if(p.hp<=0) gameOver(g);
+}
+
+function debugChargingWaveMetrics(g){
+  const cw=ensureChargingWaveState(g);
+  const can=canSpawnChargingWave(g);
+  return {
+    enabled:!!cw.enabled,
+    active:!!cw.active,
+    warning:!!cw.warningActive,
+    timeSinceLast:(g.time||0)-(cw.lastSpawnTime||0),
+    nextAllowed:Math.max(0,(cw.nextAllowedTime||0)-(g.time||0)),
+    alive:(g.enemies||[]).filter(e=>e.isChargingWaveEnemy && e.hp>0).length,
+    budget:Math.max(0,(g.enemyBudget?.currentMaxEnemies||0)-(g.enemies?.length||0)),
+    skip: can.ok ? cw.lastSkipReason || 'Ready' : can.reason
+  };
 }
 
 function addObjectiveProgress(g,id,amount){
@@ -2220,6 +2572,10 @@ function updateEnemies(g,dt){
   for(const e of g.enemies){
     e.hitFlash=Math.max(0,e.hitFlash-dt);
     e.slow=Math.max(0,e.slow-dt);
+    if(e.isChargingWaveEnemy || (ENEMY_TYPES[e.type]?.behavior || e.behavior) === 'chargingExploder') {
+      updateChargingWaveEnemy(g,e,dt);
+      continue;
+    }
     if((ENEMY_TYPES[e.type]?.behavior || e.behavior) === 'hexBoomerangDetonator') {
       updateHexShardEnemy(g,e,dt);
       continue;
@@ -2669,6 +3025,7 @@ function updateEnemyBullets(g,dt){
 function killEnemy(g,e){
   if(g.runStats){
     g.runStats.enemiesKilled=(g.runStats.enemiesKilled||0)+1;
+    if(e.isChargingWaveEnemy) g.runStats.chargingWaveEnemiesKilled=(g.runStats.chargingWaveEnemiesKilled||0)+1;
     const roleStat=ENEMY_TYPES[e.type]?.role || e.role || 'normal';
     if(roleStat==='elite') g.runStats.elitesKilled=(g.runStats.elitesKilled||0)+1;
     if(roleStat==='boss' || e.type==='boss' || e.type==='hollowTyrantVariant') g.runStats.bossesKilled=(g.runStats.bossesKilled||0)+1;
@@ -2733,6 +3090,7 @@ const VFX_COMPOSITIONS = {
   arcOverload: { theme:'arc', radius:52, color:'#5dff9a' },
   stormLatticeHit: { theme:'arc', radius:30, color:'#7df9ff' },
   destructiveImpact: { theme:'destructive', radius:46, color:'#ff7038' },
+  chargingWaveExplosion: { theme:'lava', radius:95, color:'#ff7038', large:true },
 };
 
 function spawnVfxComposition(g,name,x,y,options={}){

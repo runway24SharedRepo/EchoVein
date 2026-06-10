@@ -15,7 +15,9 @@ function createRunStats(){
     shotsFired:0, shotsHit:0, dashesUsed:0, trapsPlaced:0, dronesDeployed:0, dronesPeak:0,
     missilesFired:0, boomerangsFired:0, arcDetonations:0, lavaDamageTaken:0,
     objectivesCompleted:0, causeOfEnd:null, endTitle:null, samples:[], lastX:null, lastY:null,
-    maxEnemiesAlive:0, criticalHealthTime:0, miningTime:0
+    maxEnemiesAlive:0, criticalHealthTime:0, miningTime:0,
+    chargingWavesSpawned:0, chargingWaveEnemiesSpawned:0, chargingWaveEnemiesKilled:0, chargingWaveEnemiesExploded:0,
+    damageTakenFromChargingWaves:0, blocksBrokenByChargingWaves:0, oresDestroyedByChargingWaves:0
   };
 }
 
@@ -94,7 +96,12 @@ function runStatsSummaryHtml(g){
   const cards=[
     ['Duration',formatDuration(s.durationSec)], ['Kills',s.enemiesKilled||0], ['Elites',s.elitesKilled||0], ['Bosses',s.bossesKilled||0],
     ['Level',s.playerLevelMax||g.level||1], ['Resources',totalRunResources(s)], ['Damage dealt',Math.round(s.damageDealt||0)], ['Damage taken',Math.round(s.damageTaken||0)],
-    ['Accuracy',`${runAccuracy(s).toFixed(1)}%`], ['Blocks mined',s.blocksMined||0], ['Dashes',s.dashesUsed||0], ['Traps',s.trapsPlaced||0]
+    ['Accuracy',`${runAccuracy(s).toFixed(1)}%`], ['Blocks mined',s.blocksMined||0], ['Dashes',s.dashesUsed||0], ['Traps',s.trapsPlaced||0],
+    ...((s.chargingWavesSpawned||0)>0 ? [
+      ['Charging waves',s.chargingWavesSpawned||0], ['Rift Chargers',s.chargingWaveEnemiesSpawned||0],
+      ['Chargers exploded',s.chargingWaveEnemiesExploded||0], ['Wave damage',Math.round(s.damageTakenFromChargingWaves||0)],
+      ['Wave blocks broken',s.blocksBrokenByChargingWaves||0]
+    ] : [])
   ].map(([k,v])=>`<div class="statCard"><span>${k}</span><b>${v}</b></div>`).join('');
   return `<div class="runStatsSummary"><div class="statCards">${cards}</div><h3>Resource Breakdown</h3><div class="resourceBreakdown">${resRows}</div></div>`;
 }
