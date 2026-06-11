@@ -56,6 +56,7 @@ function render(g){
   drawPickups(g);
   drawTargetLocks(g);
   drawMissiles(g);
+  drawBorecasterBombs(g);
   drawEnemyBoomerangs(g);
   drawEnemyBullets(g);
   drawBullets(g);
@@ -540,6 +541,44 @@ function drawBullets(g){
   }
 }
 
+
+
+function drawBorecasterBombs(g){
+  for(const b of g.borecasterBombs || []){
+    const fuseRatio=clamp((b.fuseTime || 0)/(b.maxFuseTime || 1),0,1);
+    if(!b.grounded){
+      const markerSize=(b.blastRadius || 90)*2;
+      drawSpriteCentered(ctx,'borecasterBombLandingMarker',b.landingX,b.landingY,markerSize,markerSize,{alpha:0.16+0.10*Math.sin(g.time*8),rotation:g.time*0.5,glowColor:'#ffcc4d',glowBlur:8});
+    }
+    ctx.save();
+    ctx.strokeStyle='rgba(255,204,77,0.30)';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    for(let i=0;i<b.trail.length;i++){
+      const t=b.trail[i];
+      if(i===0) ctx.moveTo(t.x,t.y); else ctx.lineTo(t.x,t.y);
+    }
+    ctx.stroke();
+    for(const t of b.trail){
+      drawSpriteCentered(ctx,'borecasterBombThrowTrail',t.x,t.y,24,24,{alpha:clamp(t.life/0.18,0,1)*0.28,rotation:b.rotation,additive:true});
+    }
+    ctx.translate(b.x,b.y);
+    const pulse=0.5+0.5*Math.sin(g.time*18 + b.age*4);
+    const size=b.grounded ? 28+2*pulse : 25;
+    const drawn=drawSpriteCentered(ctx,'borecasterBombLit',0,0,size,size,{rotation:b.rotation,glowColor:fuseRatio<0.35?'#ff3d22':'#ffcc4d',glowBlur:fuseRatio<0.35?22:12});
+    if(!drawn){
+      ctx.fillStyle=fuseRatio<0.35?'#ff7038':'#ffcc4d';
+      ctx.strokeStyle='#2b1a10';
+      ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    }
+    drawSpriteCentered(ctx,'borecasterBombFuseSpark',5,-11,14+5*pulse,14+5*pulse,{alpha:0.72+0.28*pulse,rotation:g.time*8,glowColor:'#ffecb3',glowBlur:14,additive:true});
+    ctx.strokeStyle=`rgba(255,204,77,${0.25+0.35*(1-fuseRatio)})`;
+    ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(0,0,18, -Math.PI/2, -Math.PI/2 + Math.PI*2*(1-fuseRatio)); ctx.stroke();
+    ctx.restore();
+  }
+}
 
 function drawEnemyBoomerangs(g){
   for(const b of g.enemyBoomerangs || []){

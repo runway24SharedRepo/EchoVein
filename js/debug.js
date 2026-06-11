@@ -129,7 +129,7 @@ function debugSpawnVoltariteNode(){
 
 function debugClearEnemies(){ if(requireGame()){ game.enemies=[]; game.arcConnection.selectedEnemies=[]; debugLog('Cleared enemies.'); updateGameAfterDebug(); } }
 function debugClearPickups(){ if(requireGame()){ game.pickups=[]; debugLog('Cleared pickups.'); updateGameAfterDebug(); } }
-function debugClearProjectiles(){ if(requireGame()){ game.bullets=[]; game.enemyBullets=[]; game.missiles=[]; game.targetLocks=[]; game.boomerangs=[]; game.enemyBoomerangs=[]; game.arcs=[]; game.particles=[]; debugLog('Cleared projectiles and transient VFX.'); } }
+function debugClearProjectiles(){ if(requireGame()){ game.bullets=[]; game.enemyBullets=[]; game.missiles=[]; game.borecasterBombs=[]; game.targetLocks=[]; game.boomerangs=[]; game.enemyBoomerangs=[]; game.arcs=[]; game.particles=[]; debugLog('Cleared projectiles and transient VFX.'); } }
 function debugHealPlayer(){ if(requireGame()){ game.player.hp=game.player.maxHp; debugLog('Healed player to full HP.'); updateGameAfterDebug(); } }
 function debugAddXp(){ if(requireGame()){ gainXp(game, Math.max(10, Math.floor(game.xpNeed*0.55))); debugLog('Added XP.'); updateGameAfterDebug(); } }
 function debugForceLevelUp(){ if(requireGame()){ gainXp(game, game.xpNeed - game.xp + 1); debugLog('Forced level-up.'); updateGameAfterDebug(); } }
@@ -151,6 +151,22 @@ function debugSpawnResource(resourceId, amount=8){
 }
 function debugUnlockVectorBurst(){ if(requireGame()){ addOrLevelWeapon(game,'vectorBurst'); debugLog('Vector Burst unlocked.'); updateGameAfterDebug(); } }
 function debugVectorBurstCount(){ if(requireGame()){ upgradeVectorBurst(game,'count'); updateGameAfterDebug(); } }
+function debugUnlockBorecasterBomb(){ if(requireGame()){ unlockBorecasterBomb(game); debugLog('Seismic Charge unlocked/tested for Borecaster.'); updateGameAfterDebug(); } }
+function debugBorecasterBombCount(){ if(requireGame()){ upgradeBorecasterBomb(game,'count'); debugLog('Seismic Charge count upgraded.'); updateGameAfterDebug(); } }
+function debugBorecasterBombFuse(){ if(requireGame()){ upgradeBorecasterBomb(game,'fuse'); debugLog('Seismic Charge fuse upgraded.'); updateGameAfterDebug(); } }
+function debugBorecasterBombRadius(){ if(requireGame()){ upgradeBorecasterBomb(game,'radius'); debugLog('Seismic Charge radius upgraded.'); updateGameAfterDebug(); } }
+function debugThrowBorecasterBomb(){
+  if(!requireGame()) return;
+  let w=game.weapons.find(w=>w.id==='borecasterBomb');
+  if(!w) w=unlockBorecasterBomb(game);
+  if(!w) return;
+  w.cd=0;
+  const a=game.player.lastDx!=null ? Math.atan2(game.player.lastDy||0,game.player.lastDx||1) : 0;
+  const target={x:game.player.x+Math.cos(a)*430,y:game.player.y+Math.sin(a)*430};
+  throwBorecasterBomb(game,w,target);
+  debugLog('Threw Seismic Charge test bomb.');
+  updateGameAfterDebug();
+}
 function debugSetPressure(level){ if(requireGame()){ game.hollowPressure=Math.max(0,Math.floor(level)); game.nextPressureTime=(game.hollowPressure+1)*120; game.pressureFlash=2; debugLog(`Set Hollow Pressure to ${game.hollowPressure}.`); updateGameAfterDebug(); } }
 function debugForceElitePattern(){ if(requireGame()){ game.hollowPressure=Math.max(game.hollowPressure||0,4); debugSpawnEnemies('elite',1); debugLog('Spawned high-pressure multi-shot elite.'); updateGameAfterDebug(); } }
 function debugSpawnEscalatedBoss(){ if(requireGame()){ game.hollowPressure=Math.max(game.hollowPressure||0,5); debugSpawnEnemies('boss',1); debugLog('Spawned escalated boss profile.'); updateGameAfterDebug(); } }
@@ -780,6 +796,14 @@ function buildDebugPanel(){
     makeDebugButton('Spawn Multi-Shot Elite',debugForceElitePattern),
     makeDebugButton('Spawn Escalated Boss',debugSpawnEscalatedBoss)
   ]);
+  addDebugSection(panel,'Borecaster Seismic Charge',[
+    makeDebugButton('Unlock Seismic Charge',debugUnlockBorecasterBomb),
+    makeDebugButton('+1 Bomb Count',debugBorecasterBombCount),
+    makeDebugButton('Shorter Fuse',debugBorecasterBombFuse),
+    makeDebugButton('Larger Radius',debugBorecasterBombRadius),
+    makeDebugButton('Throw Test Bomb',debugThrowBorecasterBomb)
+  ]);
+
   addDebugSection(panel,'Spawns & Clears',[
     makeDebugButton('Spawn 5 weak enemies',()=>debugSpawnEnemies('grunt',5)),
     makeDebugButton('Spawn small ranged pack',debugSpawnSmallRanged),

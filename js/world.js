@@ -164,6 +164,56 @@ function ensureHammerfallDefaults(w){
   return w;
 }
 
+function borecasterBombBaseState(){
+  return {
+    bombCount: 1,
+    fuseTime: 2.4,
+    minFuseTime: 0.75,
+    blastRadius: 90,
+    damage: 115,
+    throwSpeed: 520,
+    baseCooldown: 3.6,
+    landingDistance: 460
+  };
+}
+
+function ensureBorecasterBombDefaults(w){
+  if(!w || w.id !== 'borecasterBomb') return w;
+  const base = borecasterBombBaseState();
+  for(const [key,value] of Object.entries(base)){
+    if(w[key] == null) w[key] = value;
+  }
+  w.bombCount = Math.max(1, Math.floor(w.bombCount));
+  w.fuseTime = clamp(w.fuseTime, w.minFuseTime || 0.75, 3.5);
+  w.blastRadius = Math.max(55, w.blastRadius);
+  return w;
+}
+
+function unlockBorecasterBomb(g){
+  if(g.player.classId !== 'borecaster'){
+    log(g, 'Seismic Charge is Borecaster-only.');
+    return null;
+  }
+  const existing = g.weapons.find(w=>w.id==='borecasterBomb');
+  if(existing){
+    ensureBorecasterBombDefaults(existing);
+    log(g, 'Seismic Charge already rigged.');
+    return existing;
+  }
+  return addOrLevelWeapon(g,'borecasterBomb');
+}
+
+function upgradeBorecasterBomb(g,kind){
+  const w = ensureBorecasterBombDefaults(g.weapons.find(w=>w.id==='borecasterBomb'));
+  if(!w){ log(g, 'Seismic Charge must be unlocked first.'); return; }
+  if(kind === 'count') w.bombCount += 1;
+  else if(kind === 'fuse') w.fuseTime = Math.max(w.minFuseTime || 0.75, w.fuseTime - 0.25);
+  else if(kind === 'radius') w.blastRadius += 18;
+  else if(kind === 'damage') w.damage *= 1.12;
+  w.level++;
+  log(g, `Seismic Charge ${kind} upgrade applied. ${w.bombCount} bomb(s), ${w.fuseTime.toFixed(2)} s fuse, ${Math.round(w.blastRadius)} px radius.`);
+}
+
 function unlockHammerfallSalvo(g){
   if(g.player.classId !== 'bulwark'){
     log(g, 'Hammerfall Salvo is Bulwark-only.');
@@ -204,6 +254,7 @@ function addOrLevelWeapon(g,id){
   let w = g.weapons.find(w=>w.id===id);
   if(w){
     if(id==='hammerfallSalvo') ensureHammerfallDefaults(w);
+    if(id==='borecasterBomb') ensureBorecasterBombDefaults(w);
     w.level++;
     log(g, `${weaponName(id)} upgraded to Mk ${w.level}`);
     return w;
@@ -216,6 +267,10 @@ function addOrLevelWeapon(g,id){
     Object.assign(w, hammerfallBaseState());
     // Short arming delay prevents immediate frame-0 salvo spam after unlock/debug unlock.
     w.cd = 0.85;
+  }
+  if(id==='borecasterBomb'){
+    Object.assign(w, borecasterBombBaseState());
+    w.cd = 0.65;
   }
   g.weapons.push(w);
   log(g, `${weaponName(id)} online`);

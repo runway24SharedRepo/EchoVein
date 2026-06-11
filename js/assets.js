@@ -45,6 +45,22 @@ const SPRITES = {
   vectorBurstIcon: 'assets/sprites/vector_burst_icon.png',
   extractionCraft: 'assets/sprites/extraction_craft.png',
 
+  // Borecaster Seismic Charge throwable bomb sprites and VFX.
+  borecasterBombIdle: 'assets/sprites/borecaster_bomb_idle.png',
+  borecasterBombLit: 'assets/sprites/borecaster_bomb_lit.png',
+  borecasterBombDouble: 'assets/sprites/borecaster_bomb_double.png',
+  borecasterBombTriple: 'assets/sprites/borecaster_bomb_triple.png',
+  borecasterBombCountIcon: 'assets/sprites/borecaster_bomb_count_upgrade_icon.png',
+  borecasterBombFuseIcon: 'assets/sprites/borecaster_bomb_fuse_upgrade_icon.png',
+  borecasterBombRadiusIcon: 'assets/sprites/borecaster_bomb_radius_upgrade_icon.png',
+  borecasterBombExplosionCore: 'assets/sprites/borecaster_bomb_explosion_core.png',
+  borecasterBombExplosionFragments: 'assets/sprites/borecaster_bomb_explosion_fragments.png',
+  borecasterBombExplosionShockwave: 'assets/sprites/borecaster_bomb_explosion_shockwave.png',
+  borecasterBombExplosionSmoke: 'assets/sprites/borecaster_bomb_explosion_smoke.png',
+  borecasterBombThrowTrail: 'assets/sprites/borecaster_bomb_throw_trail.png',
+  borecasterBombFuseSpark: 'assets/sprites/borecaster_bomb_fuse_spark.png',
+  borecasterBombLandingMarker: 'assets/sprites/borecaster_bomb_landing_marker.png',
+
 
   // Explosion VFX pack.
   explosionCoreFlash01: 'assets/sprites/vfx/explosion_core_flash_01.png',
@@ -132,6 +148,16 @@ const EXPLOSION_VFX_SPRITES = {
   lavaBurst: ['explosionLavaBurst01','explosionLavaBurst02'],
   hexShardBurst: ['explosionHexShardBurst01','explosionHexShardBurst02'],
   arcOverload: ['explosionArcOverload01','explosionArcOverload02'],
+};
+
+const BORECASTER_BOMB_VFX_SPRITES = {
+  core: 'borecasterBombExplosionCore',
+  fragments: 'borecasterBombExplosionFragments',
+  shockwave: 'borecasterBombExplosionShockwave',
+  smoke: 'borecasterBombExplosionSmoke',
+  trail: 'borecasterBombThrowTrail',
+  spark: 'borecasterBombFuseSpark',
+  marker: 'borecasterBombLandingMarker'
 };
 
 const spriteImages = Object.create(null);

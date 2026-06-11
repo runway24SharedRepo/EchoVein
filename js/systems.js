@@ -233,6 +233,7 @@ function update(g,dt){
   updateEnemyBoomerangs(g,dt);
   updateEnemyBullets(g,dt);
   updateMissiles(g,dt);
+  updateBorecasterBombs(g,dt);
   if(g.state !== 'playing') return;
   updateArcConnection(g,dt);
   updateBullets(g,dt);
@@ -2120,6 +2121,137 @@ function missileImpact(g,m,target){
   }
 }
 
+
+function throwBorecasterBomb(g,w,target){
+  ensureBorecasterBombDefaults(w);
+  if(!g.borecasterBombs) g.borecasterBombs=[];
+  const p=g.player;
+  const count=Math.max(1,Math.floor(w.bombCount || 1));
+  const baseAngle=Math.atan2(target.y-p.y,target.x-p.x);
+  const spread=count===1 ? 0 : Math.min(0.62,0.13*(count-1));
+  const maxActive=Math.max(8,count*3+3);
+  if(g.borecasterBombs.length>=maxActive) return false;
+  for(let i=0;i<count;i++){
+    const t=count===1 ? 0 : (i/(count-1)-0.5);
+    const a=baseAngle + t*spread + rand(-0.035,0.035);
+    const throwSpeed=(w.throwSpeed || 520)*rand(0.92,1.05);
+    const landingDistance=(w.landingDistance || 460)*rand(0.72,1.04);
+    g.borecasterBombs.push({
+      x:p.x+Math.cos(a)*(p.r+8), y:p.y+Math.sin(a)*(p.r+8),
+      vx:Math.cos(a)*throwSpeed, vy:Math.sin(a)*throwSpeed,
+      rotation:rand(0,Math.PI*2), spin:rand(-8,8),
+      age:0, travelTime:clamp(landingDistance/Math.max(1,throwSpeed),0.32,0.86),
+      fuseTime:w.fuseTime, maxFuseTime:w.fuseTime,
+      blastRadius:w.blastRadius, damage:w.damage*p.damageMul,
+      r:10, grounded:false, owner:'player', trail:[],
+      landingX:clamp(p.x+Math.cos(a)*landingDistance,TILE*2,WORLD_W-TILE*2),
+      landingY:clamp(p.y+Math.sin(a)*landingDistance,TILE*2,WORLD_H-TILE*2)
+    });
+  }
+  if(g.runStats) g.runStats.borecasterBombsThrown=(g.runStats.borecasterBombsThrown||0)+count;
+  w.cd=Math.max(0.85,(w.baseCooldown || 3.6) - (w.level-1)*0.06);
+  sfx('shoot',0.55);
+  return true;
+}
+
+function updateBorecasterBombs(g,dt){
+  if(!g.borecasterBombs) return;
+  for(const b of g.borecasterBombs){
+    b.age+=dt;
+    b.fuseTime-=dt;
+    b.rotation=(b.rotation || 0)+(b.spin || 0)*dt;
+    b.trail.push({x:b.x,y:b.y,life:0.18});
+    if(b.trail.length>14) b.trail.shift();
+    for(const t of b.trail) t.life-=dt;
+    b.trail=b.trail.filter(t=>t.life>0);
+    if(!b.grounded){
+      b.x+=b.vx*dt; b.y+=b.vy*dt;
+      const [tx,ty]=worldToTile(b.x,b.y);
+      if(isSolid(tileAt(g,tx,ty)) || b.age>=b.travelTime){
+        b.grounded=true;
+        b.x=clamp(b.x,TILE*2,WORLD_W-TILE*2);
+        b.y=clamp(b.y,TILE*2,WORLD_H-TILE*2);
+        b.vx*=0.12; b.vy*=0.12;
+        addRing(g,b.x,b.y,'rgba(255,204,77,0.45)',0.22,6,24,2);
+      }else{
+        b.vx*=Math.pow(0.52,dt);
+        b.vy*=Math.pow(0.52,dt);
+      }
+    }else{
+      b.x+=b.vx*dt; b.y+=b.vy*dt;
+      b.vx*=Math.pow(0.06,dt); b.vy*=Math.pow(0.06,dt);
+      if(Math.random()<0.35){
+        addParticle(g,b.x+rand(-4,4),b.y-8+rand(-2,2),rand(-25,25),rand(-65,-20),'#ffcc4d',rand(0.08,0.16),rand(2,4),'spark');
+      }
+    }
+    if(b.fuseTime<=0){
+      explodeBorecasterBomb(g,b);
+      b.dead=true;
+    }
+  }
+  g.borecasterBombs=g.borecasterBombs.filter(b=>!b.dead && b.x>-160 && b.y>-160 && b.x<WORLD_W+160 && b.y<WORLD_H+160);
+}
+
+function explodeBorecasterBomb(g,b){
+  const r=b.blastRadius || 90;
+  const damage=b.damage || 110;
+  if(g.runStats) g.runStats.borecasterBombsExploded=(g.runStats.borecasterBombsExploded||0)+1;
+  shake=Math.max(shake,10);
+  for(const e of g.enemies){
+    if(e.hp<=0) continue;
+    const d=Math.hypot(e.x-b.x,e.y-b.y);
+    if(d<r+e.r){
+      const falloff=0.42+0.58*clamp(1-d/(r+e.r),0,1);
+      damageEnemy(g,e,damage*falloff,'#ffcc4d');
+    }
+  }
+  damageMineableTilesInRadius(g,b.x,b.y,r,damage*0.42);
+  spawnBorecasterBombExplosionVfx(g,b.x,b.y,r);
+  addRing(g,b.x,b.y,'rgba(255,244,214,0.98)',0.16,4,r*0.82,6);
+  addRing(g,b.x,b.y,'rgba(255,159,67,0.88)',0.28,8,r*1.12,7);
+  for(let k=0;k<22;k++){
+    const a=rand(0,Math.PI*2), sp=rand(120,360);
+    addParticle(g,b.x,b.y,Math.cos(a)*sp,Math.sin(a)*sp,k%3?'#ff9f43':'#ffecb3',rand(0.18,0.46),rand(3,8),'spark');
+  }
+  sfx('explosion',1.15);
+}
+
+function damageMineableTilesInRadius(g,x,y,r,damage){
+  const minx=worldToTileX(x-r), maxx=worldToTileX(x+r);
+  const miny=worldToTileY(y-r), maxy=worldToTileY(y+r);
+  for(let ty=miny;ty<=maxy;ty++) for(let tx=minx;tx<=maxx;tx++){
+    if(!inMap(tx,ty)) continue;
+    const i=tileIdx(tx,ty);
+    const t=g.tiles[i];
+    if(!isMineableTile(t)) continue;
+    const cx=tileToWorldCenterX(tx), cy=tileToWorldCenterY(ty);
+    const d=Math.hypot(cx-x,cy-y);
+    if(d>r+TILE*0.45) continue;
+    g.tileHp[i]-=damage*(0.35+0.65*clamp(1-d/(r+TILE*0.45),0,1));
+    if(g.tileHp[i]<=0){
+      g.tiles[i]=TILE_EMPTY;
+      g.tileHp[i]=0;
+      g.navigationVersion=(g.navigationVersion||0)+1;
+      if(g.runStats) g.runStats.blocksMined=(g.runStats.blocksMined||0)+1;
+    }
+  }
+}
+
+function spawnBorecasterBombExplosionVfx(g,x,y,r){
+  if(typeof BORECASTER_BOMB_VFX_SPRITES==='undefined'){
+    spawnVfxComposition(g,'seismicCharge',x,y,{radius:r,color:'#ffcc4d'});
+    return;
+  }
+  const perfMul = g.debug?.forceFullVfx ? 1 : clamp(g.performance?.vfxFactor ?? 1, 0.45, 1);
+  const core=Math.max(42,r*1.08), shock=Math.max(70,r*2.05), frag=Math.max(54,r*1.55), smoke=Math.max(76,r*2.10);
+  addSpriteParticle(g,BORECASTER_BOMB_VFX_SPRITES.core,x,y,0.14,core,{targetSize:core*1.28,rotation:rand(0,Math.PI*2),spin:rand(-2,2),glowColor:'#ffcc4d',glowBlur:22,additive:true,important:true});
+  addSpriteParticle(g,BORECASTER_BOMB_VFX_SPRITES.fragments,x,y,0.28,frag,{targetSize:frag*1.18,rotation:rand(0,Math.PI*2),spin:rand(-3.2,3.2),glowColor:'#ff9f43',glowBlur:14,additive:true,important:true});
+  addSpriteParticle(g,BORECASTER_BOMB_VFX_SPRITES.shockwave,x,y,0.32,shock*0.70,{targetSize:shock,rotation:rand(0,Math.PI*2),alphaMul:0.80,glowColor:'#ffcc4d',glowBlur:12,additive:true,important:true});
+  if(perfMul>0.55){
+    addSpriteParticle(g,BORECASTER_BOMB_VFX_SPRITES.smoke,x,y,0.62,smoke*0.82,{targetSize:smoke*1.12,rotation:rand(0,Math.PI*2),spin:rand(-0.6,0.6),alphaMul:0.55,important:true});
+  }
+}
+
 function updateWeapons(g,dt){
   const p=g.player;
   const manualMode = mouseManualFireActive(g);
@@ -2128,6 +2260,14 @@ function updateWeapons(g,dt){
     w.cd -= dt * p.fireRateMul;
     if(w.id==='hammerfallSalvo'){
       updateHammerfallSalvo(g,w,dt);
+      continue;
+    }
+    if(w.id==='borecasterBomb'){
+      ensureBorecasterBombDefaults(w);
+      if(w.cd<=0 && !manualMode){
+        const e=targetEnemy(g,700);
+        if(e) throwBorecasterBomb(g,w,e);
+      }
       continue;
     }
     if(w.id==='drones'){
@@ -2254,6 +2394,9 @@ function fireManualWeapon(g,w){
     w.cd=Math.max(0.58,1.45-w.level*0.12);
     fireArcChain(g,e,w.level);
     sfx('arc', 0.9);
+  } else if(w.id==='borecasterBomb'){
+    const m = mouseWorld(g);
+    if(throwBorecasterBomb(g,w,m)) sfx('shoot',0.55);
   } else if(w.id==='satchel'){
     const m = mouseWorld(g);
     w.cd=Math.max(1.6,4.4-w.level*0.35);
