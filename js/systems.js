@@ -1693,7 +1693,7 @@ function manualAimActive(g){
 }
 
 function mouseTargetActive(g){
-  return manualAimActive(g);
+  return getFogSettings().manualMouseControlEnabled && manualAimActive(g);
 }
 
 function mouseManualFireActive(g){
@@ -3450,7 +3450,8 @@ function openUpgrade(g){
   awaitingUpgrade=true;
   ui.upgradeCards.innerHTML='';
   const choices=[];
-  const pool=UPGRADE_POOL.filter(up=>(!up.allowedClasses || up.allowedClasses.includes(g.player.classId)) && (!up.available || up.available(g)));
+  const settings = getFogSettings();
+  const pool=UPGRADE_POOL.filter(up=>(!up.allowedClasses || up.allowedClasses.includes(g.player.classId)) && (!up.available || up.available(g)) && (settings.manualMouseControlEnabled || !up.requiresMouseControl));
   while(choices.length<3 && pool.length){
     const idx=randi(0,pool.length-1);
     choices.push(pool.splice(idx,1)[0]);

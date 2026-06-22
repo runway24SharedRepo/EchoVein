@@ -355,6 +355,14 @@ function showSettingsMenu(){
   `;
   panel.appendChild(fogRow);
 
+  const mouseRow=document.createElement('label');
+  mouseRow.className='settingsRow';
+  mouseRow.innerHTML=`
+    <span><b>Enable manual mouse control</b><small>Allow mouse-guided targeting and related upgrades.</small></span>
+    <input id="manualMouseToggle" type="checkbox" ${settings.manualMouseControlEnabled?'checked':''}>
+  `;
+  panel.appendChild(mouseRow);
+
   const presetRow=document.createElement('div');
   presetRow.className='settingsRow settingsPresetRow';
   presetRow.innerHTML=`<span><b>Fog Intensity</b><small>Optional accessibility preset for visibility radius and darkness.</small></span>`;
@@ -377,6 +385,10 @@ function showSettingsMenu(){
   ui.menuContent.appendChild(panel);
   document.getElementById('fogToggle').addEventListener('change',ev=>{
     setFogOfWarEnabled(ev.target.checked);
+  });
+  document.getElementById('manualMouseToggle').addEventListener('change',ev=>{
+    setManualMouseControlEnabled(ev.target.checked);
+    showSettingsMenu();
   });
   addMenuButton('Back',showMainMenu);
 }

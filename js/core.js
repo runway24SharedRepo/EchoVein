@@ -134,7 +134,8 @@ const DEFAULT_SETTINGS = {
   fogOfWarRadius: 280,
   fogOfWarSoftEdge: 160,
   fogOfWarIntensity: 0.78,
-  fogOfWarMemoryEnabled: false
+  fogOfWarMemoryEnabled: false,
+  manualMouseControlEnabled: true
 };
 let gameSettings = loadSettings();
 
@@ -163,6 +164,11 @@ function getFogSettings(){
 
 function setFogOfWarEnabled(enabled){
   gameSettings.fogOfWarEnabled = !!enabled;
+  saveSettings();
+}
+
+function setManualMouseControlEnabled(enabled){
+  gameSettings.manualMouseControlEnabled = !!enabled;
   saveSettings();
 }
 
@@ -223,7 +229,7 @@ const UPGRADE_POOL = [
   { icon:'🛡️', name:'Armour Plates', desc:'+25 max HP and repair 20 HP.', apply:g=>{g.player.maxHp+=25; g.player.hp=Math.min(g.player.maxHp,g.player.hp+20);} },
   { icon:'👟', name:'Mag Boots', desc:'+10% movement speed.', apply:g=>g.player.speedMul*=1.10 },
   { icon:'🧲', name:'Resonance Magnet', desc:'+35% Echo Shard and mineral pickup range.', apply:g=>g.player.pickupMul*=1.35 },
-  { icon:'🖱️', name:'Targeting Cursor', desc:'Unlock mouse-guided targeting. Move the cursor near a Hollowborn to bias player weapons toward it.', available:g=>!g.player.mouseTargeting, apply:g=>{ g.player.mouseTargeting=true; log(g,'Targeting Cursor linked. Move the mouse to guide player weapons.'); } },
+  { icon:'🖱️', name:'Targeting Cursor', desc:'Unlock mouse-guided targeting. Move the cursor near a Hollowborn to bias player weapons toward it.', requiresMouseControl:true, available:g=>!g.player.mouseTargeting, apply:g=>{ g.player.mouseTargeting=true; log(g,'Targeting Cursor linked. Move the mouse to guide player weapons.'); } },
   { icon:'🔗', spriteId:'arcConnectionIcon', name:'Arc Connection', desc:'Right-click enemies to chain them with green links. Right-click empty space with 2+ selected to detonate.', apply:g=>{ g.arcConnection.unlocked=true; g.arcConnection.level++; g.arcConnection.maxTargets=1+g.arcConnection.level; log(g, `Arc Connection Mk ${g.arcConnection.level}: ${g.arcConnection.maxTargets} target chain ready.`); } },
   { icon:'🔷', name:'Sifter Drone', desc:'Adds a utility drone that roams out and collects Echo Shards for you.', apply:g=>addOrLevelWeapon(g,'sweeper') },
   { icon:'⛏️', name:'Tungsten Bore Bit', desc:'+35% mining speed and less heat per tile.', apply:g=>{g.player.mineMul*=1.35; g.player.heatEfficiency*=0.86;} },
@@ -405,6 +411,7 @@ function getGamepadLeftNav(){
 
 function currentManualAimActive(g){
   if(!g || !mouse.used) return false;
+  if(!getFogSettings().manualMouseControlEnabled) return false;
   const realNow = performance.now()/1000;
   const gameRecent = g.time - mouse.lastMove < 2;
   const realRecent = realNow - manualAimLastMoveRealTime < 2;
