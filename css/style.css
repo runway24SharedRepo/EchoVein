@@ -135,6 +135,8 @@
     color: var(--muted);
   }
   .chip b { color: #fff; }
+  .chip.locked { border-color: rgba(255,75,75,0.8); background: rgba(255,75,75,0.12); color: #ff9999; }
+  .chip.unlocked { border-color: rgba(114,255,118,0.8); background: rgba(89,255,105,0.14); color: #d4ffd4; }
 
   .bottomHelp {
     position: absolute;
