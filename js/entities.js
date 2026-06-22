@@ -272,7 +272,7 @@ function makeGame(cls){
     missionIndex:saveProfile?.missionIndex || 1,
     runIndex:saveProfile?.runIndex || 1,
     missionDifficulty:saveProfile ? missionDifficulty(saveProfile.missionIndex) : missionDifficulty(1),
-    objectives:saveProfile ? currentRunObjectives() : [],
+    objectives:[],
     bossSpawned:false,
     bossDefeated:false,
     extraction:null,
@@ -290,6 +290,8 @@ function makeGame(cls){
     runStats:(typeof createRunStats==='function' ? createRunStats() : null)
   };
   generateCave(g);
+  g.objectives = saveProfile ? currentRunObjectives() : [];
+  addMineableBlockObjective(g);
   applyPermanentUpgrades(g);
   addOrLevelWeapon(g, cls.weapon);
   if(cls.id === 'borecaster'){

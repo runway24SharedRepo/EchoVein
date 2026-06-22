@@ -575,6 +575,7 @@ function mineTile(g,p,tx,ty,dt){
   if(g.tileHp[i]<=0){
     g.tiles[i]=TILE_EMPTY;
     if(g.runStats) g.runStats.blocksMined=(g.runStats.blocksMined||0)+1;
+    addObjectiveProgress(g,'mine_blocks',1);
     g.tileHp[i]=0;
     g.navigationVersion++;
     for(const e of g.enemies){

@@ -18,6 +18,30 @@ function isSolid(t){ return t===TILE_ROCK || t===TILE_HARD || t===TILE_GOLD || t
 function isMineableTile(t){ return t===TILE_ROCK || t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL || t===TILE_FERRITE_BARK || t===TILE_LUMINA_SPORES || t===TILE_AETHER_QUARTZ || t===TILE_CRYSALITH || t===TILE_EMBERGLASS; }
 function isObstacleTile(t){ return t===TILE_LAVA_ROCK; }
 
+function countMineableTiles(g){
+  let total=0;
+  for(let i=0;i<g.tiles.length;i++){
+    if(isMineableForPlayer(g.tiles[i])) total++;
+  }
+  return total;
+}
+
+function addMineableBlockObjective(g){
+  if(!g.objectives) g.objectives=[];
+  const total=countMineableTiles(g);
+  const target=Math.max(1, Math.ceil(total*0.35));
+  g.objectives.push({
+    id:'mine_blocks',
+    type:'mineBlocks',
+    displayName:`Mine ${target} mineable blocks`,
+    targetAmount:target,
+    currentAmount:0,
+    completed:false
+  });
+  g.mineableBlocksTotal=total;
+  g.mineableBlocksTarget=target;
+}
+
 function generateCave(g){
   for(let y=0;y<MAP_H;y++) for(let x=0;x<MAP_W;x++) {
     const i=tileIdx(x,y);
