@@ -3215,7 +3215,9 @@ function updateBullets(g,dt){
 function damageEnemy(g,e,amount,color){
   if(typeof recordRunDamageDealt==='function') recordRunDamageDealt(g,amount);
   if((color==='#7df9ff' || color==='#5dff9a') && g.player.arcDamageMul) amount*=g.player.arcDamageMul;
-  e.hp-=amount; e.hitFlash=0.08; e.slow=Math.max(e.slow,0.05);
+  const damage = Math.max(1, Math.round(amount));
+  e.hp-=damage; e.hitFlash=0.08; e.slow=Math.max(e.slow,0.05);
+  floating(g,e.x,e.y - e.r - 10, `-${damage}`, color || '#ffffff');
   if(Math.random()<0.25) addParticle(g,e.x,e.y,rand(-70,70),rand(-70,70),color,rand(0.18,0.35),rand(2,5));
 }
 

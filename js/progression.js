@@ -191,8 +191,8 @@ function currentRunObjectives(){
     const target=Math.floor((base+run*perRun+mission*1.5)*diff.objectiveMultiplier);
     result.push({ id:`collect_${resourceId}`, type:'collectResource', resourceId, displayName:`Collect ${target} ${mineral.displayName}`, targetAmount:target, currentAmount:0, completed:false });
   };
-  addResourceObjective('gild',18,5);
-  addResourceObjective('echo',35,10);
+  addResourceObjective('gild',300,5);
+  addResourceObjective('echo',100,10);
   // Add one or two rotating ore objectives so the mission is not always Gild/Echo.
   const pool=choices.filter(id=>id!=='gild');
   const first=pool[(mission+run-2)%pool.length];
