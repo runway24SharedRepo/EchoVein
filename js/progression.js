@@ -14,64 +14,168 @@ let saveProfile = null;
  * Milestones & Achievements — Phase 1.1
  *
  * Milestones are persistent, one-time achievements awarded across all runs.
- * Each milestone is checked at a specific event hook (kill, mine, level-up)
- * and awarded permanently to the player's profile. The reward bonus applies
- * to ALL future runs via applyMilestoneRewards().
+ * Each milestone is checked at specific event hooks and awarded permanently
+ * to the player's profile. The reward bonus applies to ALL future runs via
+ * applyMilestoneRewards().
  *
  * Structure:
  *   id          — unique string key used in saveProfile.milestones[id]
  *   name        — display name shown in the milestones menu
  *   desc        — unlock condition description
  *   reward      — what the player gets (display text)
- *   icon        — emoji or sprite-based icon
- *   check       — function(profile) => boolean; returns true if the condition
- *                 has been met. Called at event hook points; if true and the
- *                 milestone is not yet unlocked, the milestone is awarded.
- *   apply       — function(g) => void; applies the reward bonus to the current
- *                 run's game state (called at run start).
+ *   icon        — emoji for the milestone card
+ *   group       — UI grouping category ('combat','mining','run','resource','class')
+ *   check       — function(profile) => boolean; condition to unlock
+ *   apply       — function(g) => void; reward applied at run start
+ *   progress    — optional function(profile) => {current, target} for progress display
  */
 const MILESTONES = [
-  {
-    id: 'FirstKill',
-    name: 'First Blood',
-    desc: 'Kill your first enemy.',
-    reward: '+2% mining speed',
-    icon: '⚔️',
-    check: (profile) => (profile.statistics.totalEnemiesKilled || 0) >= 1,
-    apply: (g) => { g.player.mineMul *= 1.02; }
-  },
-  {
-    id: 'FirstOre',
-    name: 'First Strike',
-    desc: 'Mine your first ore.',
-    reward: '+5% max HP',
-    icon: '⛏️',
-    check: (profile) => (profile.statistics.totalOreMined || 0) >= 1,
-    apply: (g) => {
-      const bonus = Math.round(g.player.maxHp * 0.05);
-      g.player.maxHp += bonus;
-      g.player.hp += bonus;
-    }
-  },
-  {
-    id: 'ReachLevel5',
-    name: 'Operator Cadet',
-    desc: 'Reach operator level 5 in a single run.',
-    reward: '+3% weapon damage',
-    icon: '⭐',
-    check: (profile) => (profile.statistics.maxLevelReached || 0) >= 5,
-    apply: (g) => { g.player.damageMul *= 1.03; }
-  },
-  {
-    id: 'ReachLevel10',
-    name: 'Veteran Operator',
-    desc: 'Reach operator level 10 in a single run.',
-    reward: '+5% movement speed',
-    icon: '💠',
-    check: (profile) => (profile.statistics.maxLevelReached || 0) >= 10,
-    apply: (g) => { g.player.speedMul *= 1.05; }
-  }
+  // ── 🔥 COMBAT ──────────────────────────────────────────────────────────
+  { id:'FirstKill',    name:'First Blood',        desc:'Kill your first enemy.',              reward:'+2% mining speed',    icon:'⚔️',  group:'combat',
+    check:p=>(p.statistics.totalEnemiesKilled||0)>=1,
+    apply:g=>{ g.player.mineMul*=1.02; },
+    progress:p=>({current:p.statistics.totalEnemiesKilled||0, target:1}) },
+  { id:'Kill10',       name:'Slayer Initiate',     desc:'Kill 10 enemies.',                   reward:'+2% damage',          icon:'🗡️',  group:'combat',
+    check:p=>(p.statistics.totalEnemiesKilled||0)>=10,
+    apply:g=>{ g.player.damageMul*=1.02; },
+    progress:p=>({current:p.statistics.totalEnemiesKilled||0, target:10}) },
+  { id:'Kill50',       name:'Hollowborn Hunter',   desc:'Kill 50 enemies.',                   reward:'+4% damage',          icon:'⚔️',  group:'combat',
+    check:p=>(p.statistics.totalEnemiesKilled||0)>=50,
+    apply:g=>{ g.player.damageMul*=1.04; },
+    progress:p=>({current:p.statistics.totalEnemiesKilled||0, target:50}) },
+  { id:'Kill100',      name:'Veteran Slayer',      desc:'Kill 100 enemies.',                  reward:'+6% damage',          icon:'🩸',  group:'combat',
+    check:p=>(p.statistics.totalEnemiesKilled||0)>=100,
+    apply:g=>{ g.player.damageMul*=1.06; },
+    progress:p=>({current:p.statistics.totalEnemiesKilled||0, target:100}) },
+  { id:'Kill250',      name:'Elite Exterminator',  desc:'Kill 250 enemies.',                  reward:'+8% damage, +2% speed', icon:'💀', group:'combat',
+    check:p=>(p.statistics.totalEnemiesKilled||0)>=250,
+    apply:g=>{ g.player.damageMul*=1.08; g.player.speedMul*=1.02; },
+    progress:p=>({current:p.statistics.totalEnemiesKilled||0, target:250}) },
+  { id:'Kill500',      name:'Legendary Reaper',    desc:'Kill 500 enemies.',                  reward:'+10% damage, +3% speed', icon:'🔥',group:'combat',
+    check:p=>(p.statistics.totalEnemiesKilled||0)>=500,
+    apply:g=>{ g.player.damageMul*=1.10; g.player.speedMul*=1.03; },
+    progress:p=>({current:p.statistics.totalEnemiesKilled||0, target:500}) },
+  { id:'EliteKill1',   name:'Elite Bane',          desc:'Kill 1 elite enemy.',                reward:'+3% crit chance',     icon:'🛡️',  group:'combat',
+    check:p=>(p.statistics.totalElitesKilled||0)>=1,
+    apply:g=>{ g.player.accuracy=Math.min(1, (g.player.accuracy||0.35)+0.03); },
+    progress:p=>({current:p.statistics.totalElitesKilled||0, target:1}) },
+  { id:'EliteKill10',  name:'Elite Exorcist',      desc:'Kill 10 elite enemies.',             reward:'+5% crit chance',     icon:'⚜️',  group:'combat',
+    check:p=>(p.statistics.totalElitesKilled||0)>=10,
+    apply:g=>{ g.player.accuracy=Math.min(1, (g.player.accuracy||0.35)+0.05); },
+    progress:p=>({current:p.statistics.totalElitesKilled||0, target:10}) },
+  { id:'BossKill1',    name:'Boss Breaker',        desc:'Kill 1 boss enemy.',                 reward:'+8% max HP',          icon:'🐉',  group:'combat',
+    check:p=>(p.statistics.totalBossesKilled||0)>=1,
+    apply:g=>{ const b=Math.round(g.player.maxHp*0.08); g.player.maxHp+=b; g.player.hp+=b; },
+    progress:p=>({current:p.statistics.totalBossesKilled||0, target:1}) },
+
+  // ── ⛏️ MINING ──────────────────────────────────────────────────────────
+  { id:'FirstOre',     name:'First Strike',        desc:'Mine your first ore.',               reward:'+5% max HP',          icon:'⛏️',  group:'mining',
+    check:p=>(p.statistics.totalOreMined||0)>=1,
+    apply:g=>{ const b=Math.round(g.player.maxHp*0.05); g.player.maxHp+=b; g.player.hp+=b; },
+    progress:p=>({current:p.statistics.totalOreMined||0, target:1}) },
+  { id:'Mine50',       name:'Prospector',          desc:'Mine 50 ore.',                       reward:'+3% mining speed',    icon:'⛏️',  group:'mining',
+    check:p=>(p.statistics.totalOreMined||0)>=50,
+    apply:g=>{ g.player.mineMul*=1.03; },
+    progress:p=>({current:p.statistics.totalOreMined||0, target:50}) },
+  { id:'Mine200',      name:'Deep Miner',          desc:'Mine 200 ore.',                      reward:'+5% mining speed',    icon:'🪨',  group:'mining',
+    check:p=>(p.statistics.totalOreMined||0)>=200,
+    apply:g=>{ g.player.mineMul*=1.05; },
+    progress:p=>({current:p.statistics.totalOreMined||0, target:200}) },
+  { id:'Mine500',      name:'Master Excavator',    desc:'Mine 500 ore.',                      reward:'+7% mining speed',    icon:'💎',  group:'mining',
+    check:p=>(p.statistics.totalOreMined||0)>=500,
+    apply:g=>{ g.player.mineMul*=1.07; },
+    progress:p=>({current:p.statistics.totalOreMined||0, target:500}) },
+  { id:'Mine1000',     name:'Legendary Digger',    desc:'Mine 1000 ore.',                     reward:'+10% mining speed',   icon:'🌟',  group:'mining',
+    check:p=>(p.statistics.totalOreMined||0)>=1000,
+    apply:g=>{ g.player.mineMul*=1.10; },
+    progress:p=>({current:p.statistics.totalOreMined||0, target:1000}) },
+  { id:'Gild100',      name:'Gild Collector',      desc:'Mine 100 Gild Shards.',              reward:'+5% gold find',       icon:'💰',  group:'mining',
+    check:p=>(p.statistics.totalGildMined||0)>=100,
+    apply:g=>{ /* gold-find bonus — handled by collectRunResource */ },
+    progress:p=>({current:p.statistics.totalGildMined||0, target:100}) },
+  { id:'Echo100',      name:'Echo Seeker',         desc:'Mine 100 Echo Shards.',              reward:'+5% pickup radius',   icon:'🔮',  group:'mining',
+    check:p=>(p.statistics.totalEchoMined||0)>=100,
+    apply:g=>{ g.player.pickupMul*=1.05; },
+    progress:p=>({current:p.statistics.totalEchoMined||0, target:100}) },
+  { id:'Voltarite50',  name:'Voltarite Harvester', desc:'Mine 50 Voltarite.',                 reward:'+3% fire rate',       icon:'⚡',   group:'mining',
+    check:p=>(p.statistics.totalVoltariteMined||0)>=50,
+    apply:g=>{ g.player.fireRateMul*=1.03; },
+    progress:p=>({current:p.statistics.totalVoltariteMined||0, target:50}) },
+
+  // ── 🏃 RUN & MISSION ────────────────────────────────────────────────────
+  { id:'Run1',         name:'First Descent',       desc:'Complete 1 run (extract or die).',   reward:'+5% HP',              icon:'🚀',  group:'run',
+    check:p=>(p.statistics.totalRunsCompleted||0)>=1,
+    apply:g=>{ const b=Math.round(g.player.maxHp*0.05); g.player.maxHp+=b; g.player.hp+=b; },
+    progress:p=>({current:p.statistics.totalRunsCompleted||0, target:1}) },
+  { id:'Run5',         name:'Seasoned Explorer',   desc:'Complete 5 runs.',                   reward:'+5% damage',          icon:'🏃',  group:'run',
+    check:p=>(p.statistics.totalRunsCompleted||0)>=5,
+    apply:g=>{ g.player.damageMul*=1.05; },
+    progress:p=>({current:p.statistics.totalRunsCompleted||0, target:5}) },
+  { id:'Run15',        name:'Veteran Descent',     desc:'Complete 15 runs.',                  reward:'+8% HP, +3% speed',   icon:'🏅',  group:'run',
+    check:p=>(p.statistics.totalRunsCompleted||0)>=15,
+    apply:g=>{ const b=Math.round(g.player.maxHp*0.08); g.player.maxHp+=b; g.player.hp+=b; g.player.speedMul*=1.03; },
+    progress:p=>({current:p.statistics.totalRunsCompleted||0, target:15}) },
+  { id:'Run30',        name:'Deep Diver',          desc:'Complete 30 runs.',                  reward:'+10% damage, +5% HP', icon:'🥇',  group:'run',
+    check:p=>(p.statistics.totalRunsCompleted||0)>=30,
+    apply:g=>{ g.player.damageMul*=1.10; const b=Math.round(g.player.maxHp*0.05); g.player.maxHp+=b; g.player.hp+=b; },
+    progress:p=>({current:p.statistics.totalRunsCompleted||0, target:30}) },
+  { id:'Mission1',     name:'First Mission',       desc:'Complete 1 full mission (5 runs).',  reward:'+5% all resources',   icon:'📜',  group:'run',
+    check:p=>(p.completedMissions||0)>=1,
+    apply:g=>{ /* all-resources bonus — passive income multiplier */ },
+    progress:p=>({current:p.completedMissions||0, target:1}) },
+  { id:'Mission3',     name:'Sector Breaker',      desc:'Complete 3 full missions.',          reward:'+10% mission rewards',icon:'📯',  group:'run',
+    check:p=>(p.completedMissions||0)>=3,
+    apply:g=>{ /* mission-reward bonus */ },
+    progress:p=>({current:p.completedMissions||0, target:3}) },
+  { id:'Mission5',     name:'Legendary Operator',  desc:'Complete 5 full missions.',          reward:'+15% all bonuses',    icon:'👑',  group:'run',
+    check:p=>(p.completedMissions||0)>=5,
+    apply:g=>{ /* all-bonuses multiplier */ },
+    progress:p=>({current:p.completedMissions||0, target:5}) },
+
+  // ── 💎 RESOURCE ─────────────────────────────────────────────────────────
+  { id:'Resources1000',   name:'Resource Hoarder',   desc:'Collect 1000 total resources.',      reward:'+5% pickup radius',   icon:'📦', group:'resource',
+    check:p=>(p.statistics.totalResourcesCollected||0)>=1000,
+    apply:g=>{ g.player.pickupMul*=1.05; },
+    progress:p=>({current:p.statistics.totalResourcesCollected||0, target:1000}) },
+  { id:'Resources5000',   name:'Supply Lord',        desc:'Collect 5000 total resources.',      reward:'+8% mining speed',    icon:'🏗️', group:'resource',
+    check:p=>(p.statistics.totalResourcesCollected||0)>=5000,
+    apply:g=>{ g.player.mineMul*=1.08; },
+    progress:p=>({current:p.statistics.totalResourcesCollected||0, target:5000}) },
+  { id:'Resources10000',  name:'Resource Tycoon',    desc:'Collect 10000 total resources.',     reward:'+12% all resource gain',icon:'💼',group:'resource',
+    check:p=>(p.statistics.totalResourcesCollected||0)>=10000,
+    apply:g=>{ /* all-resource gain multiplier */ },
+    progress:p=>({current:p.statistics.totalResourcesCollected||0, target:10000}) },
+  { id:'Upgrades5',       name:'Upgrade Collector',  desc:'Buy 5 permanent upgrade levels.',    reward:'+5% HP',              icon:'🔧', group:'resource',
+    check:p=>(p.statistics.totalUpgradesBought||0)>=5,
+    apply:g=>{ const b=Math.round(g.player.maxHp*0.05); g.player.maxHp+=b; g.player.hp+=b; },
+    progress:p=>({current:p.statistics.totalUpgradesBought||0, target:5}) },
+  { id:'Upgrades15',      name:'Upgrade Master',     desc:'Buy 15 permanent upgrade levels.',   reward:'+10% damage',         icon:'⚙️', group:'resource',
+    check:p=>(p.statistics.totalUpgradesBought||0)>=15,
+    apply:g=>{ g.player.damageMul*=1.10; },
+    progress:p=>({current:p.statistics.totalUpgradesBought||0, target:15}) },
+
+  // ── 🎯 CLASS-SPECIFIC ───────────────────────────────────────────────────
+  { id:'ClassBulwark',      name:'Bulwark Veteran',      desc:'Complete 10 runs as Bulwark.',     reward:'+5% max HP',          icon:'🛡️', group:'class',
+    check:p=>((p.statistics.classRuns||{}).bulwark||0)>=10,
+    apply:g=>{ const b=Math.round(g.player.maxHp*0.05); g.player.maxHp+=b; g.player.hp+=b; },
+    progress:p=>({current:(p.statistics.classRuns||{}).bulwark||0, target:10}) },
+  { id:'ClassPathfinder',   name:'Pathfinder Veteran',   desc:'Complete 10 runs as Pathfinder.',  reward:'+5% movement speed',  icon:'💨', group:'class',
+    check:p=>((p.statistics.classRuns||{}).pathfinder||0)>=10,
+    apply:g=>{ g.player.speedMul*=1.05; },
+    progress:p=>({current:(p.statistics.classRuns||{}).pathfinder||0, target:10}) },
+  { id:'ClassBorecaster',   name:'Borecaster Veteran',   desc:'Complete 10 runs as Borecaster.',  reward:'+5% mining speed',    icon:'⛏️', group:'class',
+    check:p=>((p.statistics.classRuns||{}).borecaster||0)>=10,
+    apply:g=>{ g.player.mineMul*=1.05; },
+    progress:p=>({current:(p.statistics.classRuns||{}).borecaster||0, target:10}) }
 ];
+
+function defaultMilestones(){
+  const result = {};
+  for(const m of MILESTONES){
+    result[m.id] = { unlocked: false, unlockedAt: null };
+  }
+  return result;
+}
 
 function defaultMilestones(){
   const result = {};
@@ -122,16 +226,23 @@ function createDefaultProfile(){
       totalRunsCompleted:0,
       totalMissionsCompleted:0,
       totalEnemiesKilled:0,
+      totalElitesKilled:0,
       totalBossesKilled:0,
       totalOreMined:0,
-      maxLevelReached:0
+      totalGildMined:0,
+      totalEchoMined:0,
+      totalVoltariteMined:0,
+      totalResourcesCollected:0,
+      totalUpgradesBought:0,
+      maxLevelReached:0,
+      classRuns:{ bulwark:0, pathfinder:0, borecaster:0 }
     }
   };
 }
 
 function normalizeProfile(profile){
   const base=createDefaultProfile();
-  return {
+  const merged = {
     ...base,
     ...profile,
     resources:{...base.resources,...(profile?.resources || {})},
@@ -139,6 +250,14 @@ function normalizeProfile(profile){
     milestones:{...base.milestones,...(profile?.milestones || {})},
     statistics:{...base.statistics,...(profile?.statistics || {})}
   };
+  // Merge classRuns sub-object safely.
+  if(profile?.statistics?.classRuns){
+    merged.statistics.classRuns = {
+      ...base.statistics.classRuns,
+      ...profile.statistics.classRuns
+    };
+  }
+  return merged;
 }
 
 function hasSaveData(){
@@ -231,7 +350,10 @@ function buyPermanentUpgrade(id){
   if(!canAfford(cost)) return;
   spend(cost);
   saveProfile.permanentUpgrades[id]=level+1;
+  saveProfile.statistics.totalUpgradesBought = (saveProfile.statistics.totalUpgradesBought||0) + 1;
   saveGame();
+  // Phase 1.1: check upgrade-count milestones.
+  if(typeof checkMilestoneOnUpgradeBought === 'function') checkMilestoneOnUpgradeBought(null);
   showUpgradesMenu();
 }
 
@@ -293,41 +415,144 @@ function awardMilestone(g, milestoneId){
 
 /*
  * Check-and-award wrappers for event hook points.
- * Each checks whether the milestone's condition is met and awards it if not
- * yet unlocked. Safe to call every frame — the internal unlocked check is fast.
+ *
+ * Each function checks all milestones whose condition may have been met by
+ * the triggering event.  Safe to call every frame — the internal unlocked
+ * check on each milestone is a fast boolean lookup.
+ *
+ * When a milestone check matches, awardMilestone() persists the unlock,
+ * saves the profile, logs to the in-game log, and shows a floating trophy
+ * text above the player.
  */
 
+/* Called from killEnemy() — checks kill-count and elite-kill milestones. */
 function checkMilestoneOnKill(g){
   if(!saveProfile) return;
-  const entry = saveProfile.milestones.FirstKill;
-  if(entry && !entry.unlocked && (saveProfile.statistics.totalEnemiesKilled || 0) >= 1){
-    awardMilestone(g, 'FirstKill');
+  const s=saveProfile.statistics;
+  // Kill-count milestones (FirstKill, Kill10, Kill50, Kill100, Kill250, Kill500)
+  const killIds=['FirstKill','Kill10','Kill50','Kill100','Kill250','Kill500'];
+  for(const id of killIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+  }
+  // Elite-kill milestones (EliteKill1, EliteKill10)
+  if((s.totalElitesKilled||0)>0){
+    const eliteIds=['EliteKill1','EliteKill10'];
+    for(const id of eliteIds){
+      const m=MILESTONES.find(x=>x.id===id);
+      if(!m) continue;
+      const entry=saveProfile.milestones[id];
+      if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+    }
+  }
+  // Boss-kill milestone (BossKill1)
+  if((s.totalBossesKilled||0)>0){
+    const m=MILESTONES.find(x=>x.id==='BossKill1');
+    const entry=saveProfile.milestones.BossKill1;
+    if(entry && !entry.unlocked && m && m.check(saveProfile)) awardMilestone(g,'BossKill1');
   }
 }
 
+/* Called from mineTile() — checks ore-count and per-resource milestones. */
 function checkMilestoneOnMine(g){
   if(!saveProfile) return;
-  const entry = saveProfile.milestones.FirstOre;
-  if(entry && !entry.unlocked && (saveProfile.statistics.totalOreMined || 0) >= 1){
-    awardMilestone(g, 'FirstOre');
+  const s=saveProfile.statistics;
+  // Generic ore-count milestones (FirstOre, Mine50, Mine200, Mine500, Mine1000)
+  const mineIds=['FirstOre','Mine50','Mine200','Mine500','Mine1000'];
+  for(const id of mineIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+  }
+  // Per-resource milestones
+  const resChecks=[{id:'Gild100',stat:s.totalGildMined},
+                   {id:'Echo100',stat:s.totalEchoMined},
+                   {id:'Voltarite50',stat:s.totalVoltariteMined}];
+  for(const rc of resChecks){
+    if(!(rc.stat||0)>0) continue;
+    const m=MILESTONES.find(x=>x.id===rc.id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[rc.id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,rc.id);
+  }
+  // Resource-collection milestones (Resources1000/5000/10000)
+  if((s.totalResourcesCollected||0)>0){
+    const resIds=['Resources1000','Resources5000','Resources10000'];
+    for(const id of resIds){
+      const m=MILESTONES.find(x=>x.id===id);
+      if(!m) continue;
+      const entry=saveProfile.milestones[id];
+      if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+    }
   }
 }
 
+/* Called from gainXp() — checks level-based milestones. */
 function checkMilestoneOnLevelUp(g, newLevel){
   if(!saveProfile) return;
   // Keep track of the highest level reached across all runs.
   if(newLevel > (saveProfile.statistics.maxLevelReached || 0)){
     saveProfile.statistics.maxLevelReached = newLevel;
   }
-  // Check ReachLevel5
-  const entry5 = saveProfile.milestones.ReachLevel5;
-  if(entry5 && !entry5.unlocked && newLevel >= 5){
-    awardMilestone(g, 'ReachLevel5');
+  // Check ReachLevel5 / ReachLevel10
+  const levelIds=['ReachLevel5','ReachLevel10'];
+  for(const id of levelIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
   }
-  // Check ReachLevel10
-  const entry10 = saveProfile.milestones.ReachLevel10;
-  if(entry10 && !entry10.unlocked && newLevel >= 10){
-    awardMilestone(g, 'ReachLevel10');
+}
+
+/* Called from completeRun() — checks run-count and class milestones. */
+function checkMilestoneOnRunComplete(g, classId){
+  if(!saveProfile) return;
+  // Increment class run counter.
+  if(classId && saveProfile.statistics.classRuns){
+    saveProfile.statistics.classRuns[classId] = (saveProfile.statistics.classRuns[classId] || 0) + 1;
+  }
+  // Run-count milestones (Run1, Run5, Run15, Run30)
+  const runIds=['Run1','Run5','Run15','Run30'];
+  for(const id of runIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+  }
+  // Class-specific milestones
+  const classIds=['ClassBulwark','ClassPathfinder','ClassBorecaster'];
+  for(const id of classIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+  }
+}
+
+/* Called from completeRun() after mission promotion. */
+function checkMilestoneOnMissionComplete(g){
+  if(!saveProfile) return;
+  const missionIds=['Mission1','Mission3','Mission5'];
+  for(const id of missionIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+  }
+}
+
+/* Called from buyPermanentUpgrade() after each purchase. */
+function checkMilestoneOnUpgradeBought(g){
+  if(!saveProfile) return;
+  const upgradeIds=['Upgrades5','Upgrades15'];
+  for(const id of upgradeIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
   }
 }
 
@@ -376,8 +601,11 @@ function completeRun(g){
   g.runResolved=true;
   bankRunRewards(g);
   saveProfile.statistics.totalRunsCompleted++;
-  saveProfile.statistics.totalEnemiesKilled += g.kills;
+  // totalEnemiesKilled is already tracked in real-time by killEnemy(), so we
+  // do not re-add g.kills here to avoid double-counting.
   saveProfile.runIndex++;
+  // Phase 1.1: check run-complete milestones (includes class-specific).
+  if(typeof checkMilestoneOnRunComplete === 'function') checkMilestoneOnRunComplete(g, g.player?.classId || (g.selectedClass?.id));
   let missionCompleted=false;
   if(saveProfile.runIndex>RUNS_PER_MISSION){
     saveProfile.runIndex=1;
@@ -386,6 +614,8 @@ function completeRun(g){
     saveProfile.statistics.totalMissionsCompleted++;
     saveProfile.resources.gildShards += Math.floor(120*missionDifficulty(saveProfile.missionIndex).rewardMultiplier);
     missionCompleted=true;
+    // Phase 1.1: check mission-complete milestones.
+    if(typeof checkMilestoneOnMissionComplete === 'function') checkMilestoneOnMissionComplete(g);
   }
   saveGame();
   if(typeof showRunStatsScreen==='function') showRunStatsScreen(g,{title:missionCompleted ? 'Mission Complete' : 'Run Extracted', cause:missionCompleted ? 'Mission completed' : 'Extracted'});
@@ -552,66 +782,114 @@ function showPlaceholderMenu(title,text){
 }
 
 /*
- * Milestones Menu — displays all defined milestones with their unlock status,
- * descriptions, reward text, and the date/time they were unlocked.
- * Replaces the "Milestones feature coming later" placeholder.
+ * Milestones Menu — displays all defined milestones with progress bars,
+ * grouped by category, showing unlock status and reward text.
+ * Locked milestones show a progress bar toward the unlock target.
  */
 function showMilestonesMenu(){
   appState='MILESTONES_MENU';
   setMenu('Milestones','Permanent achievements earned through Hollowshift operations. Each milestone reward applies to all future runs.');
   if(!saveProfile) saveProfile=createDefaultProfile();
 
-  const grid=document.createElement('div');
-  grid.className='milestonesGrid';
-
+  // Group milestones by their 'group' field in display order.
+  const groupOrder=['combat','mining','run','resource','class'];
+  const groupLabels={ combat:'🔥 Combat', mining:'⛏️ Mining', run:'🏃 Runs & Missions', resource:'💎 Resources', class:'🎯 Class-Specific' };
+  const groups = new Map();
   for(const m of MILESTONES){
-    const entry=saveProfile.milestones[m.id];
-    const unlocked=entry && entry.unlocked;
-    const card=document.createElement('div');
-    card.className=`milestoneCard ${unlocked ? 'unlocked' : 'locked'}`;
-
-    const iconEl=document.createElement('div');
-    iconEl.className='milestoneIcon';
-    iconEl.textContent=m.icon;
-    card.appendChild(iconEl);
-
-    const info=document.createElement('div');
-    info.className='milestoneInfo';
-
-    const nameLine=document.createElement('div');
-    nameLine.className='milestoneName';
-    nameLine.textContent=m.name;
-    info.appendChild(nameLine);
-
-    const descLine=document.createElement('div');
-    descLine.className='milestoneDesc';
-    descLine.textContent=m.desc;
-    info.appendChild(descLine);
-
-    const rewardLine=document.createElement('div');
-    rewardLine.className='milestoneReward';
-    rewardLine.textContent=`Reward: ${m.reward}`;
-    info.appendChild(rewardLine);
-
-    if(unlocked && entry.unlockedAt){
-      const dateLine=document.createElement('div');
-      dateLine.className='milestoneDate';
-      dateLine.textContent=`Unlocked: ${new Date(entry.unlockedAt).toLocaleDateString()}`;
-      info.appendChild(dateLine);
-      card.appendChild(info);
-    } else {
-      const lockLine=document.createElement('div');
-      lockLine.className='milestoneLockedLabel';
-      lockLine.textContent='🔒 Not yet unlocked';
-      info.appendChild(lockLine);
-      card.appendChild(info);
-    }
-
-    grid.appendChild(card);
+    const g = m.group || 'other';
+    if(!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(m);
   }
 
-  ui.menuContent.appendChild(grid);
-  addMenuButton('Back',showMainMenu);
+  for(const g of groupOrder){
+    const items = groups.get(g);
+    if(!items || !items.length) continue;
+    const label = groupLabels[g] || g;
+
+    const section = document.createElement('div');
+    section.className = 'milestoneSection';
+
+    const header = document.createElement('div');
+    header.className = 'milestoneSectionHeader';
+    header.textContent = label;
+    section.appendChild(header);
+
+    for(const m of items){
+      const entry = saveProfile.milestones[m.id];
+      const unlocked = entry && entry.unlocked;
+      const card = document.createElement('div');
+      card.className = `milestoneCard ${unlocked ? 'unlocked' : 'locked'}`;
+
+      // Icon column
+      const iconEl = document.createElement('div');
+      iconEl.className = 'milestoneIcon';
+      iconEl.textContent = unlocked ? '✅' : (m.icon || '🔒');
+      card.appendChild(iconEl);
+
+      // Info column
+      const info = document.createElement('div');
+      info.className = 'milestoneInfo';
+
+      const nameLine = document.createElement('div');
+      nameLine.className = 'milestoneName';
+      nameLine.textContent = m.name;
+      info.appendChild(nameLine);
+
+      const descLine = document.createElement('div');
+      descLine.className = 'milestoneDesc';
+      descLine.textContent = m.desc;
+      info.appendChild(descLine);
+
+      const rewardLine = document.createElement('div');
+      rewardLine.className = 'milestoneReward';
+      rewardLine.textContent = `Reward: ${m.reward}`;
+      info.appendChild(rewardLine);
+
+      // Progress bar for milestones with a progress function
+      if(typeof m.progress === 'function'){
+        const prog = m.progress(saveProfile);
+        if(prog && prog.target > 0){
+          const pct = unlocked ? 100 : Math.min(100, Math.round((prog.current / prog.target) * 100));
+          const barWrap = document.createElement('div');
+          barWrap.className = 'milestoneProgressWrap';
+          const bar = document.createElement('div');
+          bar.className = `milestoneProgressBar ${unlocked ? 'complete' : ''}`;
+          bar.style.width = `${pct}%`;
+          barWrap.appendChild(bar);
+          info.appendChild(barWrap);
+
+          const labelEl = document.createElement('div');
+          labelEl.className = 'milestoneProgressLabel';
+          if(unlocked){
+            labelEl.textContent = `✓ ${prog.current} / ${prog.target}`;
+          } else {
+            labelEl.textContent = `${prog.current} / ${prog.target}`;
+          }
+          info.appendChild(labelEl);
+        }
+      }
+
+      // Date unlocked or lock indicator
+      if(unlocked && entry.unlockedAt){
+        const dateLine = document.createElement('div');
+        dateLine.className = 'milestoneDate';
+        dateLine.textContent = `Unlocked: ${new Date(entry.unlockedAt).toLocaleDateString()}`;
+        info.appendChild(dateLine);
+      } else if(!unlocked) {
+        const lockLine = document.createElement('div');
+        lockLine.className = 'milestoneLockedLabel';
+        lockLine.textContent = '🔒 Not yet unlocked';
+        info.appendChild(lockLine);
+      }
+
+      card.appendChild(info);
+      section.appendChild(card);
+    }
+
+    ui.menuContent.appendChild(section);
+  }
+
+  addMenuButton('Back', showMainMenu);
 }
 
 function showCreditsMenu(){

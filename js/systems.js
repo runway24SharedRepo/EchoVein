@@ -596,6 +596,13 @@ function mineTile(g,p,tx,ty,dt){
         floating(g,tileToWorldCenterX(tx),tileToWorldCenterY(ty)-TILE*0.18,`+${MINERALS[resourceId].displayName}`,MINERALS[resourceId].color);
       }
       if(saveProfile?.statistics) saveProfile.statistics.totalOreMined+=amount;
+      // Track per-resource mining for milestones.
+      if(saveProfile?.statistics && resourceId){
+        if(resourceId==='gild') saveProfile.statistics.totalGildMined = (saveProfile.statistics.totalGildMined||0) + amount;
+        if(resourceId==='voltarite') saveProfile.statistics.totalVoltariteMined = (saveProfile.statistics.totalVoltariteMined||0) + amount;
+        if(resourceId==='echo') saveProfile.statistics.totalEchoMined = (saveProfile.statistics.totalEchoMined||0) + amount;
+        saveProfile.statistics.totalResourcesCollected = (saveProfile.statistics.totalResourcesCollected||0) + amount;
+      }
       // Phase 1.1: check mining-based milestones.
       if(typeof checkMilestoneOnMine === 'function') checkMilestoneOnMine(g);
       sfx('mineral');
@@ -3178,12 +3185,16 @@ function killEnemy(g,e){
     if(roleStat==='boss' || e.type==='boss' || e.type==='hollowTyrantVariant') g.runStats.bossesKilled=(g.runStats.bossesKilled||0)+1;
   }
   g.kills++; sfx('kill', 0.55); dropPickup(g,e.x,e.y,'xp',e.xp);
+  // Track kills persistently so kill-count milestones can fire mid-run.
+  saveProfile.statistics.totalEnemiesKilled = (saveProfile.statistics.totalEnemiesKilled||0) + 1;
   // Phase 1.1: check kill-based milestones.
   if(typeof checkMilestoneOnKill === 'function') checkMilestoneOnKill(g);
   const role=ENEMY_TYPES[e.type]?.role || e.role || 'normal';
   if(role==='boss') spawnVfxComposition(g,'bossShockwave',e.x,e.y,{radius:Math.max(120,e.r*3.2),color:e.color});
   else if(role==='elite') spawnVfxComposition(g,'eliteDeathBurst',e.x,e.y,{radius:Math.max(56,e.r*2.1),color:e.color});
   else if(Math.random()<0.70) spawnVfxComposition(g,'enemyDeathBurst',e.x,e.y,{radius:Math.max(24,e.r*1.8),color:e.color});
+  // Track elite and boss kills in persistent profile for milestone checks.
+  if(role==='elite') saveProfile.statistics.totalElitesKilled = (saveProfile.statistics.totalElitesKilled||0) + 1;
   if(e.type==='boss' || e.type==='hollowTyrantVariant'){
     g.bossDefeated=true;
     saveProfile.statistics.totalBossesKilled++;

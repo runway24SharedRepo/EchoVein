@@ -470,6 +470,19 @@ input.controllerSelected {
 /* ==============================
    Milestones Menu (Phase 1.1)
    ============================== */
+.milestoneSection {
+  margin-top: 16px;
+}
+
+.milestoneSectionHeader {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--text);
+  padding: 8px 4px 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+  margin-bottom: 10px;
+}
+
 .milestonesGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -489,17 +502,18 @@ input.controllerSelected {
 }
 
 .milestoneCard.unlocked {
-  border-color: rgba(93,255,154,0.35);
-  background: rgba(93,255,154,0.06);
+  border-color: rgba(93,255,154,0.45);
+  background: rgba(93,255,154,0.07);
+  box-shadow: 0 0 16px rgba(93,255,154,0.08);
 }
 
 .milestoneCard.locked {
   border-color: rgba(255,255,255,0.08);
-  opacity: 0.78;
+  opacity: 0.82;
 }
 
 .milestoneIcon {
-  font-size: 32px;
+  font-size: 28px;
   line-height: 1;
   flex-shrink: 0;
   width: 44px;
@@ -511,8 +525,12 @@ input.controllerSelected {
 }
 
 .milestoneCard.unlocked .milestoneIcon {
-  background: rgba(93,255,154,0.12);
-  box-shadow: 0 0 12px rgba(93,255,154,0.15);
+  background: rgba(93,255,154,0.14);
+  box-shadow: 0 0 14px rgba(93,255,154,0.18);
+}
+
+.milestoneCard.locked .milestoneIcon {
+  background: rgba(255,255,255,0.04);
 }
 
 .milestoneInfo {
@@ -555,6 +573,39 @@ input.controllerSelected {
   font-size: 12px;
   color: #ff9999;
   margin-top: 2px;
+}
+
+/* Progress bar for tracked milestones */
+.milestoneProgressWrap {
+  height: 8px;
+  margin-top: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.milestoneProgressBar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--green));
+  border-radius: 999px;
+  transition: width 0.2s ease;
+  min-width: 2px;
+}
+
+.milestoneProgressBar.complete {
+  background: linear-gradient(90deg, var(--green), #a7f7c6);
+}
+
+.milestoneProgressLabel {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+  text-align: right;
+}
+
+.milestoneCard.unlocked .milestoneProgressLabel {
+  color: var(--green);
 }
 
 @media (max-width: 700px) {
