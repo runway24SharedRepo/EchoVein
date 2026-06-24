@@ -29,7 +29,7 @@ function countMineableTiles(g){
 function addMineableBlockObjective(g){
   if(!g.objectives) g.objectives=[];
   const total=countMineableTiles(g);
-  const target=Math.max(1, Math.ceil(total*0.35));
+  const target=Math.max(1, Math.ceil(total*0.05)); // 5% of mineable blocks
   g.objectives.push({
     id:'mine_blocks',
     type:'mineBlocks',
