@@ -584,6 +584,7 @@ function mineTile(g,p,tx,ty,dt){
     shake = Math.max(shake, 2.5);
     sfx('rockBreak', 0.85);
     for(let k=0;k<10;k++) addParticle(g, cx, cy, rand(-120,120), rand(-120,120), '#8b735e', rand(0.28,0.6), rand(2,6));
+    if(Math.random()<0.04) dropPickup(g, cx, cy, 'health', 15);
     const resourceId=resourceIdForTile(t);
     if(resourceId){
       const amount=resourceAmountForTile(t);
@@ -3414,8 +3415,17 @@ function collectRunResource(g,resourceId,amount,options={}){
   if(resourceId==='echo') addObjectiveProgress(g,'collect_echo_shards',amount);
 }
 
+function addHeartVfx(g, x, y){
+  for(let k=0; k<8; k++){
+    const angle = Math.random()*Math.PI*2;
+    const dist = rand(30, 80);
+    addParticle(g, x+Math.cos(angle)*dist*0.2, y+Math.sin(angle)*dist*0.2, Math.cos(angle)*dist, Math.sin(angle)*dist, '#ff6b8f', rand(0.35, 0.55), rand(4, 8), 'spark');
+  }
+  addRing(g, x, y, '#ff6b8f', 0.25, 4, 32, 2);
+}
+
 function dropPickup(g,x,y,type,value){
-  g.pickups.push({x:x+rand(-10,10),y:y+rand(-10,10),type,value,r:type==='xp'?7:8,life:999});
+  g.pickups.push({x:x+rand(-10,10),y:y+rand(-10,10),type,value,r:type==='xp'||type==='health'?7:8,life:999});
 }
 function updatePickups(g,dt){
   const p=g.player;
@@ -3429,6 +3439,14 @@ function updatePickups(g,dt){
     }
     if(d<p.r+it.r+4){
       if(it.type==='xp'){ collectRunResource(g,'echo',it.value); }
+      else if(it.type==='health'){
+        const healAmount = it.value || 15;
+        const actualHeal = Math.min(healAmount, p.maxHp - p.hp);
+        p.hp += actualHeal;
+        floating(g, p.x, p.y - 24, `+${actualHeal} HP`, '#ff6b8f');
+        sfx('health', 0.65);
+        addHeartVfx(g, it.x, it.y);
+      }
       else if(MINERALS[it.type]){ collectRunResource(g,it.type,it.value); }
       else if(it.type==='nitra') collectRunResource(g,'voltarite',it.value);
       sfx('pickup', it.type==='nitra' || it.type==='voltarite' ? 1.0 : 0.6);

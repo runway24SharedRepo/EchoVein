@@ -110,6 +110,22 @@ function placeLooseResourcePickups(g,count){
     const def=eligible[randi(0,eligible.length-1)];
     dropPickup(g,x,y,def.resourceId, randi(1, def.resourceId==='aetherQuartz'?2:4));
   }
+  placeHealthPickups(g, Math.max(2, Math.floor(count*0.15)));
+}
+
+function placeHealthPickups(g, count){
+  for(let n=0; n<count; n++){
+    let x=0, y=0, ok=false;
+    for(let tries=0; tries<60; tries++){
+      const tx=randi(8, MAP_W-9), ty=randi(8, MAP_H-9);
+      if(g.tiles[tileIdx(tx,ty)]!==TILE_EMPTY) continue;
+      const sx=Math.floor(MAP_W/2), sy=Math.floor(MAP_H/2);
+      if(Math.hypot(tx-sx, ty-sy)<12) continue;
+      x=tileToWorldCenterX(tx); y=tileToWorldCenterY(ty); ok=true; break;
+    }
+    if(!ok) continue;
+    dropPickup(g, x, y, 'health', 15);
+  }
 }
 
 function openNeighborCount(g,tx,ty,r=2){

@@ -931,6 +931,12 @@ function drawBoomerangs(g){
 }
 function drawPickups(g){
   for(const it of g.pickups){
+    if(it.type==='health'){
+      const bob = Math.sin((game?.time||0)*6 + it.x*0.01)*1.5;
+      const scale = 1 + Math.sin((game?.time||0)*5)*0.1;
+      drawHeartShape(it.x, it.y+bob, it.r*2.5*scale, '#ff6b8f', '#ff3d5f');
+      continue;
+    }
     const res = it.type==='xp' ? MINERALS.echo : MINERALS[it.type];
     const spriteId = res?.sprite;
     const color = res?.color || (it.type==='xp'?'#42d6ff':'#ff5b5b');
@@ -945,6 +951,23 @@ function drawPickups(g){
     ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=10;
     ctx.beginPath(); ctx.moveTo(it.x,it.y-it.r); ctx.lineTo(it.x+it.r,it.y); ctx.lineTo(it.x,it.y+it.r); ctx.lineTo(it.x-it.r,it.y); ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
   }
+}
+
+function drawHeartShape(x, y, size, fillColor, outlineColor){
+  ctx.fillStyle = fillColor;
+  ctx.strokeStyle = outlineColor;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = fillColor;
+  ctx.shadowBlur = 12;
+  const s = size;
+  ctx.beginPath();
+  ctx.moveTo(x, y + s*0.3);
+  ctx.bezierCurveTo(x-s*0.5, y-s*0.3, x-s*0.8, y-s*0.1, x-s*0.5, y+s*0.4);
+  ctx.bezierCurveTo(x, y+s*0.7, x+s*0.5, y+s*0.4, x+s*0.8, y-s*0.1);
+  ctx.bezierCurveTo(x+s*0.5, y-s*0.3, x, y+s*0.3, x, y+s*0.3);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
 }
 
 function drawParticles(g){

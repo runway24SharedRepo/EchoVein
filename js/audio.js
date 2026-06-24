@@ -76,7 +76,7 @@ function noise(dur=0.08, gain=0.08, lowpass=1800){
 function sfx(name, strength=1){
   if(!ensureAudio()) return;
   const t = audio.ctx.currentTime;
-  const minGap = { shoot:0.055, flamer:0.09, mine:0.075, hit:0.04, pickup:0.035, kill:0.05, missileWhoosh:0.18, missileLock:0.10, missileLaunch:0.18, missileImpact:0.05, hexBlip:0.12, hexBoomerang:0.18, lavaBurn:0.20 }[name] ?? 0;
+  const minGap = { shoot:0.055, flamer:0.09, mine:0.075, hit:0.04, pickup:0.035, health:0.05, kill:0.05, missileWhoosh:0.18, missileLock:0.10, missileLaunch:0.18, missileImpact:0.05, hexBlip:0.12, hexBoomerang:0.18, lavaBurn:0.20 }[name] ?? 0;
   if(audio.last[name] && t-audio.last[name] < minGap) return;
   audio.last[name] = t;
   const k = Math.max(0.35, Math.min(1.6, strength));
@@ -98,6 +98,7 @@ function sfx(name, strength=1){
     case 'rockBreak': tone(95,0.09,'triangle',0.06*k,55); noise(0.12,0.055*k,1000); break;
     case 'mineral': tone(620,0.045,'sine',0.04*k); setTimeout(()=>tone(930,0.06,'sine',0.035*k),35); break;
     case 'pickup': tone(520+Math.random()*120,0.045,'sine',0.025*k,780); break;
+    case 'health': tone(650+Math.random()*150,0.08,'sine',0.04*k,950); tone(450+Math.random()*100,0.05,'sine',0.03*k,850); break;
     case 'level': tone(330,0.08,'triangle',0.055); setTimeout(()=>tone(494,0.08,'triangle',0.055),80); setTimeout(()=>tone(740,0.13,'triangle',0.06),160); break;
     case 'hit': tone(75,0.11,'sawtooth',0.08*k,45); noise(0.08,0.055*k,700); break;
     case 'kill': tone(230,0.05,'triangle',0.025*k,150); break;
