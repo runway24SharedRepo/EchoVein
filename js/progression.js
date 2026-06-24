@@ -10,6 +10,77 @@ const SPECIAL_ORES = ['voltarite','echoQuartz','ferronRoot','lumicite','pyroclas
 let appState = 'STARTUP';
 let saveProfile = null;
 
+/*
+ * Milestones & Achievements — Phase 1.1
+ *
+ * Milestones are persistent, one-time achievements awarded across all runs.
+ * Each milestone is checked at a specific event hook (kill, mine, level-up)
+ * and awarded permanently to the player's profile. The reward bonus applies
+ * to ALL future runs via applyMilestoneRewards().
+ *
+ * Structure:
+ *   id          — unique string key used in saveProfile.milestones[id]
+ *   name        — display name shown in the milestones menu
+ *   desc        — unlock condition description
+ *   reward      — what the player gets (display text)
+ *   icon        — emoji or sprite-based icon
+ *   check       — function(profile) => boolean; returns true if the condition
+ *                 has been met. Called at event hook points; if true and the
+ *                 milestone is not yet unlocked, the milestone is awarded.
+ *   apply       — function(g) => void; applies the reward bonus to the current
+ *                 run's game state (called at run start).
+ */
+const MILESTONES = [
+  {
+    id: 'FirstKill',
+    name: 'First Blood',
+    desc: 'Kill your first enemy.',
+    reward: '+2% mining speed',
+    icon: '⚔️',
+    check: (profile) => (profile.statistics.totalEnemiesKilled || 0) >= 1,
+    apply: (g) => { g.player.mineMul *= 1.02; }
+  },
+  {
+    id: 'FirstOre',
+    name: 'First Strike',
+    desc: 'Mine your first ore.',
+    reward: '+5% max HP',
+    icon: '⛏️',
+    check: (profile) => (profile.statistics.totalOreMined || 0) >= 1,
+    apply: (g) => {
+      const bonus = Math.round(g.player.maxHp * 0.05);
+      g.player.maxHp += bonus;
+      g.player.hp += bonus;
+    }
+  },
+  {
+    id: 'ReachLevel5',
+    name: 'Operator Cadet',
+    desc: 'Reach operator level 5 in a single run.',
+    reward: '+3% weapon damage',
+    icon: '⭐',
+    check: (profile) => (profile.statistics.maxLevelReached || 0) >= 5,
+    apply: (g) => { g.player.damageMul *= 1.03; }
+  },
+  {
+    id: 'ReachLevel10',
+    name: 'Veteran Operator',
+    desc: 'Reach operator level 10 in a single run.',
+    reward: '+5% movement speed',
+    icon: '💠',
+    check: (profile) => (profile.statistics.maxLevelReached || 0) >= 10,
+    apply: (g) => { g.player.speedMul *= 1.05; }
+  }
+];
+
+function defaultMilestones(){
+  const result = {};
+  for(const m of MILESTONES){
+    result[m.id] = { unlocked: false, unlockedAt: null };
+  }
+  return result;
+}
+
 const PERMANENT_UPGRADES = [
   { id:'maxHealth', category:'Player Core', name:'Reinforced Suit', desc:'+5% max HP per level.', next:'Another +5% max HP.', ore:'ferronRoot', max:20 },
   { id:'armour', category:'Player Core', name:'Impact Weave', desc:'Reduces contact damage by 2% per level.', next:'Another -2% contact damage.', ore:'ferronRoot', max:15 },
@@ -45,13 +116,15 @@ function createDefaultProfile(){
     completedMissions:0,
     resources:defaultResources(),
     permanentUpgrades:defaultPermanentUpgrades(),
+    milestones:defaultMilestones(),
     statistics:{
       totalRunsStarted:0,
       totalRunsCompleted:0,
       totalMissionsCompleted:0,
       totalEnemiesKilled:0,
       totalBossesKilled:0,
-      totalOreMined:0
+      totalOreMined:0,
+      maxLevelReached:0
     }
   };
 }
@@ -63,6 +136,7 @@ function normalizeProfile(profile){
     ...profile,
     resources:{...base.resources,...(profile?.resources || {})},
     permanentUpgrades:{...base.permanentUpgrades,...(profile?.permanentUpgrades || {})},
+    milestones:{...base.milestones,...(profile?.milestones || {})},
     statistics:{...base.statistics,...(profile?.statistics || {})}
   };
 }
@@ -180,6 +254,83 @@ function applyPermanentUpgrades(g){
   p.arcDamageMul=1+(up.arcDamage || 0)*0.05;
 }
 
+/*
+ * Apply milestone rewards to the current run's game state.
+ * Called once at run start after permanent upgrades are applied.
+ * Only applies rewards for unlocked milestones.
+ */
+function applyMilestoneRewards(g){
+  if(!saveProfile || !g) return;
+  for(const m of MILESTONES){
+    const entry = saveProfile.milestones[m.id];
+    if(entry && entry.unlocked && typeof m.apply === 'function'){
+      m.apply(g);
+    }
+  }
+}
+
+/*
+ * Award a milestone: mark it as unlocked, save the timestamp, persist to
+ * localStorage, and log the event to the in-game log.
+ * Returns true if the milestone was newly unlocked, false if already awarded.
+ */
+function awardMilestone(g, milestoneId){
+  if(!saveProfile) return false;
+  const m = MILESTONES.find(m => m.id === milestoneId);
+  if(!m) return false;
+  const entry = saveProfile.milestones[milestoneId];
+  if(!entry || entry.unlocked) return false;
+  entry.unlocked = true;
+  entry.unlockedAt = new Date().toISOString();
+  saveGame();
+  const msg = `Milestone unlocked: ${m.name} — ${m.reward}`;
+  if(g && typeof log === 'function') log(g, msg);
+  if(typeof floating === 'function' && g){
+    floating(g, g.player.x, g.player.y - 40, `🏆 ${m.name}`, '#ffcc4d');
+  }
+  return true;
+}
+
+/*
+ * Check-and-award wrappers for event hook points.
+ * Each checks whether the milestone's condition is met and awards it if not
+ * yet unlocked. Safe to call every frame — the internal unlocked check is fast.
+ */
+
+function checkMilestoneOnKill(g){
+  if(!saveProfile) return;
+  const entry = saveProfile.milestones.FirstKill;
+  if(entry && !entry.unlocked && (saveProfile.statistics.totalEnemiesKilled || 0) >= 1){
+    awardMilestone(g, 'FirstKill');
+  }
+}
+
+function checkMilestoneOnMine(g){
+  if(!saveProfile) return;
+  const entry = saveProfile.milestones.FirstOre;
+  if(entry && !entry.unlocked && (saveProfile.statistics.totalOreMined || 0) >= 1){
+    awardMilestone(g, 'FirstOre');
+  }
+}
+
+function checkMilestoneOnLevelUp(g, newLevel){
+  if(!saveProfile) return;
+  // Keep track of the highest level reached across all runs.
+  if(newLevel > (saveProfile.statistics.maxLevelReached || 0)){
+    saveProfile.statistics.maxLevelReached = newLevel;
+  }
+  // Check ReachLevel5
+  const entry5 = saveProfile.milestones.ReachLevel5;
+  if(entry5 && !entry5.unlocked && newLevel >= 5){
+    awardMilestone(g, 'ReachLevel5');
+  }
+  // Check ReachLevel10
+  const entry10 = saveProfile.milestones.ReachLevel10;
+  if(entry10 && !entry10.unlocked && newLevel >= 10){
+    awardMilestone(g, 'ReachLevel10');
+  }
+}
+
 function currentRunObjectives(){
   const diff=missionDifficulty(saveProfile.missionIndex);
   const run=saveProfile.runIndex;
@@ -259,6 +410,7 @@ function startRunWithClass(clsOrId){
   resumeAudio();
   game=makeGame(cls);
   saveProfile.statistics.totalRunsStarted++;
+  applyMilestoneRewards(game);
   saveGame();
   appState='RUN_ACTIVE';
   sfx('start');
@@ -327,7 +479,7 @@ function showMainMenu(){
   addMenuButton('Play',showClassSelect);
   addMenuButton('Upgrades',showUpgradesMenu);
   addMenuButton('Gears',()=>showPlaceholderMenu('Gears','Gears feature coming later.'));
-  addMenuButton('Milestones',()=>showPlaceholderMenu('Milestones','Milestones feature coming later.'));
+  addMenuButton('Milestones',showMilestonesMenu);
   addMenuButton('Settings',showSettingsMenu);
   addMenuButton('Credits',showCreditsMenu);
 }
@@ -396,6 +548,69 @@ function showSettingsMenu(){
 function showPlaceholderMenu(title,text){
   appState=`${title.toUpperCase()}_MENU`;
   setMenu(title,text);
+  addMenuButton('Back',showMainMenu);
+}
+
+/*
+ * Milestones Menu — displays all defined milestones with their unlock status,
+ * descriptions, reward text, and the date/time they were unlocked.
+ * Replaces the "Milestones feature coming later" placeholder.
+ */
+function showMilestonesMenu(){
+  appState='MILESTONES_MENU';
+  setMenu('Milestones','Permanent achievements earned through Hollowshift operations. Each milestone reward applies to all future runs.');
+  if(!saveProfile) saveProfile=createDefaultProfile();
+
+  const grid=document.createElement('div');
+  grid.className='milestonesGrid';
+
+  for(const m of MILESTONES){
+    const entry=saveProfile.milestones[m.id];
+    const unlocked=entry && entry.unlocked;
+    const card=document.createElement('div');
+    card.className=`milestoneCard ${unlocked ? 'unlocked' : 'locked'}`;
+
+    const iconEl=document.createElement('div');
+    iconEl.className='milestoneIcon';
+    iconEl.textContent=m.icon;
+    card.appendChild(iconEl);
+
+    const info=document.createElement('div');
+    info.className='milestoneInfo';
+
+    const nameLine=document.createElement('div');
+    nameLine.className='milestoneName';
+    nameLine.textContent=m.name;
+    info.appendChild(nameLine);
+
+    const descLine=document.createElement('div');
+    descLine.className='milestoneDesc';
+    descLine.textContent=m.desc;
+    info.appendChild(descLine);
+
+    const rewardLine=document.createElement('div');
+    rewardLine.className='milestoneReward';
+    rewardLine.textContent=`Reward: ${m.reward}`;
+    info.appendChild(rewardLine);
+
+    if(unlocked && entry.unlockedAt){
+      const dateLine=document.createElement('div');
+      dateLine.className='milestoneDate';
+      dateLine.textContent=`Unlocked: ${new Date(entry.unlockedAt).toLocaleDateString()}`;
+      info.appendChild(dateLine);
+      card.appendChild(info);
+    } else {
+      const lockLine=document.createElement('div');
+      lockLine.className='milestoneLockedLabel';
+      lockLine.textContent='🔒 Not yet unlocked';
+      info.appendChild(lockLine);
+      card.appendChild(info);
+    }
+
+    grid.appendChild(card);
+  }
+
+  ui.menuContent.appendChild(grid);
   addMenuButton('Back',showMainMenu);
 }
 

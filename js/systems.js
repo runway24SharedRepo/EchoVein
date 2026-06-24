@@ -596,6 +596,8 @@ function mineTile(g,p,tx,ty,dt){
         floating(g,tileToWorldCenterX(tx),tileToWorldCenterY(ty)-TILE*0.18,`+${MINERALS[resourceId].displayName}`,MINERALS[resourceId].color);
       }
       if(saveProfile?.statistics) saveProfile.statistics.totalOreMined+=amount;
+      // Phase 1.1: check mining-based milestones.
+      if(typeof checkMilestoneOnMine === 'function') checkMilestoneOnMine(g);
       sfx('mineral');
     }
   }
@@ -3176,6 +3178,8 @@ function killEnemy(g,e){
     if(roleStat==='boss' || e.type==='boss' || e.type==='hollowTyrantVariant') g.runStats.bossesKilled=(g.runStats.bossesKilled||0)+1;
   }
   g.kills++; sfx('kill', 0.55); dropPickup(g,e.x,e.y,'xp',e.xp);
+  // Phase 1.1: check kill-based milestones.
+  if(typeof checkMilestoneOnKill === 'function') checkMilestoneOnKill(g);
   const role=ENEMY_TYPES[e.type]?.role || e.role || 'normal';
   if(role==='boss') spawnVfxComposition(g,'bossShockwave',e.x,e.y,{radius:Math.max(120,e.r*3.2),color:e.color});
   else if(role==='elite') spawnVfxComposition(g,'eliteDeathBurst',e.x,e.y,{radius:Math.max(56,e.r*2.1),color:e.color});
@@ -3460,6 +3464,8 @@ function gainXp(g,v){
   g.xp+=v;
   while(g.xp>=g.xpNeed){
     g.xp-=g.xpNeed; g.level++; g.xpNeed=Math.floor(g.xpNeed*1.22+12);
+    // Phase 1.1: check level-based milestones.
+    if(typeof checkMilestoneOnLevelUp === 'function') checkMilestoneOnLevelUp(g, g.level);
     sfx('level'); openUpgrade(g); break;
   }
 }
