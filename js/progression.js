@@ -177,13 +177,138 @@ function defaultMilestones(){
   return result;
 }
 
-function defaultMilestones(){
-  const result = {};
-  for(const m of MILESTONES){
-    result[m.id] = { unlocked: false, unlockedAt: null };
+/*
+ * Mission Types — Phase 1.2
+ *
+ * Each mission type defines a primary objective, a reward modifier, and
+ * hooks for tracking progress.  The player picks one mission type before
+ * selecting their operator class at run start.
+ *
+ * Structure:
+ *   id              — unique key (stored in g.missionType)
+ *   name            — display name
+ *   icon            — emoji for UI
+ *   description     — short flavour text for the selection card
+ *   rewardModifier  — reward multiplier applied at bankRunRewards()
+ *   generateObjectives — function(profile, g) => array of objective objects
+ *   track           — function(g, dt) => void; called each update frame
+ *   isComplete      — function(g) => boolean
+ */
+const MISSION_TYPES = [
+  {
+    id:'hunt',
+    name:'Hunt',
+    icon:'🗡️',
+    description:'Eliminate a set number of Hollowborn. Combat-focused — mining is optional.',
+    rewardModifier:1.15,
+    generateObjectives:(profile,g)=>{
+      const diff=missionDifficulty(g.missionIndex||profile.missionIndex);
+      const baseTarget=30 + (g.missionIndex||1)*5;
+      const target=Math.floor(baseTarget*diff.objectiveMultiplier);
+      const rewardLabel=`+${Math.round((1.15-1)*100)}% reward`;
+      return [{ id:'hunt_kills', type:'hunt',
+        displayName:`🗡️ Eliminate ${target} enemies [${rewardLabel}]`,
+        targetAmount:target, currentAmount:0, completed:false }];
+    },
+    track:(g,dt)=>{},
+    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='hunt_kills'); return o ? o.completed : false; }
+  },
+  {
+    id:'survey',
+    name:'Survey',
+    icon:'🔍',
+    description:'Explore and reveal cave tiles. Move through uncharted tunnels to complete the survey.',
+    rewardModifier:1.10,
+    generateObjectives:(profile,g)=>{
+      const diff=missionDifficulty(g.missionIndex||profile.missionIndex);
+      const totalTiles=MAP_W*MAP_H;
+      const pctTarget=Math.min(0.25 + (g.missionIndex||1)*0.03, 0.50);
+      const target=Math.floor(totalTiles*pctTarget*diff.objectiveMultiplier);
+      const rewardLabel=`+${Math.round((1.10-1)*100)}% reward`;
+      return [{ id:'survey_tiles', type:'survey',
+        displayName:`🔍 Explore ${target} tiles [${rewardLabel}]`,
+        targetAmount:target, currentAmount:0, completed:false }];
+    },
+    track:(g,dt)=>{
+      if(!g._tilesRevealed) g._tilesRevealed=new Set();
+      if(!g._tilesRevealedCount) g._tilesRevealedCount=0;
+      const [tx,ty]=worldToTile(g.player.x,g.player.y);
+      const key=tx+','+ty;
+      if(!g._tilesRevealed.has(key)){
+        g._tilesRevealed.add(key);
+        g._tilesRevealedCount++;
+        const o=g.objectives.find(o=>o.id==='survey_tiles');
+        if(o && !o.completed){
+          o.currentAmount=Math.min(o.currentAmount+1,o.targetAmount);
+          if(o.currentAmount>=o.targetAmount){
+            o.completed=true;
+            if(typeof log==='function') log(g,`${o.displayName} complete.`);
+            if(typeof sfx==='function') sfx('level',0.75);
+            if(g.runStats) g.runStats.objectivesCompleted=(g.runStats.objectivesCompleted||0)+1;
+          }
+        }
+      }
+    },
+    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='survey_tiles'); return o ? o.completed : false; }
+  },
+  {
+    id:'harvest',
+    name:'Harvest',
+    icon:'⛏️',
+    description:'Extract a quota of specific minerals. Enemies escalate faster — prioritise mining.',
+    rewardModifier:1.20,
+    generateObjectives:(profile,g)=>{
+      const diff=missionDifficulty(g.missionIndex||profile.missionIndex);
+      const rewardLabel=`+${Math.round((1.20-1)*100)}% reward`;
+      const pool=['voltarite','echo','ferriteBark','luminaSpores','crysalith','emberglass'];
+      const secondRes=pool[(g.missionIndex||1 + g.runIndex||1) % pool.length];
+      const mineral2=MINERALS[secondRes];
+      const target1=Math.floor(40*diff.objectiveMultiplier);
+      const target2=Math.floor((secondRes==='aetherQuartz'?4:12)*diff.objectiveMultiplier);
+      return [
+        { id:'harvest_gild', type:'harvest', resourceId:'gild',
+          displayName:`⛏️ Collect ${target1} Gild Shards [${rewardLabel}]`,
+          targetAmount:target1, currentAmount:0, completed:false },
+        { id:'harvest_'+secondRes, type:'harvest', resourceId:secondRes,
+          displayName:`⛏️ Collect ${target2} ${mineral2.displayName} [${rewardLabel}]`,
+          targetAmount:target2, currentAmount:0, completed:false }
+      ];
+    },
+    track:(g,dt)=>{},
+    isComplete:g=>g.objectives.filter(o=>o.type==='harvest').every(o=>o.completed)
+  },
+  {
+    id:'holdout',
+    name:'Holdout',
+    icon:'🛡️',
+    description:'Survive a set duration. Endless waves of enemies pressure your position.',
+    rewardModifier:1.25,
+    generateObjectives:(profile,g)=>{
+      const diff=missionDifficulty(g.missionIndex||profile.missionIndex);
+      const baseTime=120 + (g.missionIndex||1)*15;
+      const target=Math.floor(baseTime*diff.objectiveMultiplier);
+      const rewardLabel=`+${Math.round((1.25-1)*100)}% reward`;
+      return [{ id:'holdout_timer', type:'holdout',
+        displayName:`🛡️ Survive ${target}s [${rewardLabel}]`,
+        targetAmount:target, currentAmount:0, completed:false }];
+    },
+    track:(g,dt)=>{
+      const o=g.objectives.find(o=>o.id==='holdout_timer');
+      if(!o || o.completed) return;
+      o.currentAmount=Math.min(o.currentAmount+dt,o.targetAmount);
+      if(o.currentAmount>=o.targetAmount && !o.completed){
+        o.completed=true;
+        if(typeof log==='function') log(g,`${o.displayName} complete.`);
+        if(typeof sfx==='function') sfx('level',0.75);
+        if(g.runStats) g.runStats.objectivesCompleted=(g.runStats.objectivesCompleted||0)+1;
+      }
+    },
+    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='holdout_timer'); return o ? o.completed : false; }
   }
-  return result;
-}
+];
+
+// Track the mission type selected by the player for the next run.
+let selectedMissionType = MISSION_TYPES[0];
 
 const PERMANENT_UPGRADES = [
   { id:'maxHealth', category:'Player Core', name:'Reinforced Suit', desc:'+5% max HP per level.', next:'Another +5% max HP.', ore:'ferronRoot', max:20 },
@@ -583,13 +708,19 @@ function currentRunObjectives(){
 function bankRunRewards(g){
   const diff=missionDifficulty(saveProfile.missionIndex);
   const rewardMul=diff.rewardMultiplier;
+  // Phase 1.2: apply mission-type reward modifier.
+  let missionMul=1;
+  if(g && g.missionType){
+    const mt=MISSION_TYPES.find(m=>m.id===g.missionType);
+    if(mt) missionMul=mt.rewardModifier;
+  }
   const resources=saveProfile.resources;
   const runRes=g.resources || {};
-  resources.gildShards += Math.floor(((runRes.gild || g.gold || 0) + 35 + saveProfile.runIndex*10)*rewardMul);
-  resources.voltarite += Math.floor(((runRes.voltarite || g.nitra || 0) + 4)*rewardMul);
-  resources.echoQuartz += Math.max(1, Math.floor((runRes.echo || g.objectiveEchoCollected || 0)/35));
+  resources.gildShards += Math.floor(((runRes.gild || g.gold || 0) + 35 + saveProfile.runIndex*10)*rewardMul*missionMul);
+  resources.voltarite += Math.floor(((runRes.voltarite || g.nitra || 0) + 4)*rewardMul*missionMul);
+  resources.echoQuartz += Math.max(1, Math.floor((runRes.echo || g.objectiveEchoCollected || 0)/35*missionMul));
   for(const id of ['ferriteBark','luminaSpores','aetherQuartz','crysalith','emberglass']){
-    resources[id]=(resources[id] || 0)+Math.floor((runRes[id] || 0)*rewardMul);
+    resources[id]=(resources[id] || 0)+Math.floor((runRes[id] || 0)*rewardMul*missionMul);
   }
   const bonusOre=SPECIAL_ORES[(saveProfile.missionIndex + saveProfile.runIndex - 2) % SPECIAL_ORES.length];
   resources[bonusOre] = (resources[bonusOre] || 0) + 1 + Math.floor(saveProfile.missionIndex/3);
@@ -639,6 +770,12 @@ function startRunWithClass(clsOrId){
   const cls=typeof clsOrId==='string' ? getClassById(clsOrId) : clsOrId;
   resumeAudio();
   game=makeGame(cls);
+  // Phase 1.2: Apply selected mission type.
+  if(selectedMissionType){
+    game.missionType = selectedMissionType.id;
+    // Replace default objectives with mission-specific ones.
+    game.objectives = selectedMissionType.generateObjectives(saveProfile, game);
+  }
   saveProfile.statistics.totalRunsStarted++;
   applyMilestoneRewards(game);
   saveGame();
@@ -706,7 +843,7 @@ function showMainMenu(){
   game=null;
   setMenu('Echo Vein', 'Prepare the next descent, spend permanent resources, or review your Hollowshift profile.');
   ui.menuMeta.innerHTML=`<div class="menuStats"><span>Mission <b>${saveProfile.missionIndex}</b></span><span>Run <b>${saveProfile.runIndex}/${RUNS_PER_MISSION}</b></span><span>Completed Missions <b>${saveProfile.completedMissions}</b></span></div><div class="resourceStrip">${renderResourceLine()}</div>`;
-  addMenuButton('Play',showClassSelect);
+  addMenuButton('Play',showMissionSelect);
   addMenuButton('Upgrades',showUpgradesMenu);
   addMenuButton('Gears',()=>showPlaceholderMenu('Gears','Gears feature coming later.'));
   addMenuButton('Milestones',showMilestonesMenu);
@@ -714,9 +851,64 @@ function showMainMenu(){
   addMenuButton('Credits',showCreditsMenu);
 }
 
+/*
+ * Mission Select — Phase 1.2
+ * Shows available mission types. Player picks one, then proceeds to class select.
+ */
+function showMissionSelect(){
+  appState='MISSION_SELECT';
+  setMenu('Choose Mission Type', `Mission ${saveProfile.missionIndex}, Run ${saveProfile.runIndex} of ${RUNS_PER_MISSION}. Each mission type changes the primary objective and reward.`);
+  if(!saveProfile) saveProfile=createDefaultProfile();
+
+  const grid=document.createElement('div');
+  grid.className='missionSelectGrid';
+
+  for(const mt of MISSION_TYPES){
+    const card=document.createElement('div');
+    card.className='missionSelectCard';
+    card.setAttribute('role','button');
+    card.setAttribute('tabindex','0');
+
+    const iconEl=document.createElement('div');
+    iconEl.className='missionSelectIcon';
+    iconEl.textContent=mt.icon;
+    card.appendChild(iconEl);
+
+    const info=document.createElement('div');
+    info.className='missionSelectInfo';
+
+    const nameEl=document.createElement('div');
+    nameEl.className='missionSelectName';
+    nameEl.textContent=mt.name;
+    info.appendChild(nameEl);
+
+    const descEl=document.createElement('div');
+    descEl.className='missionSelectDesc';
+    descEl.textContent=mt.description;
+    info.appendChild(descEl);
+
+    const rewardEl=document.createElement('div');
+    rewardEl.className='missionSelectReward';
+    rewardEl.textContent=`Reward modifier: +${Math.round((mt.rewardModifier-1)*100)}%`;
+    info.appendChild(rewardEl);
+
+    card.appendChild(info);
+    card.onclick=()=>{
+      selectedMissionType=mt;
+      showClassSelect();
+    };
+    card.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); card.onclick(); }};
+    grid.appendChild(card);
+  }
+
+  ui.menuContent.appendChild(grid);
+  addMenuButton('Back',showMainMenu);
+}
+
 function showClassSelect(){
   appState='MISSION_SELECT';
-  setMenu('Choose Operator', `Mission ${saveProfile.missionIndex}, Run ${saveProfile.runIndex} of ${RUNS_PER_MISSION}. Complete objectives, defeat the sector boss, then reach extraction.`);
+  const mtLabel = selectedMissionType ? `${selectedMissionType.icon} ${selectedMissionType.name} mission` : 'Standard operation';
+  setMenu('Choose Operator', `${mtLabel} — Mission ${saveProfile.missionIndex}, Run ${saveProfile.runIndex} of ${RUNS_PER_MISSION}. Complete objectives, defeat the sector boss, then reach extraction.`);
   setupClassCards();
 }
 
@@ -994,3 +1186,5 @@ function startupFlow(){
 }
 
 window.showMainMenu=showMainMenu;
+window.MISSION_TYPES=MISSION_TYPES;
+window.selectedMissionType=selectedMissionType;

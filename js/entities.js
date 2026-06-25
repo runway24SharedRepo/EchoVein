@@ -271,6 +271,7 @@ function makeGame(cls){
     enemyBudget:{ baseMaxEnemies:PERFORMANCE_CONFIG.baseMaxEnemies, currentMaxEnemies:PERFORMANCE_CONFIG.baseMaxEnemies, minMaxEnemies:PERFORMANCE_CONFIG.minMaxEnemies },
     missionIndex:saveProfile?.missionIndex || 1,
     runIndex:saveProfile?.runIndex || 1,
+    missionType:null,
     missionDifficulty:saveProfile ? missionDifficulty(saveProfile.missionIndex) : missionDifficulty(1),
     objectives:[],
     bossSpawned:false,

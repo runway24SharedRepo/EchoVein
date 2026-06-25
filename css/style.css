@@ -613,3 +613,76 @@ input.controllerSelected {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==============================
+   Mission Select (Phase 1.2)
+   ============================== */
+.missionSelectGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.missionSelectCard {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.missionSelectCard:hover,
+.missionSelectCard:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--cyan);
+  background: rgba(66,214,255,0.10);
+  box-shadow: 0 8px 30px rgba(66,214,255,0.10);
+}
+
+.missionSelectIcon {
+  font-size: 36px;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+}
+
+.missionSelectInfo {
+  display: grid;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.missionSelectName {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.missionSelectDesc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.missionSelectReward {
+  font-size: 13px;
+  color: var(--gold);
+  font-weight: 700;
+  margin-top: 3px;
+}
+
+@media (max-width: 700px) {
+  .missionSelectGrid {
+    grid-template-columns: 1fr;
+  }
+}

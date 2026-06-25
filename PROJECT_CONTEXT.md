@@ -9,46 +9,46 @@
 - Combat: Heat-based weapon system with overheat mechanics
 - Progression: XP/level system with operator classes
 - Resources: Ore mining with tiered economy (Common/Uncommon/Rare)
-- Enemies: BossShooter (placeholder), with other behaviors planned
+- Enemies: 20+ enemy types with visual variants, A* pathfinding
+- Missions: 4 types (Hunt, Survey, Harvest, Holdout)
+- Milestones: 30 achievements across 5 categories
 
 ## ✅ Completed Phases
 
 ### Phase 1: Progression & Meta Overhaul
-- ✅ **1.1 Milestones & Achievements** — 30 milestones across combat, mining, runs, resources, and classes. Locked/unlocked states with progress tracking. Hooked into killEnemy, mineTile, gainXp.
-- ⏳ **1.2 Mission Variety** — CURRENT TASK (Hunt, Survey, Harvest, Holdout)
-- ⏳ **1.3 Permanent Upgrade Expansion** — Next after 1.2
+- ✅ **1.1 Milestones & Achievements** — 30 milestones, locked/unlocked, progress tracking, persistence
+- ✅ **1.2 Mission Variety** — Hunt, Survey, Harvest, Holdout with selection UI and tracking
+- ✅ **1.3 Permanent Upgrade Expansion** — 10 upgrade categories with tiered costs
 - ⏳ **1.4 Resource Economy Rebalance** — Planned
 - ⏳ **1.5 Operator XP & Prestige** — Planned
 - ⏳ **1.6 Run History / Hall of Records** — Planned
 
-## 🎯 Current Task: Phase 1.2 — Mission Variety
+## 🎯 Current Task: Phase 2.1 — Upgrade Synergies
 
-**Goal:** Replace the current "mine everything" mission with 4 distinct mission types:
+**Goal:** Combo bonuses when certain upgrades are acquired together.
 
-| Mission Type | Description | Key Mechanic |
-|---|---|---|
-| **Hunt** | Eliminate a target number of enemies | Track enemy kills, spawn waves |
-| **Survey** | Explore and reveal X% of the map | Track tile visibility/reveal |
-| **Harvest** | Collect specific resources | Track resource collection |
-| **Holdout** | Survive for X seconds | Timer-based, enemy waves |
+**8 Synergies:**
+1. Drone Commander — Warden Drone Bay + Drone Bay Expansion + Drone Targeting AI
+2. Mining Magnate — Tungsten Bore Bit + Cryo Coolant + Resonance Magnet
+3. Arc Overload — Arc Connection + Storm Lattice + Arc Capacitors
+4. Bulwark Arsenal — Hammerfall Salvo + Warhead Yield + Hot-Burn Motors
+5. Borecaster Demolition — Seismic Charge + Extra Charges + Blast Radius
+6. Pathfinder Tactics — Trap Payload + Field Reclaimer + Targeting Cursor
+7. Vector Specialist — Vector Burst + Splitfire Array + Vector Focusing + Vector Accelerator + Vector Relay
+8. Sifter Master — Sifter Drone + Sifter Optics + Sifter Turbo
 
-**Mission Flow:**
-1. Player selects mission type at start
-2. Mission objectives are generated
-3. In-run tracking (HUD shows progress)
-4. Mission completion triggers rewards
-
-**Key Files to Modify:**
-- `progression.js` → Mission generation, tracking, rewards
-- `systems.js` → Hooks for kill tracking, resource tracking, map reveal
-- `render-ui.js` → Mission HUD display
-- `core.js` → Mission state in game object
+**Key Files:**
+- progression.js → SYNERGIES array, checkSynergies()
+- systems.js → Hook after upgrade application
+- render-ui.js → Synergies menu UI
+- core.js → Synergy state in game object
+- style.css → Synergy card styles
 
 ## Code Patterns
 - Use existing stat tracking in progression.js
 - UI rendering uses render-ui.js
 - Event system in systems.js
-- Mission state stored in `g.mission` object
+- Synergy state stored in `g.unlockedSynergies`
 
 ## File References
 - Main entry: index.html

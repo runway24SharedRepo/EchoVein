@@ -242,6 +242,11 @@ function update(g,dt){
   updatePickups(g,dt);
   updateRunProgress(g,dt);
   if(g.state !== 'playing') return;
+  // Phase 1.2: track mission-specific progress each frame.
+  if(g.missionType && typeof MISSION_TYPES !== 'undefined'){
+    const mt = MISSION_TYPES.find(m => m.id === g.missionType);
+    if(mt && typeof mt.track === 'function') mt.track(g, dt);
+  }
   updateParticles(g,dt);
   updateSpawning(g,dt);
   updateUI(g);
@@ -605,6 +610,20 @@ function mineTile(g,p,tx,ty,dt){
       }
       // Phase 1.1: check mining-based milestones.
       if(typeof checkMilestoneOnMine === 'function') checkMilestoneOnMine(g);
+      // Phase 1.2: update Harvest mission objectives.
+      if(g.missionType === 'harvest' && resourceId){
+        for(const o of g.objectives){
+          if(o.type==='harvest' && o.resourceId===resourceId && !o.completed){
+            o.currentAmount=Math.min(o.currentAmount+amount,o.targetAmount);
+            if(o.currentAmount>=o.targetAmount){
+              o.completed=true;
+              log(g, `${o.displayName} complete.`);
+              sfx('level',0.75);
+              if(g.runStats) g.runStats.objectivesCompleted=(g.runStats.objectivesCompleted||0)+1;
+            }
+          }
+        }
+      }
       sfx('mineral');
     }
   }
@@ -3187,6 +3206,19 @@ function killEnemy(g,e){
   g.kills++; sfx('kill', 0.55); dropPickup(g,e.x,e.y,'xp',e.xp);
   // Track kills persistently so kill-count milestones can fire mid-run.
   saveProfile.statistics.totalEnemiesKilled = (saveProfile.statistics.totalEnemiesKilled||0) + 1;
+  // Phase 1.2: update Hunt mission objective.
+  if(g.missionType === 'hunt'){
+    const o=g.objectives.find(o=>o.id==='hunt_kills');
+    if(o && !o.completed){
+      o.currentAmount=Math.min(o.currentAmount+1,o.targetAmount);
+      if(o.currentAmount>=o.targetAmount){
+        o.completed=true;
+        log(g, `${o.displayName} complete.`);
+        sfx('level',0.75);
+        if(g.runStats) g.runStats.objectivesCompleted=(g.runStats.objectivesCompleted||0)+1;
+      }
+    }
+  }
   // Phase 1.1: check kill-based milestones.
   if(typeof checkMilestoneOnKill === 'function') checkMilestoneOnKill(g);
   const role=ENEMY_TYPES[e.type]?.role || e.role || 'normal';
