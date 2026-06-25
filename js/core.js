@@ -201,6 +201,7 @@ const ui = {
   level: document.getElementById('level'), depth: document.getElementById('depth'),
   gold: document.getElementById('gold'), nitra: document.getElementById('nitra'), kills: document.getElementById('kills'),
   weaponList: document.getElementById('weaponList'), logList: document.getElementById('logList'),
+  rightbar: document.querySelector('.rightbar'),
   startOverlay: document.getElementById('startOverlay'), upgradeOverlay: document.getElementById('upgradeOverlay'),
   gameOverOverlay: document.getElementById('gameOverOverlay'),
   startTitle: document.getElementById('startTitle'), startText: document.getElementById('startText'),

@@ -156,6 +156,11 @@
     padding: 12px;
     display: grid;
     gap: 10px;
+    transition: opacity 0.25s ease;
+  }
+  .rightbar.faded {
+    opacity: 0.12;
+    pointer-events: none;
   }
 
   .title {

@@ -91,6 +91,8 @@ function render(g){
   // Phase 2.2: boss health bar and name display (screen-space)
   drawBossHealthBar(g);
   drawBossName(g);
+  // Auto-hide right panel if the player is underneath it
+  updateRightPanelVisibility(g);
   drawFogOfWar(g,cam,sx,sy);
   drawVignette();
   drawChargingWaveScreenOverlay(g);
@@ -100,6 +102,40 @@ function render(g){
   drawTileScaleInfoOverlay(g);
   drawAccuracyCone(g);
   if(paused) drawPause();
+}
+
+/*
+ * Auto-hide the right panel when the player character moves underneath it.
+ *
+ * Converts the player's world position to screen coordinates, then checks
+ * whether that point overlaps the right panel's bounding box (with a 25px
+ * buffer so the fade starts before the player reaches the edge).
+ * If overlapping, adds the 'faded' class (opacity ~0.12); otherwise removes it.
+ *
+ * Called every frame from render().
+ */
+function updateRightPanelVisibility(g){
+  if(!g || !g.player || !ui.rightbar) return;
+  const p = g.player;
+  const cam = g.camera;
+
+  // Project player world position to screen coordinates
+  const screenX = p.x - cam.x;
+  const screenY = p.y - cam.y;
+
+  // Get right panel bounding box with 25px buffer
+  const rect = ui.rightbar.getBoundingClientRect();
+  const buffer = 25;
+  const panelLeft = rect.left - buffer;
+  const panelRight = rect.right + buffer;
+  const panelTop = rect.top - buffer;
+  const panelBottom = rect.bottom + buffer;
+
+  // Check overlap
+  const overlaps = screenX >= panelLeft && screenX <= panelRight &&
+                   screenY >= panelTop && screenY <= panelBottom;
+
+  ui.rightbar.classList.toggle('faded', overlaps);
 }
 
 function drawTargetingCursor(g){
