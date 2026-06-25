@@ -1,1231 +1,12 @@
 repo: EchoVein
 
 File Structure:
-EchoVein/css/style.css
-EchoVein/js/assets.js
 EchoVein/js/core.js
+EchoVein/js/progression.js
 EchoVein/js/render-ui.js
+EchoVein/js/run-stats.js
 EchoVein/PROJECT_CONTEXT.md
 EchoVein/REPO_CONTEXT.md
-
-EchoVein/css/style.css:
-:root {
-    --bg: #07090d;
-    --panel: rgba(14, 18, 28, 0.88);
-    --panel2: rgba(30, 35, 48, 0.94);
-    --gold: #ffcc4d;
-    --cyan: #42d6ff;
-    --green: #5dff9a;
-    --red: #ff5b5b;
-    --orange: #ff9f43;
-    --purple: #b46bff;
-    --text: #eef3ff;
-    --muted: #95a2ba;
-  }
-
-  * { box-sizing: border-box; }
-  html, body {
-    margin: 0;
-    height: 100%;
-    overflow: hidden;
-    background: radial-gradient(circle at 50% 45%, #182033 0%, #07090d 68%);
-    color: var(--text);
-    font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
-    user-select: none;
-  }
-
-  #game {
-    display: block;
-    width: 100vw;
-    height: 100vh;
-    cursor: crosshair;
-  }
-
-  .hud {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-  }
-
-  .topbar {
-    position: absolute;
-    left: 14px;
-    top: 14px;
-    display: grid;
-    gap: 8px;
-    min-width: 390px;
-  }
-
-  .panel {
-    background: var(--panel);
-    border: 1px solid rgba(255,255,255,0.10);
-    border-radius: 14px;
-    box-shadow: 0 10px 35px rgba(0,0,0,0.35);
-    backdrop-filter: blur(8px);
-  }
-
-  .stats {
-    padding: 10px 12px;
-    display: grid;
-    gap: 8px;
-  }
-
-  .line {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    font-size: 13px;
-    color: var(--muted);
-  }
-
-  .line strong { color: var(--text); font-weight: 800; }
-
-  .bars { display: grid; gap: 6px; }
-  .bar {
-    height: 15px;
-    background: rgba(255,255,255,0.08);
-    border-radius: 999px;
-    overflow: hidden;
-    border: 1px solid rgba(255,255,255,0.10);
-    position: relative;
-  }
-  .bar > div {
-    height: 100%;
-    width: 50%;
-    border-radius: 999px;
-    transition: width 0.12s linear;
-  }
-  .bar.health > div { background: linear-gradient(90deg, #ff3f5f, #ff8a5b); }
-  .bar.xp > div { background: linear-gradient(90deg, #3c80ff, #42d6ff); }
-  .bar.overheat > div { background: linear-gradient(90deg, #ffd15c, #ff5b5b); }
-  .bar .label {
-    position: absolute;
-    inset: 0;
-    display: grid;
-    place-items: center;
-    font-size: 10px;
-    font-weight: 900;
-    color: rgba(255,255,255,0.92);
-    text-shadow: 0 1px 2px #000;
-  }
-
-  .rightbar {
-    position: absolute;
-    right: 14px;
-    top: 14px;
-    width: 330px;
-    padding: 12px;
-    display: grid;
-    gap: 10px;
-  }
-
-  .title {
-    font-size: 18px;
-    font-weight: 950;
-    letter-spacing: 0.3px;
-    color: #fff;
-  }
-  .subtitle {
-    font-size: 12px;
-    color: var(--muted);
-    line-height: 1.35;
-  }
-
-  .weaponList, .logList { display: grid; gap: 6px; }
-  .chip {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 7px 9px;
-    border-radius: 10px;
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.08);
-    font-size: 12px;
-    color: var(--muted);
-  }
-  .chip b { color: #fff; }
-  .chip.locked { border-color: rgba(255,75,75,0.8); background: rgba(255,75,75,0.12); color: #ff9999; }
-  .chip.unlocked { border-color: rgba(114,255,118,0.8); background: rgba(89,255,105,0.14); color: #d4ffd4; }
-
-  .bottomHelp {
-    position: absolute;
-    left: 50%;
-    bottom: 16px;
-    transform: translateX(-50%);
-    padding: 10px 14px;
-    font-size: 13px;
-    color: var(--muted);
-    white-space: nowrap;
-  }
-  .bottomHelp kbd {
-    color: #fff;
-    background: rgba(255,255,255,0.10);
-    border: 1px solid rgba(255,255,255,0.20);
-    border-bottom-color: rgba(0,0,0,0.55);
-    border-radius: 5px;
-    padding: 2px 5px;
-    font-size: 11px;
-    font-weight: 900;
-  }
-
-  .overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 20;
-    display: none;
-    align-items: center;
-    justify-content: center;
-    pointer-events: auto;
-    background: radial-gradient(circle at 50% 50%, rgba(15,22,36,0.44), rgba(0,0,0,0.72));
-  }
-  .overlay.show { display: flex; }
-  .modal {
-    width: min(960px, calc(100vw - 32px));
-    max-height: calc(100vh - 42px);
-    overflow: auto;
-    padding: 18px;
-    background: var(--panel2);
-    border: 1px solid rgba(255,255,255,0.14);
-    border-radius: 20px;
-    box-shadow: 0 18px 80px rgba(0,0,0,0.65);
-  }
-  .modal h1, .modal h2 { margin: 0 0 8px; }
-  .modal h1 { font-size: 30px; }
-  .modal p { color: var(--muted); line-height: 1.45; margin: 8px 0; }
-
-  .cards {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-    margin-top: 16px;
-  }
-  .card {
-    border: 1px solid rgba(255,255,255,0.13);
-    border-radius: 16px;
-    background: rgba(255,255,255,0.06);
-    padding: 14px;
-    cursor: pointer;
-    transition: transform 0.1s ease, background 0.1s ease, border-color 0.1s ease;
-  }
-  .card:hover {
-    transform: translateY(-2px);
-    background: rgba(255,255,255,0.10);
-    border-color: rgba(66,214,255,0.65);
-  }
-  .card .icon { font-size: 32px; margin-bottom: 10px; }
-  .card h3 { margin: 0 0 7px; font-size: 17px; }
-  .card p { margin: 0; font-size: 13px; }
-  .card .tag {
-    display: inline-block;
-    margin-top: 10px;
-    font-size: 11px;
-    color: #08111a;
-    background: var(--cyan);
-    padding: 3px 7px;
-    border-radius: 999px;
-    font-weight: 900;
-  }
-
-  .buttonRow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
-  button {
-    pointer-events: auto;
-    border: 1px solid rgba(255,255,255,0.18);
-    background: linear-gradient(180deg, rgba(66,214,255,0.18), rgba(66,214,255,0.08));
-    color: #fff;
-    border-radius: 12px;
-    padding: 10px 14px;
-    font-weight: 900;
-    cursor: pointer;
-  }
-  button:hover { border-color: rgba(66,214,255,0.75); }
-
-  .damageFlash {
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    background: rgba(255,30,55,0.0);
-    transition: background 0.12s linear;
-  }
-  .damageFlash.on { background: rgba(255,30,55,0.22); }
-
-
-  .soundControls {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-right: 14px;
-    padding-right: 12px;
-    border-right: 1px solid rgba(255,255,255,0.12);
-  }
-  .soundControls button {
-    border: 1px solid rgba(255,255,255,0.18);
-    background: rgba(255,255,255,0.08);
-    color: var(--text);
-    border-radius: 10px;
-    padding: 5px 9px;
-    font-weight: 800;
-    cursor: pointer;
-  }
-  .soundControls button:hover { background: rgba(255,255,255,0.16); }
-  .soundControls input { width: 90px; accent-color: var(--cyan); }
-
-  @media (max-width: 850px) {
-    .rightbar { display: none; }
-    .topbar { min-width: 310px; max-width: calc(100vw - 28px); }
-    .cards { grid-template-columns: 1fr; }
-    .bottomHelp { display: none; }
-  }
-
-
-  .debugBox {
-    position: fixed;
-    left: 12px;
-    bottom: 12px;
-    z-index: 50;
-    max-width: min(760px, calc(100vw - 24px));
-    max-height: 40vh;
-    overflow: auto;
-    white-space: pre-wrap;
-    user-select: text;
-    pointer-events: auto;
-    background: rgba(80, 0, 0, 0.94);
-    color: #fff;
-    border: 1px solid rgba(255, 120, 120, 0.9);
-    border-radius: 12px;
-    padding: 10px 12px;
-    font: 12px/1.35 Consolas, Monaco, monospace;
-    box-shadow: 0 12px 35px rgba(0,0,0,0.55);
-  }
-
-  .card:focus-visible {
-    outline: 3px solid var(--cyan);
-    outline-offset: 3px;
-  }
-
-
-  /* Permanent upgrade table / affordability states */
-  .upgradeTableWrap {
-    display: grid;
-    gap: 18px;
-    margin-top: 16px;
-  }
-  .upgradeCategorySection {
-    border: 1px solid rgba(255,255,255,0.10);
-    border-radius: 16px;
-    background: rgba(255,255,255,0.035);
-    overflow: hidden;
-  }
-  .upgradeCategorySection > h3 {
-    margin: 0;
-    padding: 11px 13px;
-    background: rgba(66,214,255,0.08);
-    border-bottom: 1px solid rgba(255,255,255,0.10);
-    color: #fff;
-  }
-  .upgradeTable {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 12px;
-  }
-  .upgradeTable th,
-  .upgradeTable td {
-    padding: 9px 10px;
-    vertical-align: top;
-    border-bottom: 1px solid rgba(255,255,255,0.07);
-  }
-  .upgradeTable th {
-    text-align: left;
-    color: var(--cyan);
-    background: rgba(0,0,0,0.16);
-    font-size: 11px;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-  }
-  .upgradeTable tr.affordable { background: rgba(93,255,154,0.025); }
-  .upgradeTable tr.locked { background: rgba(255,255,255,0.018); }
-  .upgradeTable tr.maxed { opacity: 0.72; }
-  .upgradeTable td b { color: #fff; }
-  .upgradeTable td small {
-    display: block;
-    margin-top: 3px;
-    color: var(--muted);
-  }
-  .costLine {
-    display: block;
-    white-space: nowrap;
-  }
-  .costLine.ok { color: #a7f7c6; }
-  .costLine.missing { color: #ff8f8f; font-weight: 900; }
-  button:disabled,
-  button.disabled,
-  .buyBtn:disabled {
-    background: rgba(120,128,145,0.22) !important;
-    border-color: rgba(255,255,255,0.08) !important;
-    color: rgba(238,243,255,0.52) !important;
-    cursor: not-allowed !important;
-    transform: none !important;
-  }
-  .buyBtn {
-    min-width: 122px;
-    padding: 8px 10px;
-  }
-
-
-  .settingsPanel {
-    display: grid;
-    gap: 12px;
-    margin-top: 16px;
-  }
-  .settingsRow {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 18px;
-    padding: 13px 14px;
-    border: 1px solid rgba(255,255,255,0.12);
-    border-radius: 14px;
-    background: rgba(255,255,255,0.055);
-  }
-  .settingsRow span {
-    display: grid;
-    gap: 4px;
-  }
-  .settingsRow small,
-  .settingsValues {
-    color: var(--muted);
-    font-size: 12px;
-    line-height: 1.35;
-  }
-  .settingsRow input[type="checkbox"] {
-    width: 22px;
-    height: 22px;
-    accent-color: var(--cyan);
-    cursor: pointer;
-  }
-  .settingsPresetRow {
-    align-items: flex-start;
-  }
-  .settingsPresetButtons {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-  .settingsPresetButtons button {
-    padding: 7px 10px;
-    border-radius: 10px;
-  }
-  .settingsValues {
-    padding: 0 4px;
-  }
-
-.icon .spriteIcon {
-  width: 38px;
-  height: 38px;
-  object-fit: contain;
-  vertical-align: middle;
-  filter: drop-shadow(0 0 8px rgba(255,255,255,0.18));
-}
-.weaponIcon {
-  width: 18px;
-  height: 18px;
-  object-fit: contain;
-  vertical-align: middle;
-  margin-right: 6px;
-}
-
-  .card.selected,
-  .card[aria-selected="true"] {
-    transform: translateY(-3px) scale(1.015);
-    background: rgba(66,214,255,0.16);
-    border-color: rgba(66,214,255,0.95);
-    box-shadow: 0 0 0 2px rgba(66,214,255,0.30), 0 18px 45px rgba(66,214,255,0.12);
-  }
-
-
-/* Controller focus/selection highlight used by main menu, class select, settings, and level-up cards. */
-.controllerSelected,
-button.controllerSelected,
-input.controllerSelected,
-.card.controllerSelected {
-  outline: 3px solid #64e8ff !important;
-  box-shadow: 0 0 0 2px rgba(100,232,255,0.24), 0 0 22px rgba(100,232,255,0.45) !important;
-  transform: translateY(-1px) scale(1.015);
-}
-input.controllerSelected {
-  transform: scale(1.18);
-}
-
-
-.objectiveRow { margin: 6px 0; padding: 7px 8px; border-radius: 10px; background: rgba(255,255,255,0.055); border: 1px solid rgba(255,255,255,0.08); }
-.objectiveRow.active { opacity: var(--pulse, 1); box-shadow: 0 0 calc(12px * var(--pulse, 1)) rgba(66,214,255,0.18); }
-.objectiveRow.priority { border-color: rgba(66,214,255,0.35); }
-.objectiveRow.done { background: rgba(93,255,154,0.10); border-color: rgba(93,255,154,0.28); }
-.objectiveTop { display:flex; justify-content:space-between; gap:10px; font-size:12px; color: var(--text); }
-.objectiveTop b { color: var(--cyan); }
-.objectiveRow.done .objectiveTop b { color: var(--green); }
-.objectiveBar { height: 7px; margin-top: 5px; border-radius:999px; background:rgba(255,255,255,0.08); overflow:hidden; border:1px solid rgba(255,255,255,0.08); }
-.objectiveBar i { display:block; height:100%; background:linear-gradient(90deg,var(--cyan),var(--green)); border-radius:999px; transition:width .18s linear; }
-.runStatsModal { width:min(980px, 94vw); max-height:92vh; overflow:auto; }
-.statCards { display:grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap:10px; margin:12px 0; }
-.statCard { padding:10px; border-radius:12px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.10); }
-.statCard span { display:block; color:var(--muted); font-size:12px; }
-.statCard b { display:block; font-size:20px; color:var(--text); margin-top:4px; }
-.resourceBreakdown { display:grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap:6px; }
-.resourceBreakdown div { display:flex; justify-content:space-between; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,0.045); }
-.chartTabs { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0; }
-.runStatsChart { width:100%; height:240px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.28); }
-
-/* ==============================
-   Milestones Menu (Phase 1.1)
-   ============================== */
-.milestoneSection {
-  margin-top: 16px;
-}
-
-.milestoneSectionHeader {
-  font-size: 18px;
-  font-weight: 900;
-  color: var(--text);
-  padding: 8px 4px 6px;
-  border-bottom: 1px solid rgba(255,255,255,0.10);
-  margin-bottom: 10px;
-}
-
-.milestonesGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.milestoneCard {
-  display: flex;
-  gap: 14px;
-  align-items: flex-start;
-  padding: 14px;
-  border-radius: 14px;
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(255,255,255,0.04);
-  transition: transform 0.12s ease, border-color 0.12s ease;
-}
-
-.milestoneCard.unlocked {
-  border-color: rgba(93,255,154,0.45);
-  background: rgba(93,255,154,0.07);
-  box-shadow: 0 0 16px rgba(93,255,154,0.08);
-}
-
-.milestoneCard.locked {
-  border-color: rgba(255,255,255,0.08);
-  opacity: 0.82;
-}
-
-.milestoneIcon {
-  font-size: 28px;
-  line-height: 1;
-  flex-shrink: 0;
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  background: rgba(255,255,255,0.06);
-}
-
-.milestoneCard.unlocked .milestoneIcon {
-  background: rgba(93,255,154,0.14);
-  box-shadow: 0 0 14px rgba(93,255,154,0.18);
-}
-
-.milestoneCard.locked .milestoneIcon {
-  background: rgba(255,255,255,0.04);
-}
-
-.milestoneInfo {
-  display: grid;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-}
-
-.milestoneName {
-  font-size: 16px;
-  font-weight: 800;
-  color: var(--text);
-}
-
-.milestoneCard.locked .milestoneName {
-  color: var(--muted);
-}
-
-.milestoneDesc {
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.35;
-}
-
-.milestoneReward {
-  font-size: 13px;
-  color: var(--gold);
-  font-weight: 700;
-  margin-top: 4px;
-}
-
-.milestoneDate {
-  font-size: 11px;
-  color: var(--cyan);
-  margin-top: 2px;
-}
-
-.milestoneLockedLabel {
-  font-size: 12px;
-  color: #ff9999;
-  margin-top: 2px;
-}
-
-/* Progress bar for tracked milestones */
-.milestoneProgressWrap {
-  height: 8px;
-  margin-top: 6px;
-  background: rgba(255,255,255,0.08);
-  border-radius: 999px;
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.08);
-}
-
-.milestoneProgressBar {
-  height: 100%;
-  background: linear-gradient(90deg, var(--cyan), var(--green));
-  border-radius: 999px;
-  transition: width 0.2s ease;
-  min-width: 2px;
-}
-
-.milestoneProgressBar.complete {
-  background: linear-gradient(90deg, var(--green), #a7f7c6);
-}
-
-.milestoneProgressLabel {
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 2px;
-  text-align: right;
-}
-
-.milestoneCard.unlocked .milestoneProgressLabel {
-  color: var(--green);
-}
-
-@media (max-width: 700px) {
-  .milestonesGrid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ==============================
-   Mission Select (Phase 1.2)
-   ============================== */
-.missionSelectGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 14px;
-  margin-top: 16px;
-}
-
-.missionSelectCard {
-  display: flex;
-  gap: 14px;
-  align-items: flex-start;
-  padding: 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.05);
-  cursor: pointer;
-  transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
-}
-
-.missionSelectCard:hover,
-.missionSelectCard:focus-visible {
-  transform: translateY(-3px);
-  border-color: var(--cyan);
-  background: rgba(66,214,255,0.10);
-  box-shadow: 0 8px 30px rgba(66,214,255,0.10);
-}
-
-.missionSelectIcon {
-  font-size: 36px;
-  flex-shrink: 0;
-  width: 52px;
-  height: 52px;
-  display: grid;
-  place-items: center;
-  border-radius: 14px;
-  background: rgba(255,255,255,0.06);
-}
-
-.missionSelectInfo {
-  display: grid;
-  gap: 5px;
-  flex: 1;
-  min-width: 0;
-}
-
-.missionSelectName {
-  font-size: 18px;
-  font-weight: 900;
-  color: var(--text);
-}
-
-.missionSelectDesc {
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.4;
-}
-
-.missionSelectReward {
-  font-size: 13px;
-  color: var(--gold);
-  font-weight: 700;
-  margin-top: 3px;
-}
-
-@media (max-width: 700px) {
-  .missionSelectGrid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ==============================
-   Upgrade Synergies Menu (Phase 2.1)
-   ============================== */
-.synergyGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 14px;
-  margin-top: 16px;
-}
-
-.synergyCard {
-  display: grid;
-  gap: 8px;
-  padding: 16px;
-  border-radius: 16px;
-  border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(255,255,255,0.04);
-  transition: transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease;
-}
-
-.synergyCard:hover {
-  transform: translateY(-2px);
-}
-
-.synergyUnlocked {
-  border-color: rgba(93,255,154,0.50);
-  background: rgba(93,255,154,0.07);
-  box-shadow: 0 0 20px rgba(93,255,154,0.10);
-}
-
-.synergyLocked {
-  border-color: rgba(255,255,255,0.07);
-  opacity: 0.78;
-}
-
-.synergyHeader {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.synergyIcon {
-  font-size: 28px;
-  width: 44px;
-  height: 44px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  background: rgba(255,255,255,0.06);
-  flex-shrink: 0;
-}
-
-.synergyUnlocked .synergyIcon {
-  background: rgba(93,255,154,0.14);
-  box-shadow: 0 0 14px rgba(93,255,154,0.18);
-}
-
-.synergyName {
-  font-size: 17px;
-  font-weight: 800;
-  color: var(--text);
-  flex: 1;
-}
-
-.synergyLocked .synergyName {
-  color: var(--muted);
-}
-
-.synergyBadge {
-  font-size: 11px;
-  font-weight: 900;
-  color: #0a1a0a;
-  background: var(--green);
-  padding: 3px 8px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-.synergyDesc {
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 1.4;
-}
-
-.synergyBonus {
-  font-size: 13px;
-  color: var(--purple);
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-.synergyReqLabel {
-  font-size: 11px;
-  color: var(--muted);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  margin-top: 4px;
-}
-
-.synergyReqList {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.synergyReqItem {
-  font-size: 11px;
-  padding: 3px 7px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.10);
-  background: rgba(255,255,255,0.05);
-  color: var(--muted);
-}
-
-.synergyReqOwned {
-  border-color: rgba(93,255,154,0.35);
-  color: var(--green);
-  background: rgba(93,255,154,0.08);
-}
-
-.synergyReqMissing {
-  border-color: rgba(255,75,75,0.40);
-  color: #ff8f8f;
-  background: rgba(255,75,75,0.08);
-}
-
-.synergyUnlocked .synergyReqItem {
-  border-color: rgba(93,255,154,0.25);
-  color: var(--green);
-  background: rgba(93,255,154,0.06);
-}
-
-@media (max-width: 700px) {
-  .synergyGrid {
-    grid-template-columns: 1fr;
-  }
-}
-
-/* ==============================
-   Boss UI (Phase 2.2)
-   ============================== */
-.bossHealthBar {
-  position: fixed;
-  top: 12px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 380px;
-  z-index: 15;
-  pointer-events: none;
-}
-
-.bossHealthBarBg {
-  background: rgba(0,0,0,0.72);
-  border-radius: 12px;
-  padding: 4px;
-  border: 2px solid rgba(255,255,255,0.25);
-  box-shadow: 0 0 20px rgba(0,0,0,0.5);
-}
-
-.bossHealthBarFill {
-  height: 22px;
-  border-radius: 8px;
-  transition: width 0.15s linear;
-}
-
-.bossHealthBarText {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 900;
-  font-size: 13px;
-  color: #fff;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-}
-
-.bossNameDisplay {
-  position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 25;
-  pointer-events: none;
-  text-align: center;
-  animation: bossNameFadeIn 0.5s ease-out;
-}
-
-.bossNameText {
-  font-size: 42px;
-  font-weight: 900;
-  text-shadow: 0 0 20px currentColor, 0 0 40px currentColor;
-  letter-spacing: 0.02em;
-}
-
-.bossNameSubtitle {
-  font-size: 16px;
-  font-weight: 700;
-  color: #fff;
-  text-shadow: 0 0 10px rgba(0,0,0,0.8);
-  margin-top: 8px;
-}
-
-@keyframes bossNameFadeIn {
-  from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
-  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
-}
-
-.bossNameFadeOut {
-  animation: bossNameFadeOut 1s ease-in forwards;
-}
-
-@keyframes bossNameFadeOut {
-  from { opacity: 1; }
-  to { opacity: 0; }
-}
-
-.phaseIndicator {
-  position: absolute;
-  top: -2px;
-  width: 3px;
-  height: calc(100% + 4px);
-  background: rgba(255,255,255,0.85);
-  border-radius: 2px;
-}
-
-.phaseLabel {
-  position: absolute;
-  top: calc(100% + 4px);
-  font-size: 10px;
-  font-weight: 900;
-  color: rgba(255,255,255,0.8);
-  transform: translateX(-50%);
-}
-
-.weakPointHighlight {
-  position: absolute;
-  pointer-events: none;
-  border-radius: 50%;
-  border: 3px solid rgba(66,214,255,0.7);
-  box-shadow: 0 0 20px rgba(66,214,255,0.5), inset 0 0 20px rgba(66,214,255,0.2);
-  animation: weakPointPulse 0.6s ease-in-out infinite alternate;
-}
-
-@keyframes weakPointPulse {
-  from { transform: scale(1); opacity: 0.8; }
-  to { transform: scale(1.15); opacity: 1; }
-}
-
-.weakPointLabel {
-  position: absolute;
-  font-weight: 900;
-  font-size: 14px;
-  color: #42d6ff;
-  text-shadow: 0 0 14px #42d6ff;
-  white-space: nowrap;
-  pointer-events: none;
-  animation: weakPointLabelPulse 0.6s ease-in-out infinite alternate;
-}
-
-@keyframes weakPointLabelPulse {
-  from { opacity: 0.7; }
-  to { opacity: 1; }
-}
-
-.crystalRainIndicator {
-  position: absolute;
-  pointer-events: none;
-  border-radius: 50%;
-  border: 2px solid rgba(180,107,255,0.5);
-  background: rgba(180,107,255,0.06);
-  animation: crystalRainPulse 0.4s ease-in-out infinite alternate;
-}
-
-@keyframes crystalRainPulse {
-  from { transform: scale(1); opacity: 0.6; }
-  to { transform: scale(1.1); opacity: 1; }
-}
-
-@media (max-width: 700px) {
-  .bossHealthBar {
-    width: min(340px, calc(100vw - 40px));
-  }
-}
-
-
-EchoVein/js/assets.js:
-'use strict';
-
-/*
- * Central sprite manifest and image loader.
- *
- * Rendering code must treat sprites as optional: drawSpriteCentered() returns
- * false if an image is missing or still loading, allowing the existing
- * procedural/vector fallback to run without crashing the game.
- */
-
-const SPRITES = {
-  // Existing/base resources and props.
-  echoShard: 'assets/sprites/echo_shard_cluster.png',
-  voltariteOre: 'assets/sprites/voltarite_ore.png',
-  gildShard: 'assets/sprites/gild_shard_deposit.png',
-  glowFungus: 'assets/sprites/glow_fungus.png',
-  steamVent: 'assets/sprites/steam_vent.png',
-  machineRuin: 'assets/sprites/broken_machine_ruin.png',
-  sifterDrone: 'assets/sprites/sifter_drone.png',
-  wardenDrone: 'assets/sprites/warden_drone.png',
-  lavaRock: 'assets/sprites/lava_rock.png',
-
-  // New sprite pack resources.
-  ferriteBark: 'assets/sprites/ferrite_bark.png',
-  luminaSpores: 'assets/sprites/lumina_spores.png',
-  aetherQuartz: 'assets/sprites/aether_quartz.png',
-  crysalithCluster: 'assets/sprites/crysalith_cluster.png',
-  emberglassDeposit: 'assets/sprites/emberglass_deposit.png',
-
-  // Enemies and enemy projectiles.
-  hexShardEnemy: 'assets/sprites/hex_shard_enemy.png',
-  hexShardWarningGlow: 'assets/sprites/hex_shard_warning_glow.png',
-  hexBoomerangProjectile: 'assets/sprites/hex_boomerang_projectile.png',
-  hollowTyrantBoss: 'assets/sprites/hollow_tyrant_boss.png',
-  eliteShellbackEnemy: 'assets/sprites/elite_shellback_enemy.png',
-  enemyRedBullet: 'assets/sprites/enemy_red_bullet.png',
-  destructiveEnemyBullet: 'assets/sprites/destructive_enemy_bullet.png',
-
-  // Player weapons, abilities, overlays, and VFX.
-  lavaFragmentDebris: 'assets/sprites/lava_fragment_debris.png',
-  hammerfallMissile: 'assets/sprites/hammerfall_missile.png',
-  targetLockReticle: 'assets/sprites/target_lock_reticle.png',
-  pathfinderTrap: 'assets/sprites/pathfinder_trap.png',
-  arcConnectionIcon: 'assets/sprites/arc_connection_icon.png',
-  vectorBurstIcon: 'assets/sprites/vector_burst_icon.png',
-  extractionCraft: 'assets/sprites/extraction_craft.png',
-
-  // Borecaster Seismic Charge throwable bomb sprites and VFX.
-  borecasterBombIdle: 'assets/sprites/borecaster_bomb_idle.png',
-  borecasterBombLit: 'assets/sprites/borecaster_bomb_lit.png',
-  borecasterBombDouble: 'assets/sprites/borecaster_bomb_double.png',
-  borecasterBombTriple: 'assets/sprites/borecaster_bomb_triple.png',
-  borecasterBombCountIcon: 'assets/sprites/borecaster_bomb_count_upgrade_icon.png',
-  borecasterBombFuseIcon: 'assets/sprites/borecaster_bomb_fuse_upgrade_icon.png',
-  borecasterBombRadiusIcon: 'assets/sprites/borecaster_bomb_radius_upgrade_icon.png',
-  borecasterBombExplosionCore: 'assets/sprites/borecaster_bomb_explosion_core.png',
-  borecasterBombExplosionFragments: 'assets/sprites/borecaster_bomb_explosion_fragments.png',
-  borecasterBombExplosionShockwave: 'assets/sprites/borecaster_bomb_explosion_shockwave.png',
-  borecasterBombExplosionSmoke: 'assets/sprites/borecaster_bomb_explosion_smoke.png',
-  borecasterBombThrowTrail: 'assets/sprites/borecaster_bomb_throw_trail.png',
-  borecasterBombFuseSpark: 'assets/sprites/borecaster_bomb_fuse_spark.png',
-  borecasterBombLandingMarker: 'assets/sprites/borecaster_bomb_landing_marker.png',
-
-
-  // Explosion VFX pack.
-  explosionCoreFlash01: 'assets/sprites/vfx/explosion_core_flash_01.png',
-  explosionCoreFlash02: 'assets/sprites/vfx/explosion_core_flash_02.png',
-  explosionFireball01: 'assets/sprites/vfx/explosion_fireball_01.png',
-  explosionFireball02: 'assets/sprites/vfx/explosion_fireball_02.png',
-  explosionRingBlast01: 'assets/sprites/vfx/explosion_ring_blast_01.png',
-  explosionRingBlast02: 'assets/sprites/vfx/explosion_ring_blast_02.png',
-  explosionFragmentBurst01: 'assets/sprites/vfx/explosion_fragment_burst_01.png',
-  explosionFragmentBurst02: 'assets/sprites/vfx/explosion_fragment_burst_02.png',
-  explosionSmokeBloom01: 'assets/sprites/vfx/explosion_smoke_bloom_01.png',
-  explosionSmokeBloom02: 'assets/sprites/vfx/explosion_smoke_bloom_02.png',
-  explosionShockwave01: 'assets/sprites/vfx/explosion_shockwave_01.png',
-  explosionShockwave02: 'assets/sprites/vfx/explosion_shockwave_02.png',
-  explosionSparkBurst01: 'assets/sprites/vfx/explosion_spark_burst_01.png',
-  explosionSparkBurst02: 'assets/sprites/vfx/explosion_spark_burst_02.png',
-  explosionLavaBurst01: 'assets/sprites/vfx/explosion_lava_burst_01.png',
-  explosionLavaBurst02: 'assets/sprites/vfx/explosion_lava_burst_02.png',
-  explosionHexShardBurst01: 'assets/sprites/vfx/explosion_hex_shard_burst_01.png',
-  explosionHexShardBurst02: 'assets/sprites/vfx/explosion_hex_shard_burst_02.png',
-  explosionArcOverload01: 'assets/sprites/vfx/explosion_arc_overload_01.png',
-  explosionArcOverload02: 'assets/sprites/vfx/explosion_arc_overload_02.png',
-  explosionVfxPreviewSheet: 'assets/sprites/vfx/explosion_vfx_preview_sheet.png',
-
-  // New enemy roster sprites. These live in assets/sprites/enemies/ so the
-  // gameplay code can swap sprites through IDs instead of hardcoded paths.
-  clawlingRunner: 'assets/sprites/enemies/clawling_runner.png',
-  needleWisp: 'assets/sprites/enemies/needle_wisp.png',
-  shellbackGuard: 'assets/sprites/enemies/shellback_guard.png',
-  blisterPod: 'assets/sprites/enemies/blister_pod.png',
-  hexShardThrower: 'assets/sprites/enemies/hex_shard_thrower.png',
-  sporeMother: 'assets/sprites/enemies/spore_mother.png',
-  emberCrawler: 'assets/sprites/enemies/ember_crawler.png',
-  crystalLancer: 'assets/sprites/enemies/crystal_lancer.png',
-  voidMite: 'assets/sprites/enemies/void_mite.png',
-  acidTick: 'assets/sprites/enemies/acid_tick.png',
-  ironMaw: 'assets/sprites/enemies/iron_maw.png',
-  stormOrb: 'assets/sprites/enemies/storm_orb.png',
-  riftStalker: 'assets/sprites/enemies/rift_stalker.png',
-  boneSkitter: 'assets/sprites/enemies/bone_skitter.png',
-  magmaBurrower: 'assets/sprites/enemies/magma_burrower.png',
-  echoSiren: 'assets/sprites/enemies/echo_siren.png',
-  fractureBeetle: 'assets/sprites/enemies/fracture_beetle.png',
-  gloomBat: 'assets/sprites/enemies/gloom_bat.png',
-  obsidianTitan: 'assets/sprites/enemies/obsidian_titan.png',
-  hollowTyrantVariant: 'assets/sprites/enemies/hollow_tyrant_variant.png',
-
-  // Phase 2.2: Boss sprites
-  hexShardColossus: 'assets/sprites/hex_shard_colossus.png',
-  moltenMaw: 'assets/sprites/molten_maw.png',
-  bossCrystalShard: 'assets/sprites/crystal_shard_projectile.png',
-  bossFireball: 'assets/sprites/fireball_projectile.png',
-  bossShockwave: 'assets/sprites/shockwave_ring.png',
-  crystalRainIndicator: 'assets/sprites/crystal_rain_indicator.png',
-  fireTrail: 'assets/sprites/fire_trail.png',
-  bossWeakPoint: 'assets/sprites/boss_weak_point.png',
-  bossHealthBarFrame: 'assets/sprites/boss_health_bar_frame.png',
-  bossNamePlate: 'assets/sprites/boss_name_plate.png'
-};
-
-// Compatibility alias used by older rendering code.
-const SPRITE_PATHS = SPRITES;
-
-// Separate enemy-sprite view requested by the new sprite-pack instructions.
-const ENEMY_SPRITES = {
-  clawlingRunner: SPRITES.clawlingRunner,
-  needleWisp: SPRITES.needleWisp,
-  shellbackGuard: SPRITES.shellbackGuard,
-  blisterPod: SPRITES.blisterPod,
-  hexShardThrower: SPRITES.hexShardThrower,
-  sporeMother: SPRITES.sporeMother,
-  emberCrawler: SPRITES.emberCrawler,
-  crystalLancer: SPRITES.crystalLancer,
-  voidMite: SPRITES.voidMite,
-  acidTick: SPRITES.acidTick,
-  ironMaw: SPRITES.ironMaw,
-  stormOrb: SPRITES.stormOrb,
-  riftStalker: SPRITES.riftStalker,
-  boneSkitter: SPRITES.boneSkitter,
-  magmaBurrower: SPRITES.magmaBurrower,
-  echoSiren: SPRITES.echoSiren,
-  fractureBeetle: SPRITES.fractureBeetle,
-  gloomBat: SPRITES.gloomBat,
-  obsidianTitan: SPRITES.obsidianTitan,
-  hollowTyrantVariant: SPRITES.hollowTyrantVariant,
-};
-
-
-const EXPLOSION_VFX_SPRITES = {
-  coreFlash: ['explosionCoreFlash01','explosionCoreFlash02'],
-  fireball: ['explosionFireball01','explosionFireball02'],
-  ringBlast: ['explosionRingBlast01','explosionRingBlast02'],
-  fragmentBurst: ['explosionFragmentBurst01','explosionFragmentBurst02'],
-  smokeBloom: ['explosionSmokeBloom01','explosionSmokeBloom02'],
-  shockwave: ['explosionShockwave01','explosionShockwave02'],
-  sparkBurst: ['explosionSparkBurst01','explosionSparkBurst02'],
-  lavaBurst: ['explosionLavaBurst01','explosionLavaBurst02'],
-  hexShardBurst: ['explosionHexShardBurst01','explosionHexShardBurst02'],
-  arcOverload: ['explosionArcOverload01','explosionArcOverload02'],
-};
-
-const BORECASTER_BOMB_VFX_SPRITES = {
-  core: 'borecasterBombExplosionCore',
-  fragments: 'borecasterBombExplosionFragments',
-  shockwave: 'borecasterBombExplosionShockwave',
-  smoke: 'borecasterBombExplosionSmoke',
-  trail: 'borecasterBombThrowTrail',
-  spark: 'borecasterBombFuseSpark',
-  marker: 'borecasterBombLandingMarker'
-};
-
-const spriteImages = Object.create(null);
-const spriteLoadState = Object.create(null);
-let spritePreloadPromise = null;
-
-function loadSprites(spriteMap = SPRITES){
-  const entries = Object.entries(spriteMap);
-  spritePreloadPromise = Promise.all(entries.map(([id, url]) => new Promise(resolve => {
-    const img = new Image();
-    spriteLoadState[id] = { id, url, ok:false, loaded:false, width:0, height:0 };
-    img.onload = () => {
-      spriteImages[id] = img;
-      spriteLoadState[id] = { id, url, ok:true, loaded:true, width:img.naturalWidth, height:img.naturalHeight };
-      resolve(spriteLoadState[id]);
-    };
-    img.onerror = () => {
-      console.warn('Failed to load sprite', id, url);
-      spriteImages[id] = null;
-      spriteLoadState[id] = { id, url, ok:false, loaded:true, width:0, height:0 };
-      resolve(spriteLoadState[id]);
-    };
-    img.src = url;
-  })));
-  return spritePreloadPromise;
-}
-
-function getSprite(id){
-  return spriteImages[id] || null;
-}
-
-function isSpriteReady(id){
-  return !!spriteImages[id];
-}
-
-function getSpriteLoadReport(){
-  return Object.keys(SPRITES).map(id => spriteLoadState[id] || { id, url:SPRITES[id], ok:false, loaded:false, width:0, height:0 });
-}
-
-function drawSpriteCentered(ctx, spriteId, x, y, w, h, options = {}){
-  const img = getSprite(spriteId);
-  if(!img) return false;
-  const rotation = options.rotation || 0;
-  const alpha = options.alpha ?? 1;
-  const glowColor = options.glowColor || null;
-  const glowBlur = options.glowBlur || 0;
-  ctx.save();
-  ctx.globalAlpha *= alpha;
-  ctx.translate(x, y);
-  ctx.rotate(rotation);
-  ctx.scale(options.flipX ? -1 : 1, options.flipY ? -1 : 1);
-  if(glowColor && glowBlur){
-    ctx.shadowColor = glowColor;
-    ctx.shadowBlur = glowBlur;
-  }
-  ctx.drawImage(img, -w/2, -h/2, w, h);
-  ctx.restore();
-  return true;
-}
-
-function spriteIconHtml(spriteId, fallbackText=''){
-  const src = SPRITES[spriteId];
-  if(!src) return fallbackText;
-  return `<img class="spriteIcon" src="${src}" alt="" draggable="false">`;
-}
-
-loadSprites();
-
 
 EchoVein/js/core.js:
 'use strict';
@@ -1431,6 +212,7 @@ const ui = {
   level: document.getElementById('level'), depth: document.getElementById('depth'),
   gold: document.getElementById('gold'), nitra: document.getElementById('nitra'), kills: document.getElementById('kills'),
   weaponList: document.getElementById('weaponList'), logList: document.getElementById('logList'),
+  rightbar: document.querySelector('.rightbar'),
   startOverlay: document.getElementById('startOverlay'), upgradeOverlay: document.getElementById('upgradeOverlay'),
   gameOverOverlay: document.getElementById('gameOverOverlay'),
   startTitle: document.getElementById('startTitle'), startText: document.getElementById('startText'),
@@ -1441,9 +223,9 @@ const ui = {
 };
 
 const CLASSES = [
-  { id: 'bulwark', icon: 'B', name: 'Bulwark', desc: 'Heavy armour, high endurance, and a Rotary Mauler built for sustained pressure.', tag: 'Armoured DPS', hp: 140, speed: 185, weapon: 'minigun' },
-  { id: 'pathfinder', icon: 'P', name: 'Pathfinder', desc: 'Fast utility operator with a Vector Carbine, stronger dash, and a deployable trap kit.', tag: 'Mobility', hp: 105, speed: 235, weapon: 'carbine' },
-  { id: 'borecaster', icon: 'C', name: 'Borecaster', desc: 'Mining and thermal-control specialist with better heat capacity and a Thermal Lance.', tag: 'Mining Control', hp: 125, speed: 195, weapon: 'flamer' }
+  { id: 'bulwark', icon: 'B', spriteId: 'bulwarkOperator', name: 'Bulwark', desc: 'Heavy armour, high endurance, and a Rotary Mauler built for sustained pressure.', tag: 'Armoured DPS', hp: 140, speed: 185, weapon: 'minigun' },
+  { id: 'pathfinder', icon: 'P', spriteId: 'pathfinderOperator', name: 'Pathfinder', desc: 'Fast utility operator with a Vector Carbine, stronger dash, and a deployable trap kit.', tag: 'Mobility', hp: 105, speed: 235, weapon: 'carbine' },
+  { id: 'borecaster', icon: 'C', spriteId: 'borecasterOperator', name: 'Borecaster', desc: 'Mining and thermal-control specialist with better heat capacity and a Thermal Lance.', tag: 'Mining Control', hp: 125, speed: 195, weapon: 'flamer' }
 ];
 
 const UPGRADE_POOL = [
@@ -1805,1628 +587,1670 @@ window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
 
-EchoVein/js/render-ui.js:
+EchoVein/js/progression.js:
 'use strict';
 
-/* HUD updates, menus, rendering, drawing helpers, and game-over/start flows. */
-
-function updateUI(g){
-  const p=g.player;
-  const mm=Math.floor(g.time/60), ss=Math.floor(g.time%60);
-  ui.timer.textContent=`${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
-  ui.hpFill.style.width=`${clamp(p.hp/p.maxHp*100,0,100)}%`;
-  ui.hpLabel.textContent=`HP ${Math.ceil(Math.max(0,p.hp))}/${p.maxHp}`;
-  ui.xpFill.style.width=`${clamp(g.xp/g.xpNeed*100,0,100)}%`;
-  ui.xpLabel.textContent=`Echo ${Math.floor(g.xp)}/${g.xpNeed}`;
-  ui.heatFill.style.width=`${clamp(p.heat/p.maxHeat*100,0,100)}%`;
-  ui.heatLabel.textContent=p.heat>=p.maxHeat?'TOOL OVERHEATED':'TOOL HEAT';
-  ui.level.textContent=g.level;
-  ui.depth.textContent=Math.floor(g.time*1.6)+' m';
-  ui.gold.textContent=g.gold; ui.nitra.textContent=g.nitra; ui.kills.textContent=g.kills;
-  const trapChip = g.player.canUseTraps ? `<div class="chip"><span>Pathfinder Trap Kit</span><b>${g.player.trapCd<=0?'READY':'CD '+g.player.trapCd.toFixed(1)+'s'}</b></div>` : '';
-  const accChip = `<div class="chip"><span>Weapon Accuracy</span><b>${Math.round((g.player.accuracy ?? 0.35)*100)}%</b></div>`;
-  const cursorChip = (g.player.mouseTargeting || g.controllerCursor?.active) ? `<div class="chip"><span>Targeting Cursor</span><b>${manualAimActive(g)?'MANUAL':'AUTO'}</b></div>` : '';
-  const arc = g.arcConnection;
-  const arcChip = arc?.unlocked ? `<div class="chip"><span>Arc Connection</span><b>${arc.selectedEnemies.length}/${arcConnectionMaxTargets(g)}</b></div>` : '';
-  ui.weaponList.innerHTML=g.weapons.map(w=>{
-    const spriteId=WEAPON_DATA[w.id]?.spriteId;
-    const icon=spriteId ? `<img class="weaponIcon" src="${SPRITES[spriteId]}" alt="">` : '';
-    return `<div class="chip"><span>${icon}${weaponName(w.id)}</span><b>Mk ${w.level}</b></div>`;
-  }).join('') + trapChip + accChip + cursorChip + arcChip;
-  const resourceChips = RUN_RESOURCE_IDS.filter(id=>id!=='gild' && id!=='voltarite' && id!=='echo' && (g.resources?.[id] || 0)>0)
-    .map(id=>`<div class="chip"><span>${MINERALS[id].displayName}</span><b>${g.resources[id]}</b></div>`).join('');
-  const pressureChip=`<div class="chip ${g.pressureFlash>0?'danger':''}"><span>Hollow Pressure</span><b>${g.hollowPressure || 0}</b></div>`;
-  const perfState=g.performance?.state || '';
-  const perfChip=(perfState && perfState!==PERF_STATES.HEALTHY)
-    ? `<div class="chip ${perfState===PERF_STATES.CRITICAL?'danger':''}"><span>Swarm Stabiliser</span><b>${perfState.replace('PERF_','')}</b></div>`
-    : '';
-  const objectiveChips=(typeof renderObjectiveChips==='function') ? renderObjectiveChips(g) : g.objectives.map(o=>`<div class="chip objective ${o.completed?'done':''}"><span>${o.displayName}</span><b>${Math.floor(o.currentAmount)}/${o.targetAmount}</b></div>`).join('');
-  const bossChip=g.bossDefeated ? '<div class="chip unlocked"><span>Sector Boss</span><b>DEFEATED</b></div>' : (g.bossSpawned ? '<div class="chip unlocked"><span>Sector Boss</span><b>ACTIVE</b></div>' : '<div class="chip locked"><span>Sector Boss</span><b>LOCKED</b></div>');
-  const extractionChip=g.extraction ? `<div class="chip danger"><span>Extraction</span><b>${Math.max(0,g.extractionTimer).toFixed(1)}s</b></div>` : '';
-  const missionChip=`<div class="chip"><span>Mission ${g.missionIndex}</span><b>Run ${g.runIndex}/${RUNS_PER_MISSION}</b></div>`;
-  // Phase 1.2: mission-type chip.
-  let missionTypeChip='';
-  if(g.missionType && typeof MISSION_TYPES !== 'undefined'){
-    const mt=MISSION_TYPES.find(m=>m.id===g.missionType);
-    if(mt){
-      const colors={hunt:'#ff5b5b',survey:'#42d6ff',harvest:'#ffcc4d',holdout:'#b46bff'};
-      const c=colors[mt.id]||'#95a2ba';
-      missionTypeChip=`<div class="chip" style="border-color:${c};color:${c}"><span>${mt.icon} ${mt.name}</span><b>+${Math.round((mt.rewardModifier-1)*100)}%</b></div>`;
-    }
-  }
-  ui.logList.innerHTML=missionTypeChip + missionChip + pressureChip + perfChip + resourceChips + objectiveChips + bossChip + extractionChip + g.log.slice(0,3).map((m,i)=>`<div class="chip"><span>${m}</span><b>${i===0?'NEW':''}</b></div>`).join('');
-}
-
-function render(g){
-  ctx.clearRect(0,0,innerWidth,innerHeight);
-  if(!g){ drawBackdrop(); return; }
-  const p=g.player;
-  const cam=g.camera;
-  cam.x=lerp(cam.x,p.x-innerWidth/2,0.10);
-  cam.y=lerp(cam.y,p.y-innerHeight/2,0.10);
-  cam.x=clamp(cam.x,0,WORLD_W-innerWidth); cam.y=clamp(cam.y,0,WORLD_H-innerHeight);
-  const sx=(shake>0?rand(-shake,shake):0), sy=(shake>0?rand(-shake,shake):0);
-  ctx.save(); ctx.translate(-cam.x+sx,-cam.y+sy);
-  drawTiles(g,cam);
-  drawLavaDebugZones(g,cam);
-  drawTraps(g);
-  drawExtractionCraft(g);
-  drawPickups(g);
-  drawTargetLocks(g);
-  drawMissiles(g);
-  drawBorecasterBombs(g);
-  drawEnemyBoomerangs(g);
-  drawEnemyBullets(g);
-  drawBullets(g);
-  drawBoomerangs(g);
-  drawArcConnection(g);
-  drawEnemies(g);
-  drawEnemyPaths(g);
-  drawChargingWaveWorldDebug(g);
-  drawWardenDrones(g);
-  drawSifterDrones(g);
-  drawPlayer(g);
-  drawMiningDebug(g);
-  drawScaledTileDebug(g,cam);
-  drawParticles(g);
-  drawArcs(g);
-  drawTargetingCursor(g);
-  drawTexts(g);
-  // Phase 2.2: boss weak point overlay and crystal rain indicators (world-space)
-  drawWeakPointHighlight(g);
-  drawBossCrystalRainIndicators(g);
-  ctx.restore();
-  // Phase 2.2: boss health bar and name display (screen-space)
-  drawBossHealthBar(g);
-  drawBossName(g);
-  drawFogOfWar(g,cam,sx,sy);
-  drawVignette();
-  drawChargingWaveScreenOverlay(g);
-  drawFogDebugOverlay(g,cam,sx,sy);
-  drawEnemyBudgetOverlay(g);
-  drawControllerDebugOverlay(g);
-  drawTileScaleInfoOverlay(g);
-  drawAccuracyCone(g);
-  if(paused) drawPause();
-}
-
-function drawTargetingCursor(g){
-  if(!manualAimActive(g)) return;
-  const m = mouseWorld(g);
-  ctx.save();
-  ctx.translate(m.x,m.y);
-  const pulse = 0.5 + 0.5*Math.sin(g.time*10);
-  ctx.strokeStyle=`rgba(66,214,255,${0.45+0.35*pulse})`;
-  ctx.shadowColor='#42d6ff';
-  ctx.shadowBlur=10;
-  ctx.lineWidth=2;
-  ctx.beginPath(); ctx.arc(0,0,20+3*pulse,0,Math.PI*2); ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(-28,0); ctx.lineTo(-12,0);
-  ctx.moveTo(12,0); ctx.lineTo(28,0);
-  ctx.moveTo(0,-28); ctx.lineTo(0,-12);
-  ctx.moveTo(0,12); ctx.lineTo(0,28);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawArcConnection(g){
-  const arc = g.arcConnection;
-  if(!arc?.unlocked) return;
-  const selected = arc.selectedEnemies.filter(e=>e && e.hp>0);
-  if(!selected.length) return;
-  ctx.save();
-  ctx.lineCap='round';
-  ctx.lineJoin='round';
-  for(let i=1;i<selected.length;i++){
-    const a=selected[i-1], b=selected[i];
-    const pulse = 0.55 + 0.45*Math.sin(g.time*12+i);
-    ctx.strokeStyle=`rgba(93,255,154,${0.48+0.35*pulse})`;
-    ctx.shadowColor='#5dff9a';
-    ctx.shadowBlur=10;
-    ctx.lineWidth=4;
-    ctx.beginPath();
-    ctx.moveTo(a.x,a.y);
-    const segments=5;
-    for(let s=1;s<=segments;s++){
-      const t=s/segments;
-      const jitter=(1-Math.abs(0.5-t)*1.7);
-      ctx.lineTo(lerp(a.x,b.x,t)+rand(-3,3)*jitter, lerp(a.y,b.y,t)+rand(-3,3)*jitter);
-    }
-    ctx.stroke();
-  }
-  for(let i=0;i<selected.length;i++){
-    const e=selected[i];
-    const pulse = 0.5 + 0.5*Math.sin(g.time*9+i);
-    ctx.strokeStyle=`rgba(93,255,154,${0.65+0.30*pulse})`;
-    ctx.shadowColor='#5dff9a';
-    ctx.shadowBlur=12;
-    ctx.lineWidth=3;
-    ctx.beginPath();
-    ctx.arc(e.x,e.y,e.r+8+3*pulse,0,Math.PI*2);
-    ctx.stroke();
-    ctx.fillStyle='rgba(93,255,154,0.22)';
-    ctx.beginPath();
-    ctx.arc(e.x,e.y,e.r+3,0,Math.PI*2);
-    ctx.fill();
-    ctx.shadowBlur=0;
-    ctx.fillStyle='#d9ffe7';
-    ctx.font='bold 12px Segoe UI, Arial';
-    ctx.textAlign='center';
-    ctx.fillText(String(i+1),e.x,e.y-e.r-13);
-  }
-  ctx.restore();
-}
-
-function drawBackdrop(){
-  ctx.fillStyle='#07090d'; ctx.fillRect(0,0,innerWidth,innerHeight);
-}
-
-function drawTiles(g,cam){
-  const minx=clamp(Math.floor(cam.x/TILE)-1,0,MAP_W-1), maxx=clamp(Math.ceil((cam.x+innerWidth)/TILE)+1,0,MAP_W-1);
-  const miny=clamp(Math.floor(cam.y/TILE)-1,0,MAP_H-1), maxy=clamp(Math.ceil((cam.y+innerHeight)/TILE)+1,0,MAP_H-1);
-  ctx.fillStyle='#131722'; ctx.fillRect(cam.x-30,cam.y-30,innerWidth+60,innerHeight+60);
-  for(let y=miny;y<=maxy;y++) for(let x=minx;x<=maxx;x++){
-    const t=g.tiles[tileIdx(x,y)];
-    const px=x*TILE, py=y*TILE;
-    if(t===TILE_EMPTY){
-      ctx.fillStyle=((x+y)&1)?'#171b27':'#151925';
-      ctx.fillRect(px,py,TILE,TILE);
-      if(Math.random()<0.0002){} // keeps cave still; no-op.
-    } else {
-      const data=TILE_DATA[t];
-      const color = t===TILE_EMPTY?'#151925':(data?.color || '#3a342f');
-      ctx.fillStyle=color; ctx.fillRect(px,py,TILE,TILE);
-      const tileInfo = TILE_DATA[t];
-      if(tileInfo?.sprite){
-        drawSpriteCentered(ctx, tileInfo.sprite, px+TILE/2, py+TILE/2, TILE-6, TILE-6, {
-          glowColor: (t===TILE_LUMINA_SPORES || t===TILE_AETHER_QUARTZ || t===TILE_CRYSALITH || t===TILE_EMBERGLASS) ? tileInfo.color : null,
-          glowBlur: (t===TILE_LUMINA_SPORES || t===TILE_AETHER_QUARTZ || t===TILE_CRYSALITH || t===TILE_EMBERGLASS) ? 8 : 0
-        });
-      }
-      if(t===TILE_LAVA_ROCK){
-        ctx.fillStyle='rgba(255,96,24,0.18)';
-        ctx.beginPath(); ctx.arc(px+TILE/2,py+TILE/2,TILE*0.42,0,Math.PI*2); ctx.fill();
-      }
-      ctx.fillStyle='rgba(255,255,255,0.04)'; ctx.fillRect(px+2,py+2,TILE-4,3);
-      ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.fillRect(px,py+TILE-4,TILE,4);
-      const seed=(x*73856093 ^ y*19349663)>>>0;
-      ctx.fillStyle='rgba(255,255,255,0.06)';
-      for(let k=0;k<2;k++){
-        const ox=(seed>>(k*5))%TILE, oy=(seed>>(k*7+3))%TILE;
-        ctx.fillRect(px+ox,py+oy,2,2);
-      }
-    }
-  }
-}
-
-
-function drawLavaDebugZones(g,cam){
-  if(!g.debug?.showLavaZones) return;
-  const minx=clamp(Math.floor(cam.x/TILE)-1,0,MAP_W-1), maxx=clamp(Math.ceil((cam.x+innerWidth)/TILE)+1,0,MAP_W-1);
-  const miny=clamp(Math.floor(cam.y/TILE)-1,0,MAP_H-1), maxy=clamp(Math.ceil((cam.y+innerHeight)/TILE)+1,0,MAP_H-1);
-  ctx.save();
-  ctx.strokeStyle='rgba(255,112,56,0.82)';
-  ctx.lineWidth=2;
-  for(let y=miny;y<=maxy;y++) for(let x=minx;x<=maxx;x++) if(g.tiles[tileIdx(x,y)]===TILE_LAVA_ROCK){
-    ctx.strokeRect(x*TILE+2,y*TILE+2,TILE-4,TILE-4);
-  }
-  ctx.restore();
-}
-
-function drawPlayer(g){
-  const p=g.player;
-  ctx.save(); ctx.translate(p.x,p.y);
-  const a=Math.atan2(p.lastDy,p.lastDx);
-  ctx.rotate(a);
-  ctx.shadowColor='#42d6ff'; ctx.shadowBlur=8;
-  ctx.fillStyle=p.iframes>0?'rgba(255,255,255,0.85)':'#4fa3ff';
-  ctx.beginPath(); ctx.roundRect(-15,-12,30,24,7); ctx.fill();
-  ctx.shadowBlur=0;
-  ctx.fillStyle='#f5c16c'; ctx.fillRect(-4,-18,10,10);
-  ctx.fillStyle='#222'; ctx.fillRect(2,-8,20,5);
-  ctx.fillStyle='#ffcc4d'; ctx.fillRect(-12,11,8,6);
-  ctx.restore();
-}
-
-
-function enemyRenderTransform(g,e,cfg,warning=false){
-  const style=e.rotationStyle || cfg.rotationStyle || 'wobble';
-  const base=(e.visualRotation || 0) + (e.visualRotationSpeed || 0)*g.time;
-  const wobble=Math.sin(g.time*(e.visualWobbleSpeed || 2.5) + (e.visualPhase || e.phase || 0)) * (e.visualWobbleAmount || 0);
-  const warningTwist=warning ? Math.sin(g.time*24 + e.phase)*0.18 : 0;
-  const scale=1 + Math.sin(g.time*(e.visualScaleSpeed || 1.5) + (e.visualPhase || 0))*(e.visualScalePulse || 0);
-  return { rotation:base+wobble+warningTwist, scale:scale*(e.visualScaleMul || 1) };
-}
-
-function drawEnemies(g){
-  for(const e of g.enemies){
-    ctx.save();
-    let shakeX=0, shakeY=0;
-    if((ENEMY_TYPES[e.type]?.behavior || e.behavior) === 'hexBoomerangDetonator' && e.detonationStarted){
-      const amp=e.shakeAmount || 4;
-      shakeX=rand(-amp,amp); shakeY=rand(-amp,amp);
-    }
-    ctx.translate(e.x+shakeX,e.y+shakeY);
-
-    const cfg = ENEMY_TYPES[e.type] || {};
-    const isHexLike = (cfg.behavior || e.behavior) === 'hexBoomerangDetonator';
-    const warning = isHexLike && e.detonationStarted;
-    const pulse = 0.5 + 0.5*Math.sin(g.time*(warning?18:6)+e.phase);
-    let spriteDrawn=false;
-
-    // Enemy sprites are purely visual. If any sprite is missing, the existing
-    // procedural fallback below still renders the enemy safely. New enemy-pack
-    // enemies all flow through cfg.spriteId so future sprite swaps are data-only.
-    const spriteId = cfg.spriteId || e.spriteId;
-    if(spriteId){
-      const role = cfg.role || e.role || 'normal';
-      const baseScale = role==='boss' ? 3.25 : role==='elite' ? 3.15 : 3.05;
-      const minSize = role==='boss' ? 110 : role==='elite' ? 64 : 44;
-      const tr=enemyRenderTransform(g,e,cfg,warning);
-      const size = Math.max(minSize, e.r*baseScale) * (warning ? 1+0.08*pulse : 1) * tr.scale;
-      spriteDrawn = drawSpriteCentered(ctx,spriteId,0,0,size,size,{
-        rotation:tr.rotation,
-        alpha: e.hitFlash>0 ? 0.72 : (cfg.behavior==='riftStalker'?0.82:1),
-        glowColor: warning ? '#ff3d22' : e.color,
-        glowBlur: warning ? 24 : (role==='boss'?26:(role==='elite'?16:8))
-      });
-      if(spriteDrawn && warning){
-        drawSpriteCentered(ctx,cfg.warningSpriteId || 'hexShardWarningGlow',0,0,size*1.35,size*1.35,{
-          rotation: -g.time*1.6,
-          alpha: 0.38+0.50*pulse,
-          glowColor:'#ff7038',
-          glowBlur:28
-        });
-        ctx.strokeStyle=`rgba(255,72,40,${0.42+0.42*pulse})`;
-        ctx.lineWidth=3;
-        ctx.beginPath(); ctx.arc(0,0,70+8*pulse,0,Math.PI*2); ctx.stroke();
-      }
-    }
-
-    if(!spriteDrawn){
-      const tr=enemyRenderTransform(g,e,cfg,warning);
-      ctx.save();
-      ctx.rotate(tr.rotation);
-      ctx.scale(tr.scale,tr.scale);
-      if((ENEMY_TYPES[e.type]?.behavior || e.behavior) === 'hexBoomerangDetonator'){
-        ctx.fillStyle=e.hitFlash>0?'#fff':(warning?`rgba(255,112,56,${0.78+0.22*pulse})`:e.color);
-        ctx.strokeStyle=warning?'#ffe0a8':'rgba(255,220,170,0.82)';
-        ctx.lineWidth=warning?3:2;
-        ctx.shadowColor=warning?'#ff3d22':e.color;
-        ctx.shadowBlur=warning?26:10;
-        ctx.beginPath();
-        for(let i=0;i<6;i++){
-          const a=-Math.PI/6+i*Math.PI*2/6;
-          const rr=e.r*(warning?1+0.10*pulse:1);
-          const x=Math.cos(a)*rr, y=Math.sin(a)*rr;
-          if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-        }
-        ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
-        ctx.fillStyle='rgba(0,0,0,0.38)';
-        ctx.beginPath(); ctx.arc(0,0,e.r*0.42,0,Math.PI*2); ctx.fill();
-        if(warning){
-          ctx.strokeStyle=`rgba(255,72,40,${0.42+0.42*pulse})`;
-          ctx.lineWidth=3;
-          ctx.beginPath(); ctx.arc(0,0,70+8*pulse,0,Math.PI*2); ctx.stroke();
-        }
-      } else {
-        ctx.fillStyle=e.hitFlash>0?'#fff':e.color;
-        const fallbackRole=ENEMY_TYPES[e.type]?.role || e.role || 'normal';
-        ctx.shadowColor=e.color; ctx.shadowBlur=fallbackRole==='boss'?28:(fallbackRole==='elite'?18:6);
-        ctx.beginPath();
-        for(let i=0;i<8;i++){
-          const a=i*Math.PI*2/8;
-          const rr=e.r*(i%2?0.82:1.08);
-          ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);
-        }
-        ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
-      }
-      ctx.restore();
-    }
-
-    ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(-e.r,-e.r-10,e.r*2,4);
-    ctx.fillStyle='#ff5b5b'; ctx.fillRect(-e.r,-e.r-10,e.r*2*clamp(e.hp/e.maxHp,0,1),4);
-    if((ENEMY_TYPES[e.type]?.role || e.role)==='boss'){
-      ctx.strokeStyle='rgba(255,255,255,0.75)';
-      ctx.lineWidth=3;
-      ctx.beginPath(); ctx.arc(0,0,e.r+8+Math.sin(g.time*5)*3,0,Math.PI*2); ctx.stroke();
-    }
-    if(e.isChargingWaveEnemy && (g.debug?.showChargingWaveTriggerRadius || g.debug?.showChargingWaveDamageRadius)){
-      ctx.shadowBlur=0;
-      if(g.debug.showChargingWaveTriggerRadius){
-        ctx.strokeStyle='rgba(255,228,90,0.55)'; ctx.lineWidth=1.5;
-        ctx.beginPath(); ctx.arc(0,0,e.explosionTriggerRadius || 55,0,Math.PI*2); ctx.stroke();
-      }
-      if(g.debug.showChargingWaveDamageRadius){
-        ctx.strokeStyle='rgba(255,112,56,0.36)'; ctx.lineWidth=1.5;
-        ctx.beginPath(); ctx.arc(0,0,e.explosionRadius || 95,0,Math.PI*2); ctx.stroke();
-      }
-    }
-    if(g.debug?.showHexRanges && (ENEMY_TYPES[e.type]?.behavior || e.behavior)==='hexBoomerangDetonator'){
-      ctx.shadowBlur=0;
-      ctx.strokeStyle='rgba(255,112,56,0.32)'; ctx.lineWidth=1.5;
-      ctx.beginPath(); ctx.arc(0,0,70,0,Math.PI*2); ctx.stroke();
-      ctx.strokeStyle='rgba(255,200,80,0.18)';
-      ctx.beginPath(); ctx.arc(0,0,420,0,Math.PI*2); ctx.stroke();
-    }
-    ctx.restore();
-  }
-}
-
-
-function drawChargingWaveWorldDebug(g){
-  if(!g?.chargingWave) return;
-  const cw=g.chargingWave;
-  ctx.save();
-  if(g.debug?.showChargingWaveSpawnDirection && cw.lastSpawnCenter){
-    ctx.strokeStyle='rgba(255,112,56,0.72)';
-    ctx.lineWidth=3;
-    ctx.setLineDash([10,7]);
-    ctx.beginPath(); ctx.moveTo(cw.lastSpawnCenter.x,cw.lastSpawnCenter.y); ctx.lineTo(g.player.x,g.player.y); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle='rgba(255,112,56,0.95)';
-    ctx.beginPath(); ctx.arc(cw.lastSpawnCenter.x,cw.lastSpawnCenter.y,8,0,Math.PI*2); ctx.fill();
-  }
-  if(g.debug?.showChargingWaveFormationTargets){
-    const targets=[];
-    for(const e of g.enemies||[]) if(e.isChargingWaveEnemy && e.formationTarget) targets.push(e.formationTarget);
-    if(!targets.length && cw.lastFormationTargets) targets.push(...cw.lastFormationTargets);
-    ctx.fillStyle='rgba(255,228,90,0.82)';
-    ctx.strokeStyle='rgba(255,112,56,0.38)';
-    for(const t of targets){ ctx.beginPath(); ctx.arc(t.x,t.y,3.4,0,Math.PI*2); ctx.fill(); }
-  }
-  ctx.restore();
-}
-
-function drawChargingWaveScreenOverlay(g){
-  const cw=g?.chargingWave;
-  if(!cw) return;
-  const warning=cw.warningActive && cw.warningTimer>0;
-  const alive=(g.enemies||[]).filter(e=>e.isChargingWaveEnemy && e.hp>0).length;
-  if(!warning && alive<=0) return;
-  ctx.save();
-  const pulse=0.5+0.5*Math.sin((g.time||0)*14);
-  if(warning){
-    const alpha=0.16+0.13*pulse;
-    ctx.fillStyle=`rgba(255,72,32,${alpha})`;
-    ctx.fillRect(0,0,innerWidth,innerHeight);
-    ctx.font='900 34px Segoe UI, Arial';
-    ctx.textAlign='center';
-    ctx.fillStyle=`rgba(255,240,210,${0.80+0.20*pulse})`;
-    ctx.shadowColor='#ff3d22'; ctx.shadowBlur=18;
-    ctx.fillText('CHARGING WAVE INCOMING!',innerWidth/2,112);
-    ctx.font='700 15px Segoe UI, Arial';
-    ctx.fillText(`${Math.max(0,cw.warningTimer).toFixed(1)}s · Dodge the Rift Chargers`,innerWidth/2,140);
-  }
-  // Directional incoming arrow is visible even when fog hides the enemies.
-  const a=cw.incomingDirection || 0;
-  const cx=innerWidth/2 + Math.cos(a)*Math.min(innerWidth,innerHeight)*0.34;
-  const cy=innerHeight/2 + Math.sin(a)*Math.min(innerWidth,innerHeight)*0.34;
-  ctx.translate(cx,cy);
-  ctx.rotate(a+Math.PI);
-  ctx.fillStyle=`rgba(255,112,56,${0.55+0.35*pulse})`;
-  ctx.strokeStyle='rgba(255,245,210,0.88)';
-  ctx.lineWidth=2;
-  ctx.beginPath();
-  ctx.moveTo(0,-24); ctx.lineTo(38,0); ctx.lineTo(0,24); ctx.lineTo(10,7); ctx.lineTo(-36,7); ctx.lineTo(-36,-7); ctx.lineTo(10,-7);
-  ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.restore();
-}
-
-function drawExtractionCraft(g){
-  if(!g.extraction) return;
-  const ex=g.extraction;
-  const pulse=0.5+0.5*Math.sin(g.time*8);
-  ctx.save();
-  ctx.translate(ex.x,ex.y);
-  ctx.shadowColor='#5dff9a';
-  ctx.shadowBlur=22;
-  ctx.strokeStyle=`rgba(93,255,154,${0.45+0.35*pulse})`;
-  ctx.fillStyle='rgba(93,255,154,0.16)';
-  ctx.lineWidth=4;
-  ctx.beginPath(); ctx.arc(0,0,ex.r+14+8*pulse,0,Math.PI*2); ctx.fill(); ctx.stroke();
-  const drawn=drawSpriteCentered(ctx,'extractionCraft',0,0,110,110,{
-    rotation: Math.sin(g.time*1.2)*0.025,
-    glowColor:'#5dff9a',
-    glowBlur:18
-  });
-  if(!drawn){
-    ctx.fillStyle='#d9ffe7';
-    ctx.beginPath();
-    ctx.moveTo(0,-30); ctx.lineTo(28,14); ctx.lineTo(10,26); ctx.lineTo(-10,26); ctx.lineTo(-28,14);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle='#15251f';
-    ctx.fillRect(-11,3,22,12);
-  }
-  ctx.shadowBlur=0;
-  ctx.fillStyle='#fff';
-  ctx.font='900 13px Segoe UI, Arial';
-  ctx.textAlign='center';
-  ctx.fillText('EXTRACTION',0,-60);
-  ctx.restore();
-}
-
-function drawEnemyPaths(g){
-  if(!g.debug?.showEnemyPaths) return;
-  ctx.save();
-  for(const e of g.enemies){
-    if(e.stuckTimer>0.75){
-      ctx.strokeStyle='rgba(255,91,91,0.95)';
-      ctx.lineWidth=3;
-      ctx.beginPath(); ctx.arc(e.x,e.y,e.r+14,0,Math.PI*2); ctx.stroke();
-    }
-    if(g.debug.showEnemyPathingRadius){
-      ctx.strokeStyle='rgba(255,255,255,0.24)';
-      ctx.lineWidth=1;
-      ctx.beginPath(); ctx.arc(e.x,e.y,e.pathingRadius || e.r,0,Math.PI*2); ctx.stroke();
-    }
-    if(g.debug.showRawEnemyPaths && e.rawPath && e.rawPath.length){
-      ctx.strokeStyle='rgba(255,112,56,0.50)';
-      ctx.lineWidth=1.5;
-      ctx.beginPath(); ctx.moveTo(e.x,e.y);
-      for(const p of e.rawPath) ctx.lineTo(p.x,p.y);
-      ctx.stroke();
-    }
-    if(!e.path || e.pathIndex>=e.path.length) continue;
-    ctx.strokeStyle=g.debug.showSmoothedEnemyPaths!==false ? 'rgba(93,255,154,0.58)' : 'rgba(93,255,154,0.32)';
-    ctx.lineWidth=2.25;
-    ctx.beginPath();
-    ctx.moveTo(e.x,e.y);
-    for(let i=e.pathIndex;i<e.path.length;i++) ctx.lineTo(e.path[i].x,e.path[i].y);
-    ctx.stroke();
-    if(g.debug.showCornerCurvePoints!==false){
-      for(const p of e.path){
-        if(!p.curve && !p.corner) continue;
-        ctx.fillStyle=p.corner?'rgba(255,228,90,0.95)':'rgba(255,228,90,0.65)';
-        ctx.beginPath(); ctx.arc(p.x,p.y,p.corner?4:2.6,0,Math.PI*2); ctx.fill();
-      }
-      if(e.pathClearanceFailures){
-        ctx.strokeStyle='rgba(255,60,80,0.92)'; ctx.lineWidth=2;
-        for(const f of e.pathClearanceFailures){
-          ctx.beginPath(); ctx.moveTo(f.x-6,f.y-6); ctx.lineTo(f.x+6,f.y+6); ctx.moveTo(f.x+6,f.y-6); ctx.lineTo(f.x-6,f.y+6); ctx.stroke();
-        }
-      }
-    }
-    const wp=e.path[e.pathIndex];
-    ctx.fillStyle='rgba(66,214,255,0.85)';
-    ctx.beginPath(); ctx.arc(wp.x,wp.y,4,0,Math.PI*2); ctx.fill();
-    if(g.debug.showEnemyLookaheadTargets!==false && e.currentLookaheadTarget){
-      ctx.fillStyle=e.currentLookaheadTarget.clearanceAdjusted?'rgba(255,120,255,0.95)':'rgba(90,170,255,0.95)';
-      ctx.beginPath(); ctx.arc(e.currentLookaheadTarget.x,e.currentLookaheadTarget.y,5,0,Math.PI*2); ctx.fill();
-      ctx.strokeStyle='rgba(90,170,255,0.42)'; ctx.lineWidth=1;
-      ctx.beginPath(); ctx.moveTo(e.x,e.y); ctx.lineTo(e.currentLookaheadTarget.x,e.currentLookaheadTarget.y); ctx.stroke();
-    }
-    if(g.debug.showPathFollowingOverlay && e.closestPathPoint){
-      ctx.fillStyle='rgba(255,228,90,0.96)';
-      ctx.beginPath(); ctx.arc(e.closestPathPoint.x,e.closestPathPoint.y,4,0,Math.PI*2); ctx.fill();
-      ctx.strokeStyle='rgba(255,140,60,0.78)'; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.moveTo(e.x,e.y); ctx.lineTo(e.closestPathPoint.x,e.closestPathPoint.y); ctx.stroke();
-      if(e.pathTangent){
-        ctx.strokeStyle='rgba(120,255,220,0.78)'; ctx.lineWidth=2;
-        ctx.beginPath(); ctx.moveTo(e.closestPathPoint.x,e.closestPathPoint.y); ctx.lineTo(e.closestPathPoint.x+e.pathTangent.x*26,e.closestPathPoint.y+e.pathTangent.y*26); ctx.stroke();
-      }
-      if(e.desiredVelocity){
-        ctx.strokeStyle='rgba(93,255,154,0.82)'; ctx.lineWidth=2;
-        ctx.beginPath(); ctx.moveTo(e.x,e.y); ctx.lineTo(e.x+e.desiredVelocity.x*0.16,e.y+e.desiredVelocity.y*0.16); ctx.stroke();
-      }
-      if(g.debug.showOfftrackDistanceOverlay){
-        ctx.fillStyle='rgba(255,255,255,0.92)';
-        ctx.font='700 11px Segoe UI, Arial';
-        ctx.textAlign='center';
-        ctx.fillText(`${(e.offtrackDistance||0).toFixed(1)}px`, e.x, e.y-(e.r||12)-20);
-        ctx.fillText(e.pathFollowMode||'path', e.x, e.y-(e.r||12)-8);
-      }
-    }
-    if(g.debug.showPathClearanceOverlay && e.pathUnsafeSections){
-      ctx.strokeStyle='rgba(255,55,75,0.92)'; ctx.lineWidth=2;
-      for(const u of e.pathUnsafeSections){
-        ctx.beginPath(); ctx.moveTo(u.x-7,u.y-7); ctx.lineTo(u.x+7,u.y+7); ctx.moveTo(u.x+7,u.y-7); ctx.lineTo(u.x-7,u.y+7); ctx.stroke();
-      }
-    }
-    if(e.cornerFallbackTarget){
-      ctx.strokeStyle='rgba(220,70,255,0.92)'; ctx.lineWidth=2;
-      ctx.strokeRect(e.cornerFallbackTarget.tx*TILE+4,e.cornerFallbackTarget.ty*TILE+4,TILE-8,TILE-8);
-    }
-    if(e.tunnelCentreBias){
-      ctx.strokeStyle='rgba(126,249,255,0.45)'; ctx.lineWidth=2;
-      ctx.beginPath(); ctx.moveTo(e.x,e.y); ctx.lineTo(e.x+e.tunnelCentreBias.x*22,e.y+e.tunnelCentreBias.y*22); ctx.stroke();
-    }
-  }
-  ctx.restore();
-}
-
-function drawBullets(g){
-  for(const b of g.bullets){
-    ctx.strokeStyle=b.color; ctx.fillStyle=b.color;
-    ctx.lineWidth=b.rail?4:2;
-    ctx.beginPath(); ctx.moveTo(b.x-b.vx*0.025,b.y-b.vy*0.025); ctx.lineTo(b.x,b.y); ctx.stroke();
-    ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill();
-  }
-}
-
-
-
-function drawBorecasterBombs(g){
-  for(const b of g.borecasterBombs || []){
-    const fuseRatio=clamp((b.fuseTime || 0)/(b.maxFuseTime || 1),0,1);
-    if(!b.grounded){
-      const markerSize=(b.blastRadius || 90)*2;
-      drawSpriteCentered(ctx,'borecasterBombLandingMarker',b.landingX,b.landingY,markerSize,markerSize,{alpha:0.16+0.10*Math.sin(g.time*8),rotation:g.time*0.5,glowColor:'#ffcc4d',glowBlur:8});
-    }
-    ctx.save();
-    ctx.strokeStyle='rgba(255,204,77,0.30)';
-    ctx.lineWidth=2;
-    ctx.beginPath();
-    for(let i=0;i<b.trail.length;i++){
-      const t=b.trail[i];
-      if(i===0) ctx.moveTo(t.x,t.y); else ctx.lineTo(t.x,t.y);
-    }
-    ctx.stroke();
-    for(const t of b.trail){
-      drawSpriteCentered(ctx,'borecasterBombThrowTrail',t.x,t.y,24,24,{alpha:clamp(t.life/0.18,0,1)*0.28,rotation:b.rotation,additive:true});
-    }
-    ctx.translate(b.x,b.y);
-    const pulse=0.5+0.5*Math.sin(g.time*18 + b.age*4);
-    const size=b.grounded ? 28+2*pulse : 25;
-    const drawn=drawSpriteCentered(ctx,'borecasterBombLit',0,0,size,size,{rotation:b.rotation,glowColor:fuseRatio<0.35?'#ff3d22':'#ffcc4d',glowBlur:fuseRatio<0.35?22:12});
-    if(!drawn){
-      ctx.fillStyle=fuseRatio<0.35?'#ff7038':'#ffcc4d';
-      ctx.strokeStyle='#2b1a10';
-      ctx.lineWidth=2;
-      ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.fill(); ctx.stroke();
-    }
-    drawSpriteCentered(ctx,'borecasterBombFuseSpark',5,-11,14+5*pulse,14+5*pulse,{alpha:0.72+0.28*pulse,rotation:g.time*8,glowColor:'#ffecb3',glowBlur:14,additive:true});
-    ctx.strokeStyle=`rgba(255,204,77,${0.25+0.35*(1-fuseRatio)})`;
-    ctx.lineWidth=3;
-    ctx.beginPath(); ctx.arc(0,0,18, -Math.PI/2, -Math.PI/2 + Math.PI*2*(1-fuseRatio)); ctx.stroke();
-    ctx.restore();
-  }
-}
-
-function drawEnemyBoomerangs(g){
-  for(const b of g.enemyBoomerangs || []){
-    ctx.save();
-    ctx.strokeStyle='rgba(255,112,56,0.40)';
-    ctx.lineWidth=2;
-    ctx.beginPath();
-    for(let i=0;i<b.trail.length;i++){
-      const t=b.trail[i];
-      if(i===0) ctx.moveTo(t.x,t.y); else ctx.lineTo(t.x,t.y);
-    }
-    ctx.stroke();
-    const a=Math.atan2(b.vy,b.vx)+Math.PI/2+(b.spin||0);
-    const drawn=drawSpriteCentered(ctx,'hexBoomerangProjectile',b.x,b.y,30,30,{
-      rotation:a,
-      glowColor:b.color || '#ff7038',
-      glowBlur:14
-    });
-    if(!drawn){
-      ctx.translate(b.x,b.y);
-      ctx.rotate(a);
-      ctx.fillStyle=b.color || '#ff7038';
-      ctx.strokeStyle='rgba(255,235,185,0.85)';
-      ctx.shadowColor=b.color || '#ff7038';
-      ctx.shadowBlur=14;
-      ctx.lineWidth=2;
-      ctx.beginPath();
-      ctx.moveTo(0,-10); ctx.lineTo(8,2); ctx.lineTo(0,8); ctx.lineTo(-8,2); ctx.closePath();
-      ctx.fill(); ctx.stroke();
-    }
-    ctx.restore();
-  }
-}
-
-function drawEnemyBullets(g){
-  for(const b of g.enemyBullets){
-    ctx.save();
-    const angle=Math.atan2(b.vy,b.vx);
-    // Phase 2.2: support custom boss projectile sprites
-    let spriteId=b.spriteId || (b.destructive?'destructiveEnemyBullet':'enemyRedBullet');
-    let size=b.spriteId ? b.r*2.2 : (b.destructive?24:(b.small?15:19));
-    const drawn=drawSpriteCentered(ctx,spriteId,b.x,b.y,size,size,{
-      rotation:angle,
-      glowColor:b.color || '#ff3030',
-      glowBlur:b.spriteId?14:(b.destructive?18:(b.small?8:12))
-    });
-    if(!drawn){
-      ctx.fillStyle=b.color || '#ff3030';
-      ctx.strokeStyle=b.destructive?'rgba(255,220,180,0.92)':'rgba(255,210,210,0.72)';
-      ctx.shadowColor=b.color || '#ff3030';
-      ctx.shadowBlur=b.destructive?18:(b.small?8:12);
-      ctx.lineWidth=b.destructive?3:(b.small?1.5:2);
-      ctx.beginPath();
-      ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
-      ctx.fill();
-      ctx.stroke();
-    }
-    // All hostile bullets get a red trail for readability. Elite/boss shots are
-    // larger and brighter; small-enemy shots stay small but still readable.
-    ctx.strokeStyle=b.destructive?'rgba(255,220,180,0.92)':'rgba(255,80,80,0.72)';
-    ctx.shadowColor=b.color || '#ff3030';
-    ctx.shadowBlur=b.destructive?12:7;
-    ctx.lineWidth=b.destructive?3:(b.small?1.5:2);
-    ctx.beginPath();
-    ctx.moveTo(b.x-b.vx*(b.destructive?0.040:0.030),b.y-b.vy*(b.destructive?0.040:0.030));
-    ctx.lineTo(b.x+b.vx*0.008,b.y+b.vy*0.008);
-    ctx.stroke();
-    if(g.debug?.showEnemyBulletHitboxes){
-      ctx.shadowBlur=0;
-      ctx.strokeStyle='rgba(255,255,255,0.85)';
-      ctx.lineWidth=1;
-      ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.stroke();
-    }
-    ctx.restore();
-  }
-}
-
-function drawMiningDebug(g){
-  if(!g.debug?.showMiningArc || !g.debug.miningIntent) return;
-  const d=g.debug.miningIntent;
-  const p=g.player;
-  ctx.save();
-
-  // Intended movement vector: what the player asked for before collision.
-  ctx.strokeStyle='rgba(66,214,255,0.85)';
-  ctx.lineWidth=3;
-  ctx.beginPath();
-  ctx.moveTo(d.x,d.y);
-  ctx.lineTo(d.x+d.dx*58,d.y+d.dy*58);
-  ctx.stroke();
-
-  // Actual resolved movement vector: what collision permitted this frame.
-  if(g.debug.actualMovement){
-    const m=g.debug.actualMovement;
-    ctx.strokeStyle='rgba(255,255,255,0.72)';
-    ctx.lineWidth=2;
-    ctx.beginPath();
-    ctx.moveTo(m.x,m.y);
-    ctx.lineTo(m.x+m.dx*14,m.y+m.dy*14);
-    ctx.stroke();
-  }
-
-  // Mining fan/contact area.
-  ctx.strokeStyle=g.debug.lowSpeedMiningActive?'rgba(255,204,77,0.72)':'rgba(66,214,255,0.45)';
-  ctx.fillStyle=g.debug.lowSpeedMiningActive?'rgba(255,204,77,0.13)':'rgba(66,214,255,0.12)';
-  ctx.lineWidth=2;
-  const half=Math.PI*0.50;
-  const base=Math.atan2(d.dy,d.dx);
-  const r=(p.collisionR||p.r)+(g.debug.lowSpeedMiningActive?34:28);
-  ctx.beginPath();
-  ctx.moveTo(d.x,d.y);
-  ctx.arc(d.x,d.y,r,base-half,base+half);
-  ctx.closePath();
-  ctx.fill(); ctx.stroke();
-
-  if(g.debug.miningSamples){
-    ctx.fillStyle='rgba(255,255,255,0.85)';
-    for(const smp of g.debug.miningSamples){ ctx.beginPath(); ctx.arc(smp.x,smp.y,2.2,0,Math.PI*2); ctx.fill(); }
-  }
-  if(g.debug.miningSamplesPost){
-    ctx.fillStyle='rgba(125,249,255,0.65)';
-    for(const smp of g.debug.miningSamplesPost){ ctx.beginPath(); ctx.arc(smp.x,smp.y,1.7,0,Math.PI*2); ctx.fill(); }
-  }
-
-  // Candidate mineable tiles: cyan before collision, blue after collision.
-  if(g.debug.showMiningCandidates!==false){
-    if(g.debug.miningCandidates){
-      ctx.lineWidth=1.5;
-      for(const c of g.debug.miningCandidates){
-        ctx.strokeStyle=c.touching?'rgba(255,204,77,0.65)':'rgba(66,214,255,0.45)';
-        ctx.strokeRect(c.tx*TILE+5,c.ty*TILE+5,TILE-10,TILE-10);
-      }
-    }
-    if(g.debug.miningCandidatesPost){
-      ctx.lineWidth=1.25;
-      for(const c of g.debug.miningCandidatesPost){
-        ctx.strokeStyle='rgba(125,249,255,0.38)';
-        ctx.strokeRect(c.tx*TILE+8,c.ty*TILE+8,TILE-16,TILE-16);
-      }
-    }
-  }
-
-  if(g.debug.currentMiningLock){
-    const t=g.debug.currentMiningLock;
-    ctx.strokeStyle='rgba(255,112,67,0.95)';
-    ctx.lineWidth=4;
-    ctx.setLineDash([6,4]);
-    ctx.strokeRect(t.tx*TILE+2,t.ty*TILE+2,TILE-4,TILE-4);
-    ctx.setLineDash([]);
-  }
-  if(g.debug.currentMiningTarget){
-    const t=g.debug.currentMiningTarget;
-    ctx.strokeStyle='rgba(255,255,255,0.95)';
-    ctx.lineWidth=3;
-    ctx.strokeRect(t.tx*TILE+3,t.ty*TILE+3,TILE-6,TILE-6);
-  }
-
-  ctx.fillStyle='rgba(255,255,255,0.88)';
-  ctx.font='bold 12px Segoe UI, Arial';
-  ctx.textAlign='left';
-  const status=[];
-  if(g.debug.lowSpeedMiningActive) status.push('LOW SPEED');
-  if(g.debug.miningStickinessActive) status.push('STICKY LOCK');
-  if(status.length) ctx.fillText(status.join(' · '), d.x+14, d.y-18);
-  ctx.restore();
-}
-
-function drawTargetLocks(g){
-  for(const l of g.targetLocks){
-    const e=l.enemy;
-    if(!e) continue;
-    const alpha=clamp(l.life/l.maxLife,0,1);
-    const pulse=0.5+0.5*Math.sin(g.time*16);
-    ctx.save();
-    ctx.translate(e.x,e.y-e.r-18);
-    ctx.globalAlpha=alpha;
-    const drawn=drawSpriteCentered(ctx,'targetLockReticle',0,0,34+5*pulse,34+5*pulse,{
-      rotation:(l.spin||0)+g.time*1.8,
-      alpha:0.82+0.18*pulse,
-      glowColor:'#ff4949',
-      glowBlur:12
-    });
-    if(!drawn){
-      ctx.strokeStyle=`rgba(255,73,73,${0.55+0.35*pulse})`;
-      ctx.fillStyle='rgba(255,73,73,0.10)';
-      ctx.shadowColor='#ff4949';
-      ctx.shadowBlur=12;
-      ctx.lineWidth=2;
-      ctx.beginPath(); ctx.arc(0,0,14+2*pulse,0,Math.PI*2); ctx.fill(); ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(-20,-4); ctx.lineTo(-12,-4); ctx.lineTo(-12,4); ctx.lineTo(-20,4);
-      ctx.moveTo(20,-4); ctx.lineTo(12,-4); ctx.lineTo(12,4); ctx.lineTo(20,4);
-      ctx.moveTo(-4,-20); ctx.lineTo(-4,-12); ctx.lineTo(4,-12); ctx.lineTo(4,-20);
-      ctx.moveTo(-4,20); ctx.lineTo(-4,12); ctx.lineTo(4,12); ctx.lineTo(4,20);
-      ctx.stroke();
-    }
-    ctx.restore();
-  }
-}
-
-function drawMissiles(g){
-  for(const m of g.missiles){
-    if(m.trail && m.trail.length>1){
-      ctx.save();
-      ctx.lineCap='round';
-      for(let i=1;i<m.trail.length;i++){
-        const a=i/m.trail.length;
-        ctx.globalAlpha=a*0.45;
-        ctx.strokeStyle='rgba(255,159,67,0.75)';
-        ctx.lineWidth=1+a*3;
-        ctx.beginPath();
-        ctx.moveTo(m.trail[i-1].x,m.trail[i-1].y);
-        ctx.lineTo(m.trail[i].x,m.trail[i].y);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-    const a=Math.atan2(m.vy,m.vx);
-    ctx.save();
-    ctx.strokeStyle=`rgba(255,159,67,${m.phase==='launch'?0.85:0.55})`;
-    ctx.lineWidth=3;
-    ctx.beginPath(); ctx.moveTo(m.x-Math.cos(a)*18,m.y-Math.sin(a)*18); ctx.lineTo(m.x-Math.cos(a)*5,m.y-Math.sin(a)*5); ctx.stroke();
-    const drawn=drawSpriteCentered(ctx,'hammerfallMissile',m.x,m.y,28,14,{
-      rotation:a,
-      glowColor:m.phase==='launch'?'#ffcc4d':'#ff9f43',
-      glowBlur:14
-    });
-    if(!drawn){
-      ctx.translate(m.x,m.y);
-      ctx.rotate(a);
-      ctx.shadowColor=m.phase==='launch'?'#ffcc4d':'#ff9f43';
-      ctx.shadowBlur=14;
-      ctx.fillStyle='#ffdd80';
-      ctx.beginPath(); ctx.moveTo(10,0); ctx.lineTo(-8,-4.5); ctx.lineTo(-4,0); ctx.lineTo(-8,4.5); ctx.closePath(); ctx.fill();
-      ctx.fillStyle='rgba(255,110,60,0.95)';
-      ctx.beginPath(); ctx.arc(-11,0,3.8,0,Math.PI*2); ctx.fill();
-    }
-    ctx.restore();
-  }
-}
-
-function drawWardenDrones(g){
-  for(const d of g.wardenDrones){
-    ctx.save();
-    ctx.translate(d.x,d.y);
-    const a=Math.atan2(d.vy,d.vx || 1);
-    ctx.rotate(a);
-    const sprite = getSprite('wardenDrone');
-    if(sprite){
-      ctx.shadowColor='#d6a2ff'; ctx.shadowBlur=15;
-      ctx.drawImage(sprite,-14,-14,28,28);
-      ctx.shadowBlur=0;
-      ctx.restore();
-      continue;
-    }
-    ctx.shadowColor='#d6a2ff'; ctx.shadowBlur=15;
-    ctx.fillStyle='#b46bff';
-    ctx.beginPath();
-    ctx.roundRect(-10,-7,20,14,5);
-    ctx.fill();
-    ctx.fillStyle='#f6e8ff';
-    ctx.beginPath(); ctx.arc(3,-2,2.5,0,Math.PI*2); ctx.fill();
-    ctx.fillStyle='rgba(255,255,255,0.65)';
-    ctx.fillRect(8,-2,9,4);
-    ctx.shadowBlur=0;
-    ctx.restore();
-  }
-}
-
-function drawSifterDrones(g){
-  for(const sw of g.sifterDrones){
-    ctx.save();
-    ctx.translate(sw.x,sw.y);
-    const a=Math.atan2(sw.vy,sw.vx || 1);
-    ctx.rotate(a);
-    const sprite = getSprite('sifterDrone');
-    if(sprite){
-      ctx.shadowColor='#7df9ff'; ctx.shadowBlur=14;
-      ctx.drawImage(sprite,-15,-15,30,30);
-      ctx.shadowBlur=0;
-      ctx.restore();
-      continue;
-    }
-    ctx.shadowColor='#7df9ff'; ctx.shadowBlur=14;
-    ctx.fillStyle='#30d7ff';
-    ctx.beginPath();
-    ctx.roundRect(-11,-6,22,12,6);
-    ctx.fill();
-    ctx.strokeStyle='rgba(220,255,255,0.9)';
-    ctx.lineWidth=2;
-    ctx.beginPath();
-    ctx.arc(-2,0,9,Math.PI*0.25,Math.PI*1.75);
-    ctx.stroke();
-    ctx.fillStyle='#eaffff';
-    ctx.beginPath(); ctx.arc(5,-1,2.4,0,Math.PI*2); ctx.fill();
-    ctx.strokeStyle='rgba(125,249,255,0.30)';
-    ctx.beginPath(); ctx.arc(0,0,18+Math.sin(g.time*8+sw.phase)*2,0,Math.PI*2); ctx.stroke();
-    ctx.shadowBlur=0;
-    ctx.restore();
-  }
-}
-function drawTraps(g){
-  for(const tr of g.traps){
-    const pulse = 0.5 + 0.5*Math.sin(g.time*7 + tr.age*3);
-    ctx.save();
-    ctx.translate(tr.x,tr.y);
-    ctx.strokeStyle=tr.armed ? `rgba(255,204,77,${0.35+0.35*pulse})` : 'rgba(160,160,160,0.45)';
-    ctx.fillStyle=tr.armed ? 'rgba(255,204,77,0.16)' : 'rgba(120,120,120,0.13)';
-    ctx.lineWidth=2;
-    ctx.beginPath(); ctx.arc(0,0,tr.triggerR,0,Math.PI*2); ctx.stroke();
-    const drawn=drawSpriteCentered(ctx,'pathfinderTrap',0,0,34,34,{
-      rotation:tr.age*0.35,
-      alpha:tr.armed ? 1 : 0.62,
-      glowColor:tr.armed ? '#ffcc4d' : null,
-      glowBlur:tr.armed ? 10 : 0
-    });
-    if(!drawn){
-      ctx.beginPath(); ctx.arc(0,0,11+2*pulse,0,Math.PI*2); ctx.fill(); ctx.stroke();
-      ctx.fillStyle='#ffcc4d';
-      ctx.fillRect(-6,-2,12,4);
-      ctx.fillRect(-2,-6,4,12);
-    }
-    ctx.restore();
-  }
-}
-
-function drawBoomerangs(g){
-  for(const b of g.boomerangs){
-    ctx.save();
-    ctx.translate(b.x,b.y);
-    ctx.rotate(b.spin);
-    ctx.strokeStyle=b.color;
-    ctx.fillStyle='rgba(255,211,107,0.18)';
-    ctx.shadowColor=b.color; ctx.shadowBlur=14;
-    ctx.lineWidth=4;
-    ctx.beginPath();
-    ctx.moveTo(-10,-6);
-    ctx.quadraticCurveTo(0,-16,10,-6);
-    ctx.quadraticCurveTo(0,-2,-10,-6);
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(10,6);
-    ctx.quadraticCurveTo(0,16,-10,6);
-    ctx.quadraticCurveTo(0,2,10,6);
-    ctx.fill();
-    ctx.stroke();
-    ctx.shadowBlur=0;
-    ctx.restore();
-  }
-}
-function drawPickups(g){
-  for(const it of g.pickups){
-    if(it.type==='health'){
-      const bob = Math.sin((game?.time||0)*6 + it.x*0.01)*1.5;
-      const scale = 1 + Math.sin((game?.time||0)*5)*0.1;
-      drawHeartShape(it.x, it.y+bob, it.r*2.5*scale, '#ff6b8f', '#ff3d5f');
-      continue;
-    }
-    const res = it.type==='xp' ? MINERALS.echo : MINERALS[it.type];
-    const spriteId = res?.sprite;
-    const color = res?.color || (it.type==='xp'?'#42d6ff':'#ff5b5b');
-    const bob = Math.sin((game?.time||0)*6 + it.x*0.01)*1.5;
-    if(spriteId && drawSpriteCentered(ctx,spriteId,it.x,it.y+bob,it.r*3.0,it.r*3.0,{
-      glowColor:color,
-      glowBlur:8
-    })){
-      continue;
-    }
-    ctx.fillStyle=color;
-    ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=10;
-    ctx.beginPath(); ctx.moveTo(it.x,it.y-it.r); ctx.lineTo(it.x+it.r,it.y); ctx.lineTo(it.x,it.y+it.r); ctx.lineTo(it.x-it.r,it.y); ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
-  }
-}
-
-function drawHeartShape(x, y, size, fillColor, outlineColor){
-  ctx.fillStyle = fillColor;
-  ctx.strokeStyle = outlineColor;
-  ctx.lineWidth = 2;
-  ctx.shadowColor = fillColor;
-  ctx.shadowBlur = 12;
-  const s = size;
-  ctx.beginPath();
-  ctx.moveTo(x, y + s*0.3);
-  ctx.bezierCurveTo(x-s*0.5, y-s*0.3, x-s*0.8, y-s*0.1, x-s*0.5, y+s*0.4);
-  ctx.bezierCurveTo(x, y+s*0.7, x+s*0.5, y+s*0.4, x+s*0.8, y-s*0.1);
-  ctx.bezierCurveTo(x+s*0.5, y-s*0.3, x, y+s*0.3, x, y+s*0.3);
-  ctx.fill();
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-}
-
-function drawParticles(g){
-  for(const p of g.particles){
-    const alpha=clamp(p.life/p.maxLife,0,1);
-    ctx.globalAlpha=alpha;
-    if(p.shape==='ring'){
-      ctx.strokeStyle=p.color;
-      ctx.lineWidth=(p.lineWidth || 4) * Math.max(0.25, alpha);
-      ctx.beginPath();
-      ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
-      ctx.stroke();
-      continue;
-    }
-    if(p.shape==='sprite' && p.spriteId){
-      const prevComp = ctx.globalCompositeOperation;
-      if(p.additive) ctx.globalCompositeOperation='lighter';
-      const ok = drawSpriteCentered(ctx,p.spriteId,p.x,p.y,p.size,p.size,{
-        rotation:p.rotation || 0,
-        alpha:alpha * (p.alphaMul ?? 1),
-        glowColor:p.glowColor || null,
-        glowBlur:p.glowBlur || 0
-      });
-      ctx.globalCompositeOperation = prevComp;
-      if(ok) continue;
-    }
-    if(p.shape==='fragment'){
-      const angle=Math.atan2(p.vy,p.vx)+p.life*6;
-      if(drawSpriteCentered(ctx,'lavaFragmentDebris',p.x,p.y,p.size*2.4,p.size*2.4,{rotation:angle,alpha,glowColor:p.color,glowBlur:4})) continue;
-    }
-    if(p.shape==='spark'){
-      ctx.strokeStyle=p.color;
-      ctx.lineWidth=Math.max(1, p.size*0.45);
-      ctx.beginPath();
-      ctx.moveTo(p.x-p.vx*0.010, p.y-p.vy*0.010);
-      ctx.lineTo(p.x+p.vx*0.016, p.y+p.vy*0.016);
-      ctx.stroke();
-      continue;
-    }
-    ctx.fillStyle=p.color;
-    ctx.beginPath();
-    ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
-    ctx.fill();
-  }
-  ctx.globalAlpha=1;
-}
-function drawArcs(g){
-  for(const a of g.arcs){
-    const alpha=clamp(a.life/a.maxLife,0,1);
-    ctx.save();
-    ctx.globalAlpha=alpha;
-    ctx.strokeStyle=a.color;
-    ctx.shadowColor=a.color;
-    ctx.shadowBlur=14;
-    ctx.lineWidth=(a.width || 3) * Math.max(0.35, alpha);
-    ctx.beginPath();
-    const segments=7;
-    for(let i=0;i<=segments;i++){
-      const t=i/segments;
-      const x=lerp(a.x1,a.x2,t)+rand(-7,7)*(1-Math.abs(0.5-t)*1.6);
-      const y=lerp(a.y1,a.y2,t)+rand(-7,7)*(1-Math.abs(0.5-t)*1.6);
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    }
-    ctx.stroke();
-    ctx.lineWidth=1;
-    ctx.strokeStyle='rgba(235,255,255,0.95)';
-    ctx.stroke();
-    ctx.restore();
-  }
-}
-function drawTexts(g){
-  ctx.font='bold 14px Segoe UI, Arial'; ctx.textAlign='center';
-  for(const t of g.texts){
-    ctx.globalAlpha=clamp(t.life/t.maxLife,0,1); ctx.fillStyle=t.color; ctx.fillText(t.text,t.x,t.y);
-  }
-  ctx.globalAlpha=1;
-}
-
-function drawFogOfWar(g,cam,sx=0,sy=0){
-  const settings=getFogSettings();
-  if(!settings.fogOfWarEnabled || !g?.player) return;
-
-  // Keep the first implementation cheap: one full-screen radial gradient. If
-  // adaptive performance is under pressure, avoid extra texture/noise work and
-  // simply draw the soft radial overlay.
-  const p=g.player;
-  const cx=p.x-cam.x+sx;
-  const cy=p.y-cam.y+sy;
-  const radius=settings.fogOfWarRadius;
-  const soft=settings.fogOfWarSoftEdge;
-  const outer=radius+soft;
-  const intensity=clamp(settings.fogOfWarIntensity,0,0.95);
-  const perf=g.performance?.state;
-  const perfTrim=perf===PERF_STATES.CRITICAL ? 0.92 : perf===PERF_STATES.WARNING ? 0.97 : 1;
-  const outerAlpha=intensity*perfTrim;
-
-  const gradient=ctx.createRadialGradient(cx,cy,Math.max(1,radius*0.35),cx,cy,outer);
-  gradient.addColorStop(0,'rgba(0,0,0,0)');
-  gradient.addColorStop(Math.max(0.05, radius/outer),'rgba(3,8,16,0.02)');
-  gradient.addColorStop(Math.min(0.98,(radius+soft*0.55)/outer),`rgba(3,8,16,${outerAlpha*0.50})`);
-  gradient.addColorStop(1,`rgba(0,0,0,${outerAlpha})`);
-
-  ctx.save();
-  ctx.fillStyle=gradient;
-  ctx.fillRect(0,0,innerWidth,innerHeight);
-
-  // Atmospheric soft blue rim around the visibility boundary. This is a single
-  // stroke and remains performance-safe.
-  ctx.globalAlpha=0.16;
-  ctx.strokeStyle='rgba(66,214,255,0.42)';
-  ctx.lineWidth=2;
-  ctx.beginPath();
-  ctx.arc(cx,cy,radius+soft*0.24,0,Math.PI*2);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawFogDebugOverlay(g,cam,sx=0,sy=0){
-  if(!g.debug?.showFogRadius || !g?.player) return;
-  const settings=getFogSettings();
-  const cx=g.player.x-cam.x+sx;
-  const cy=g.player.y-cam.y+sy;
-  ctx.save();
-  ctx.strokeStyle='rgba(93,255,154,0.85)';
-  ctx.lineWidth=2;
-  ctx.beginPath(); ctx.arc(cx,cy,settings.fogOfWarRadius,0,Math.PI*2); ctx.stroke();
-  ctx.strokeStyle='rgba(66,214,255,0.55)';
-  ctx.setLineDash([8,6]);
-  ctx.beginPath(); ctx.arc(cx,cy,settings.fogOfWarRadius+settings.fogOfWarSoftEdge,0,Math.PI*2); ctx.stroke();
-  ctx.setLineDash([]);
-  ctx.fillStyle='rgba(255,255,255,0.86)';
-  ctx.font='bold 12px Segoe UI, Arial';
-  ctx.textAlign='left';
-  ctx.fillText(`Fog ${settings.fogOfWarEnabled?'ON':'OFF'} · R ${settings.fogOfWarRadius} · Soft ${settings.fogOfWarSoftEdge}`,cx+18,cy-settings.fogOfWarRadius-12);
-  ctx.restore();
-}
-
-function drawVignette(){
-  const grd=ctx.createRadialGradient(innerWidth/2,innerHeight/2,innerHeight*0.15,innerWidth/2,innerHeight/2,innerWidth*0.72);
-  grd.addColorStop(0,'rgba(0,0,0,0)'); grd.addColorStop(1,'rgba(0,0,0,0.58)');
-  ctx.fillStyle=grd; ctx.fillRect(0,0,innerWidth,innerHeight);
-}
-
-function drawEnemyBudgetOverlay(g){
-  if(!g.debug?.showEnemyBudget || !g.performance) return;
-  const p=g.performance;
-  ctx.save();
-  ctx.font='12px Consolas, monospace';
-  ctx.textAlign='left';
-  ctx.fillStyle='rgba(0,0,0,0.68)';
-  ctx.fillRect(14, innerHeight-170, 310, 144);
-  ctx.fillStyle='#d7ecff';
-  const lines=[
-    `FPS ${p.currentFPS.toFixed(1)}  AVG ${p.averageFPS.toFixed(1)}  ${p.state.replace('PERF_','')}`,
-    `Enemies ${g.enemies.length}/${g.enemyBudget.currentMaxEnemies}  Bullets ${g.enemyBullets.length}/${getEnemyBulletCap(g)}`,
-    `Spawn x${p.spawnRateMultiplier.toFixed(2)}  Swarm x${p.swarmSizeMultiplier.toFixed(2)}`,
-    `Budget ${p.budgetFactor.toFixed(2)}  VFX ${p.vfxFactor.toFixed(2)}`,
-    `Skipped spawns ${p.skippedSpawns||0} bullets ${p.skippedBullets||0}`,
-    `Perf despawned ${p.enemiesDespawned||0}`
-  ];
-  for(let i=0;i<lines.length;i++) ctx.fillText(lines[i],24,innerHeight-144+i*20);
-  ctx.restore();
-}
-
-function drawPause(){
-  ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(0,0,innerWidth,innerHeight);
-  ctx.fillStyle='#fff'; ctx.font='900 42px Segoe UI'; ctx.textAlign='center'; ctx.fillText('PAUSED',innerWidth/2,innerHeight/2);
-}
-
-function gameOver(g){
-  if(g.state==='dead') return;
-  if(typeof failRun === 'function'){
-    failRun(g,'Operator vitals collapsed before extraction.');
-    return;
-  }
-  g.state='dead';
-  sfx('gameover');
-  ui.gameOverText.innerHTML=`You survived <b>${ui.timer.textContent}</b>, reached <b>Level ${g.level}</b>, mined <b>${g.gold} Gild Shards</b> and <b>${g.nitra} Voltarite</b>, and killed <b>${g.kills}</b> Hollowborn.`;
-  ui.gameOverOverlay.classList.add('show');
-}
-
-function setupClassCards(){
-  ui.classCards.innerHTML='';
-  for(const cls of CLASSES){
-    const div=document.createElement('div');
-    div.className='card';
-    div.dataset.classId=cls.id;
-    div.setAttribute('role','button');
-    div.setAttribute('tabindex','0');
-    div.innerHTML=`<div class="icon">${cls.icon}</div><h3>${cls.name}</h3><p>${cls.desc}</p><span class="tag">${cls.tag}</span>`;
-    ui.classCards.appendChild(div);
-  }
-}
-
-function getClassById(id){
-  return CLASSES.find(c=>c.id===id) || CLASSES[0];
-}
-
-function showDebugError(title, err){
-  console.error(title, err);
-  let box=document.getElementById('debugBox');
-  if(!box){
-    box=document.createElement('pre');
-    box.id='debugBox';
-    box.className='debugBox';
-    document.body.appendChild(box);
-  }
-  const message = err && (err.stack || err.message) ? (err.stack || err.message) : String(err);
-  box.textContent = `${title}\n\n${message}\n\nOpen the browser console with F12 for full details.`;
-}
-
-function startGame(clsOrId){
-  try{
-    startRunWithClass(clsOrId);
-    const box=document.getElementById('debugBox');
-    if(box) box.remove();
-  }catch(err){
-    showDebugError('Failed to start mission after class selection.', err);
-  }
-}
-
-function bindStartCardInput(){
-  ui.classCards.addEventListener('click', ev=>{
-    const card=ev.target.closest('.card[data-class-id]');
-    if(card) startGame(card.dataset.classId);
-  });
-  ui.classCards.addEventListener('keydown', ev=>{
-    if(ev.code==='Enter' || ev.code==='Space'){
-      const card=ev.target.closest('.card[data-class-id]');
-      if(card){ ev.preventDefault(); startGame(card.dataset.classId); }
-    }
-  });
-}
-
-window.startGame=startGame;
-window.restartGame=function(){ startGame(game?.selectedClass || CLASSES[0]); };
-window.showStart=function(){ showClassSelect(); };
-
-
-
-function drawScaledTileDebug(g,cam){
-  if(!g?.debug?.showScaledTileGrid && !g?.debug?.showCollisionTiles) return;
-  const minx=clamp(Math.floor(cam.x/TILE)-1,0,MAP_W-1), maxx=clamp(Math.ceil((cam.x+innerWidth)/TILE)+1,0,MAP_W-1);
-  const miny=clamp(Math.floor(cam.y/TILE)-1,0,MAP_H-1), maxy=clamp(Math.ceil((cam.y+innerHeight)/TILE)+1,0,MAP_H-1);
-  ctx.save();
-  if(g.debug.showScaledTileGrid){
-    ctx.strokeStyle='rgba(100,232,255,0.20)';
-    ctx.lineWidth=1;
-    for(let x=minx;x<=maxx+1;x++){
-      ctx.beginPath(); ctx.moveTo(x*TILE,miny*TILE); ctx.lineTo(x*TILE,(maxy+1)*TILE); ctx.stroke();
-    }
-    for(let y=miny;y<=maxy+1;y++){
-      ctx.beginPath(); ctx.moveTo(minx*TILE,y*TILE); ctx.lineTo((maxx+1)*TILE,y*TILE); ctx.stroke();
-    }
-  }
-  if(g.debug.showCollisionTiles){
-    for(let y=miny;y<=maxy;y++) for(let x=minx;x<=maxx;x++){
-      const t=g.tiles[tileIdx(x,y)];
-      if(!isSolid(t)) continue;
-      ctx.strokeStyle=t===TILE_HARD?'rgba(255,255,255,0.35)':(t===TILE_LAVA_ROCK?'rgba(255,112,56,0.50)':'rgba(255,204,77,0.30)');
-      ctx.lineWidth=2;
-      ctx.strokeRect(x*TILE+2,y*TILE+2,TILE-4,TILE-4);
-    }
-  }
-  ctx.restore();
-}
-
-function drawTileScaleInfoOverlay(g){
-  if(!g?.debug?.showScaledTileGrid && !g?.debug?.showCollisionTiles) return;
-  const [ptx,pty]=worldToTile(g.player.x,g.player.y);
-  const nearest=g.enemies?.[0];
-  const enemyTile=nearest ? worldToTile(nearest.x,nearest.y).join(',') : '-';
-  const lines=[
-    `Tile base: ${TILE_SIZE_BASE}px`,
-    `Tile scale: ${TILE_SIZE_SCALE}x`,
-    `Effective tile: ${TILE}px`,
-    `Map pixels: ${WORLD_W} x ${WORLD_H}`,
-    `Player tile: ${ptx},${pty}`,
-    `First enemy tile: ${enemyTile}`
-  ];
-  ctx.save();
-  ctx.font='12px Consolas, Monaco, monospace';
-  ctx.textAlign='left';
-  const x=14, y=innerHeight-258;
-  ctx.fillStyle='rgba(0,0,0,0.66)';
-  ctx.fillRect(x-8,y-16,260,lines.length*16+18);
-  ctx.fillStyle='#b7f7ff';
-  for(let i=0;i<lines.length;i++) ctx.fillText(lines[i],x,y+i*16);
-  ctx.restore();
-}
-
-function drawControllerDebugOverlay(g){
-  if(!g?.debug?.showController) return;
-  const lines=[
-    `Gamepad: ${gamepadState.connected ? gamepadState.id : 'not connected'}`,
-    `Left: ${Number(gamepadState.leftX||0).toFixed(2)}, ${Number(gamepadState.leftY||0).toFixed(2)}`,
-    `Right raw 2/3: ${Number(gamepadState.rightX||0).toFixed(2)}, ${Number(gamepadState.rightY||0).toFixed(2)}`,
-    `Cursor axis pair: ${game?.controllerCursor?.axisPair ? game.controllerCursor.axisPair.join('/') : 'none'}`,
-    `Cursor: ${Math.round(mouse.x)}, ${Math.round(mouse.y)}`,
-    `World: ${Math.round(mouseWorld(g).x)}, ${Math.round(mouseWorld(g).y)}`,
-    `Manual aim: ${manualAimActive(g) ? 'ON' : 'AUTO'}`,
-    `Upgrade index: ${g.upgradeMenuState?.selectedIndex ?? '-'}`,
-    `Accuracy: ${Math.round((g.player.accuracy ?? 0.35)*100)}%`
-  ];
-  ctx.save();
-  ctx.font='12px Consolas, Monaco, monospace';
-  ctx.textAlign='left';
-  const x=14, y=innerHeight-150;
-  ctx.fillStyle='rgba(0,0,0,0.64)';
-  ctx.fillRect(x-8,y-16,360,lines.length*16+18);
-  ctx.fillStyle='#b7f7ff';
-  for(let i=0;i<lines.length;i++) ctx.fillText(lines[i],x,y+i*16);
-  ctx.restore();
-}
-
-function drawAccuracyCone(g){
-  if(!g?.debug?.showAccuracyCone || !g.player) return;
-  const p=g.player;
-  const target=nearestEnemy(g,p.x,p.y,720);
-  if(!target) return;
-  const spread=weaponSpreadRadians(p.accuracy ?? 0.35);
-  const base=Math.atan2(target.y-p.y,target.x-p.x);
-  const length=360;
-  ctx.save();
-  ctx.translate(-g.camera.x,-g.camera.y);
-  ctx.strokeStyle='rgba(255,220,128,0.55)';
-  ctx.fillStyle='rgba(255,220,128,0.08)';
-  ctx.lineWidth=2;
-  ctx.beginPath();
-  ctx.moveTo(p.x,p.y);
-  ctx.lineTo(p.x+Math.cos(base-spread)*length,p.y+Math.sin(base-spread)*length);
-  ctx.arc(p.x,p.y,length,base-spread,base+spread);
-  ctx.closePath();
-  ctx.fill();
-  ctx.stroke();
-  ctx.restore();
-}
+/* Persistent profile, menus, mission progression, and permanent upgrades. */
+
+const SAVE_KEY = 'echoVeinSaveV1';
+const RUNS_PER_MISSION = 5;
+const EXTRACTION_SECONDS = 30;
+const SPECIAL_ORES = ['voltarite','echoQuartz','ferronRoot','lumicite','pyroclastCore','umbralAlloy','ferriteBark','luminaSpores','aetherQuartz','crysalith','emberglass'];
+
+let appState = 'STARTUP';
+let saveProfile = null;
 
 /*
- * Phase 2.2: Boss UI Rendering
+ * Milestones & Achievements — Phase 1.1
  *
- * Four drawing functions called from render():
- *   drawBossHealthBar(g)     — Top-center bar with phase markers
- *   drawBossName(g)          — Dramatic name display on spawn
- *   drawWeakPointHighlight(g) — Glowing weak point circle on boss
- *   drawBossCrystalRainIndicators(g) — Floor markers for crystal rain
+ * Milestones are persistent, one-time achievements awarded across all runs.
+ * Each milestone is checked at specific event hooks and awarded permanently
+ * to the player's profile. The reward bonus applies to ALL future runs via
+ * applyMilestoneRewards().
+ *
+ * Structure:
+ *   id          — unique string key used in saveProfile.milestones[id]
+ *   name        — display name shown in the milestones menu
+ *   desc        — unlock condition description
+ *   reward      — what the player gets (display text)
+ *   icon        — emoji for the milestone card
+ *   group       — UI grouping category ('combat','mining','run','resource','class')
+ *   check       — function(profile) => boolean; condition to unlock
+ *   apply       — function(g) => void; reward applied at run start
+ *   progress    — optional function(profile) => {current, target} for progress display
  */
+const MILESTONES = [
+  // ── 🔥 COMBAT ──────────────────────────────────────────────────────────
+  { id:'FirstKill',    name:'First Blood',        desc:'Kill your first enemy.',              reward:'+2% mining speed',    icon:'⚔️',  group:'combat',
+    check:p=>(p.statistics.totalEnemiesKilled||0)>=1,
+    apply:g=>{ g.player.mineMul*=1.02; },
+    progress:p=>({current:p.statistics.totalEnemiesKilled||0, target:1}) },
+  { id:'Kill10',       name:'Slayer Initiate',     desc:'Kill 10 enemies.',                   reward:'+2% damage',          icon:'🗡️',  group:'combat',
+    check:p=>(p.statistics.totalEnemiesKilled||0)>=10,
+    apply:g=>{ g.player.damageMul*=1.02; },
+    progress:p=>({current:p.statistics.totalEnemiesKilled||0, target:10}) },
+  { id:'Kill50',       name:'Hollowborn Hunter',   desc:'Kill 50 enemies.',                   reward:'+4% damage',          icon:'⚔️',  group:'combat',
+    check:p=>(p.statistics.totalEnemiesKilled||0)>=50,
+    apply:g=>{ g.player.damageMul*=1.04; },
+    progress:p=>({current:p.statistics.totalEnemiesKilled||0, target:50}) },
+  { id:'Kill100',      name:'Veteran Slayer',      desc:'Kill 100 enemies.',                  reward:'+6% damage',          icon:'🩸',  group:'combat',
+    check:p=>(p.statistics.totalEnemiesKilled||0)>=100,
+    apply:g=>{ g.player.damageMul*=1.06; },
+    progress:p=>({current:p.statistics.totalEnemiesKilled||0, target:100}) },
+  { id:'Kill250',      name:'Elite Exterminator',  desc:'Kill 250 enemies.',                  reward:'+8% damage, +2% speed', icon:'💀', group:'combat',
+    check:p=>(p.statistics.totalEnemiesKilled||0)>=250,
+    apply:g=>{ g.player.damageMul*=1.08; g.player.speedMul*=1.02; },
+    progress:p=>({current:p.statistics.totalEnemiesKilled||0, target:250}) },
+  { id:'Kill500',      name:'Legendary Reaper',    desc:'Kill 500 enemies.',                  reward:'+10% damage, +3% speed', icon:'🔥',group:'combat',
+    check:p=>(p.statistics.totalEnemiesKilled||0)>=500,
+    apply:g=>{ g.player.damageMul*=1.10; g.player.speedMul*=1.03; },
+    progress:p=>({current:p.statistics.totalEnemiesKilled||0, target:500}) },
+  { id:'EliteKill1',   name:'Elite Bane',          desc:'Kill 1 elite enemy.',                reward:'+3% crit chance',     icon:'🛡️',  group:'combat',
+    check:p=>(p.statistics.totalElitesKilled||0)>=1,
+    apply:g=>{ g.player.accuracy=Math.min(1, (g.player.accuracy||0.35)+0.03); },
+    progress:p=>({current:p.statistics.totalElitesKilled||0, target:1}) },
+  { id:'EliteKill10',  name:'Elite Exorcist',      desc:'Kill 10 elite enemies.',             reward:'+5% crit chance',     icon:'⚜️',  group:'combat',
+    check:p=>(p.statistics.totalElitesKilled||0)>=10,
+    apply:g=>{ g.player.accuracy=Math.min(1, (g.player.accuracy||0.35)+0.05); },
+    progress:p=>({current:p.statistics.totalElitesKilled||0, target:10}) },
+  { id:'BossKill1',    name:'Boss Breaker',        desc:'Kill 1 boss enemy.',                 reward:'+8% max HP',          icon:'🐉',  group:'combat',
+    check:p=>(p.statistics.totalBossesKilled||0)>=1,
+    apply:g=>{ const b=Math.round(g.player.maxHp*0.08); g.player.maxHp+=b; g.player.hp+=b; },
+    progress:p=>({current:p.statistics.totalBossesKilled||0, target:1}) },
 
-function drawBossHealthBar(g){
-  if(!g || !g.bossSpawned || g.bossDefeated) return;
-  // Find the boss enemy
-  const boss = g.enemies.find(e => e.role === 'boss' && e.hp > 0);
-  if(!boss) return;
-  const bossDef = BOSS_TYPES[g.bossType];
-  if(!bossDef) return;
+  // ── ⛏️ MINING ──────────────────────────────────────────────────────────
+  { id:'FirstOre',     name:'First Strike',        desc:'Mine your first ore.',               reward:'+5% max HP',          icon:'⛏️',  group:'mining',
+    check:p=>(p.statistics.totalOreMined||0)>=1,
+    apply:g=>{ const b=Math.round(g.player.maxHp*0.05); g.player.maxHp+=b; g.player.hp+=b; },
+    progress:p=>({current:p.statistics.totalOreMined||0, target:1}) },
+  { id:'Mine50',       name:'Prospector',          desc:'Mine 50 ore.',                       reward:'+3% mining speed',    icon:'⛏️',  group:'mining',
+    check:p=>(p.statistics.totalOreMined||0)>=50,
+    apply:g=>{ g.player.mineMul*=1.03; },
+    progress:p=>({current:p.statistics.totalOreMined||0, target:50}) },
+  { id:'Mine200',      name:'Deep Miner',          desc:'Mine 200 ore.',                      reward:'+5% mining speed',    icon:'🪨',  group:'mining',
+    check:p=>(p.statistics.totalOreMined||0)>=200,
+    apply:g=>{ g.player.mineMul*=1.05; },
+    progress:p=>({current:p.statistics.totalOreMined||0, target:200}) },
+  { id:'Mine500',      name:'Master Excavator',    desc:'Mine 500 ore.',                      reward:'+7% mining speed',    icon:'💎',  group:'mining',
+    check:p=>(p.statistics.totalOreMined||0)>=500,
+    apply:g=>{ g.player.mineMul*=1.07; },
+    progress:p=>({current:p.statistics.totalOreMined||0, target:500}) },
+  { id:'Mine1000',     name:'Legendary Digger',    desc:'Mine 1000 ore.',                     reward:'+10% mining speed',   icon:'🌟',  group:'mining',
+    check:p=>(p.statistics.totalOreMined||0)>=1000,
+    apply:g=>{ g.player.mineMul*=1.10; },
+    progress:p=>({current:p.statistics.totalOreMined||0, target:1000}) },
+  { id:'Gild100',      name:'Gild Collector',      desc:'Mine 100 Gild Shards.',              reward:'+5% gold find',       icon:'💰',  group:'mining',
+    check:p=>(p.statistics.totalGildMined||0)>=100,
+    apply:g=>{ /* gold-find bonus — handled by collectRunResource */ },
+    progress:p=>({current:p.statistics.totalGildMined||0, target:100}) },
+  { id:'Echo100',      name:'Echo Seeker',         desc:'Mine 100 Echo Shards.',              reward:'+5% pickup radius',   icon:'🔮',  group:'mining',
+    check:p=>(p.statistics.totalEchoMined||0)>=100,
+    apply:g=>{ g.player.pickupMul*=1.05; },
+    progress:p=>({current:p.statistics.totalEchoMined||0, target:100}) },
+  { id:'Voltarite50',  name:'Voltarite Harvester', desc:'Mine 50 Voltarite.',                 reward:'+3% fire rate',       icon:'⚡',   group:'mining',
+    check:p=>(p.statistics.totalVoltariteMined||0)>=50,
+    apply:g=>{ g.player.fireRateMul*=1.03; },
+    progress:p=>({current:p.statistics.totalVoltariteMined||0, target:50}) },
 
-  const hpPct = clamp(boss.hp / boss.maxHp, 0, 1);
-  const barW = 380;
-  const barH = 28;
-  const x = (innerWidth - barW) / 2;
-  const y = 12;
+  // ── 🏃 RUN & MISSION ────────────────────────────────────────────────────
+  { id:'Run1',         name:'First Descent',       desc:'Complete 1 run (extract or die).',   reward:'+5% HP',              icon:'🚀',  group:'run',
+    check:p=>(p.statistics.totalRunsCompleted||0)>=1,
+    apply:g=>{ const b=Math.round(g.player.maxHp*0.05); g.player.maxHp+=b; g.player.hp+=b; },
+    progress:p=>({current:p.statistics.totalRunsCompleted||0, target:1}) },
+  { id:'Run5',         name:'Seasoned Explorer',   desc:'Complete 5 runs.',                   reward:'+5% damage',          icon:'🏃',  group:'run',
+    check:p=>(p.statistics.totalRunsCompleted||0)>=5,
+    apply:g=>{ g.player.damageMul*=1.05; },
+    progress:p=>({current:p.statistics.totalRunsCompleted||0, target:5}) },
+  { id:'Run15',        name:'Veteran Descent',     desc:'Complete 15 runs.',                  reward:'+8% HP, +3% speed',   icon:'🏅',  group:'run',
+    check:p=>(p.statistics.totalRunsCompleted||0)>=15,
+    apply:g=>{ const b=Math.round(g.player.maxHp*0.08); g.player.maxHp+=b; g.player.hp+=b; g.player.speedMul*=1.03; },
+    progress:p=>({current:p.statistics.totalRunsCompleted||0, target:15}) },
+  { id:'Run30',        name:'Deep Diver',          desc:'Complete 30 runs.',                  reward:'+10% damage, +5% HP', icon:'🥇',  group:'run',
+    check:p=>(p.statistics.totalRunsCompleted||0)>=30,
+    apply:g=>{ g.player.damageMul*=1.10; const b=Math.round(g.player.maxHp*0.05); g.player.maxHp+=b; g.player.hp+=b; },
+    progress:p=>({current:p.statistics.totalRunsCompleted||0, target:30}) },
+  { id:'Mission1',     name:'First Mission',       desc:'Complete 1 full mission (5 runs).',  reward:'+5% all resources',   icon:'📜',  group:'run',
+    check:p=>(p.completedMissions||0)>=1,
+    apply:g=>{ /* all-resources bonus — passive income multiplier */ },
+    progress:p=>({current:p.completedMissions||0, target:1}) },
+  { id:'Mission3',     name:'Sector Breaker',      desc:'Complete 3 full missions.',          reward:'+10% mission rewards',icon:'📯',  group:'run',
+    check:p=>(p.completedMissions||0)>=3,
+    apply:g=>{ /* mission-reward bonus */ },
+    progress:p=>({current:p.completedMissions||0, target:3}) },
+  { id:'Mission5',     name:'Legendary Operator',  desc:'Complete 5 full missions.',          reward:'+15% all bonuses',    icon:'👑',  group:'run',
+    check:p=>(p.completedMissions||0)>=5,
+    apply:g=>{ /* all-bonuses multiplier */ },
+    progress:p=>({current:p.completedMissions||0, target:5}) },
 
-  ctx.save();
+  // ── 💎 RESOURCE ─────────────────────────────────────────────────────────
+  { id:'Resources1000',   name:'Resource Hoarder',   desc:'Collect 1000 total resources.',      reward:'+5% pickup radius',   icon:'📦', group:'resource',
+    check:p=>(p.statistics.totalResourcesCollected||0)>=1000,
+    apply:g=>{ g.player.pickupMul*=1.05; },
+    progress:p=>({current:p.statistics.totalResourcesCollected||0, target:1000}) },
+  { id:'Resources5000',   name:'Supply Lord',        desc:'Collect 5000 total resources.',      reward:'+8% mining speed',    icon:'🏗️', group:'resource',
+    check:p=>(p.statistics.totalResourcesCollected||0)>=5000,
+    apply:g=>{ g.player.mineMul*=1.08; },
+    progress:p=>({current:p.statistics.totalResourcesCollected||0, target:5000}) },
+  { id:'Resources10000',  name:'Resource Tycoon',    desc:'Collect 10000 total resources.',     reward:'+12% all resource gain',icon:'💼',group:'resource',
+    check:p=>(p.statistics.totalResourcesCollected||0)>=10000,
+    apply:g=>{ /* all-resource gain multiplier */ },
+    progress:p=>({current:p.statistics.totalResourcesCollected||0, target:10000}) },
+  { id:'Upgrades5',       name:'Upgrade Collector',  desc:'Buy 5 permanent upgrade levels.',    reward:'+5% HP',              icon:'🔧', group:'resource',
+    check:p=>(p.statistics.totalUpgradesBought||0)>=5,
+    apply:g=>{ const b=Math.round(g.player.maxHp*0.05); g.player.maxHp+=b; g.player.hp+=b; },
+    progress:p=>({current:p.statistics.totalUpgradesBought||0, target:5}) },
+  { id:'Upgrades15',      name:'Upgrade Master',     desc:'Buy 15 permanent upgrade levels.',   reward:'+10% damage',         icon:'⚙️', group:'resource',
+    check:p=>(p.statistics.totalUpgradesBought||0)>=15,
+    apply:g=>{ g.player.damageMul*=1.10; },
+    progress:p=>({current:p.statistics.totalUpgradesBought||0, target:15}) },
 
-  // Background frame sprite (fallback to procedural if sprite missing)
-  const frameDrawn = drawSpriteCentered(ctx, 'bossHealthBarFrame', x + barW/2, y + barH/2, barW + 12, barH + 16, {
-    alpha: 0.85,
-    glowColor: bossDef.color,
-    glowBlur: 6
-  });
-  if(!frameDrawn){
-    // Procedural fallback background
-    ctx.fillStyle = 'rgba(0,0,0,0.72)';
-    ctx.shadowColor = 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = 12;
-    ctx.beginPath();
-    ctx.roundRect(x - 4, y - 4, barW + 8, barH + 8, 12);
-    ctx.fill();
-    ctx.shadowBlur = 0;
+  // ── 🎯 CLASS-SPECIFIC ───────────────────────────────────────────────────
+  { id:'ClassBulwark',      name:'Bulwark Veteran',      desc:'Complete 10 runs as Bulwark.',     reward:'+5% max HP',          icon:'🛡️', group:'class',
+    check:p=>((p.statistics.classRuns||{}).bulwark||0)>=10,
+    apply:g=>{ const b=Math.round(g.player.maxHp*0.05); g.player.maxHp+=b; g.player.hp+=b; },
+    progress:p=>({current:(p.statistics.classRuns||{}).bulwark||0, target:10}) },
+  { id:'ClassPathfinder',   name:'Pathfinder Veteran',   desc:'Complete 10 runs as Pathfinder.',  reward:'+5% movement speed',  icon:'💨', group:'class',
+    check:p=>((p.statistics.classRuns||{}).pathfinder||0)>=10,
+    apply:g=>{ g.player.speedMul*=1.05; },
+    progress:p=>({current:(p.statistics.classRuns||{}).pathfinder||0, target:10}) },
+  { id:'ClassBorecaster',   name:'Borecaster Veteran',   desc:'Complete 10 runs as Borecaster.',  reward:'+5% mining speed',    icon:'⛏️', group:'class',
+    check:p=>((p.statistics.classRuns||{}).borecaster||0)>=10,
+    apply:g=>{ g.player.mineMul*=1.05; },
+    progress:p=>({current:(p.statistics.classRuns||{}).borecaster||0, target:10}) }
+];
 
-    ctx.strokeStyle = bossDef.color;
-    ctx.lineWidth = 2;
-    ctx.shadowColor = bossDef.color;
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
-    ctx.roundRect(x - 2, y - 2, barW + 4, barH + 4, 10);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
+function defaultMilestones(){
+  const result = {};
+  for(const m of MILESTONES){
+    result[m.id] = { unlocked: false, unlockedAt: null };
   }
-
-  // HP fill (always procedural — the bar itself fills over the frame)
-  const gradient = ctx.createLinearGradient(x, y, x + barW, y);
-  if(boss.bossPhase >= 2){
-    gradient.addColorStop(0, '#ff3030');
-    gradient.addColorStop(0.5, '#ff6060');
-    gradient.addColorStop(1, '#ff3030');
-  } else if(boss.bossPhase >= 1){
-    gradient.addColorStop(0, '#ff8a5b');
-    gradient.addColorStop(0.5, '#ffb84d');
-    gradient.addColorStop(1, '#ff8a5b');
-  } else {
-    gradient.addColorStop(0, '#ff5b5b');
-    gradient.addColorStop(0.5, '#ff8a5b');
-    gradient.addColorStop(1, '#ff5b5b');
-  }
-  ctx.fillStyle = gradient;
-  ctx.beginPath();
-  ctx.roundRect(x, y, barW * hpPct, barH, 8);
-  ctx.fill();
-
-  // Phase markers on bar (at 66% and 33%)
-  const markers = [0.66, 0.33];
-  for(const m of markers){
-    const mx = x + barW * (1 - m);
-    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(mx, y - 4);
-    ctx.lineTo(mx, y + barH + 4);
-    ctx.stroke();
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 10px Inter, Segoe UI, Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText(m === 0.66 ? 'P2' : 'P3', mx, y + barH + 18);
-  }
-
-  // Boss name above bar
-  ctx.fillStyle = bossDef.color;
-  ctx.shadowColor = bossDef.color;
-  ctx.shadowBlur = 8;
-  ctx.font = 'bold 15px Inter, Segoe UI, Arial';
-  ctx.textAlign = 'center';
-  const phaseText = boss.bossPhase >= 2 ? ' ⚡ENRAGE' : (boss.bossPhase >= 1 ? ` • Phase ${boss.bossPhase + 1}` : '');
-  ctx.fillText(`${bossDef.icon} ${bossDef.name}${phaseText}`, innerWidth / 2, y - 8);
-  ctx.shadowBlur = 0;
-
-  // HP percentage text
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 13px Inter, Segoe UI, Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText(`${Math.round(hpPct * 100)}%`, x + barW / 2, y + barH / 2 + 5);
-
-  ctx.restore();
+  return result;
 }
 
 /*
- * Boss name display — appears dramatically when boss spawns.
- * Fades out after 3 seconds.
+ * Mission Types — Phase 1.2
+ *
+ * Each mission type defines a primary objective, a reward modifier, and
+ * hooks for tracking progress.  The player picks one mission type before
+ * selecting their operator class at run start.
+ *
+ * Structure:
+ *   id              — unique key (stored in g.missionType)
+ *   name            — display name
+ *   icon            — emoji for UI
+ *   description     — short flavour text for the selection card
+ *   rewardModifier  — reward multiplier applied at bankRunRewards()
+ *   generateObjectives — function(profile, g) => array of objective objects
+ *   track           — function(g, dt) => void; called each update frame
+ *   isComplete      — function(g) => boolean
  */
-function drawBossName(g){
-  if(!g || !g.bossNameDisplay) return;
-  const bnd = g.bossNameDisplay;
-  // Skip rendering if completely faded out (timer <= 0)
-  if(bnd.timer <= 0) return;
-  // Alpha: full opacity for first half of timer, then fade out over last 1.5 seconds
-  const alpha = bnd.fadeOut ? clamp(bnd.timer / 1.5, 0, 1) : 1;
-  // Also hide if the boss is already dead
-  const bossAlive = g.enemies && g.enemies.some(e => e.role === 'boss' && e.hp > 0);
-  if(!bossAlive && !bnd.fadeOut){
-    // Boss died before name faded — force immediate fade
-    bnd.fadeOut = true;
+const MISSION_TYPES = [
+  {
+    id:'hunt',
+    name:'Hunt',
+    icon:'🗡️',
+    description:'Eliminate a set number of Hollowborn. Combat-focused — mining is optional.',
+    rewardModifier:1.15,
+    generateObjectives:(profile,g)=>{
+      const diff=missionDifficulty(g.missionIndex||profile.missionIndex);
+      const baseTarget=30 + (g.missionIndex||1)*5;
+      const target=Math.floor(baseTarget*diff.objectiveMultiplier);
+      const rewardLabel=`+${Math.round((1.15-1)*100)}% reward`;
+      return [{ id:'hunt_kills', type:'hunt',
+        displayName:`🗡️ Eliminate ${target} enemies [${rewardLabel}]`,
+        targetAmount:target, currentAmount:0, completed:false }];
+    },
+    track:(g,dt)=>{},
+    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='hunt_kills'); return o ? o.completed : false; }
+  },
+  {
+    id:'survey',
+    name:'Survey',
+    icon:'🔍',
+    description:'Explore and reveal cave tiles. Move through uncharted tunnels to complete the survey.',
+    rewardModifier:1.10,
+    generateObjectives:(profile,g)=>{
+      const diff=missionDifficulty(g.missionIndex||profile.missionIndex);
+      const totalTiles=MAP_W*MAP_H;
+      const pctTarget=Math.min(0.25 + (g.missionIndex||1)*0.03, 0.50);
+      const target=Math.floor(totalTiles*pctTarget*diff.objectiveMultiplier);
+      const rewardLabel=`+${Math.round((1.10-1)*100)}% reward`;
+      return [{ id:'survey_tiles', type:'survey',
+        displayName:`🔍 Explore ${target} tiles [${rewardLabel}]`,
+        targetAmount:target, currentAmount:0, completed:false }];
+    },
+    track:(g,dt)=>{
+      if(!g._tilesRevealed) g._tilesRevealed=new Set();
+      if(!g._tilesRevealedCount) g._tilesRevealedCount=0;
+      const [tx,ty]=worldToTile(g.player.x,g.player.y);
+      const key=tx+','+ty;
+      if(!g._tilesRevealed.has(key)){
+        g._tilesRevealed.add(key);
+        g._tilesRevealedCount++;
+        const o=g.objectives.find(o=>o.id==='survey_tiles');
+        if(o && !o.completed){
+          o.currentAmount=Math.min(o.currentAmount+1,o.targetAmount);
+          if(o.currentAmount>=o.targetAmount){
+            o.completed=true;
+            if(typeof log==='function') log(g,`${o.displayName} complete.`);
+            if(typeof sfx==='function') sfx('level',0.75);
+            if(g.runStats) g.runStats.objectivesCompleted=(g.runStats.objectivesCompleted||0)+1;
+          }
+        }
+      }
+    },
+    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='survey_tiles'); return o ? o.completed : false; }
+  },
+  {
+    id:'harvest',
+    name:'Harvest',
+    icon:'⛏️',
+    description:'Extract a quota of specific minerals. Enemies escalate faster — prioritise mining.',
+    rewardModifier:1.20,
+    generateObjectives:(profile,g)=>{
+      const diff=missionDifficulty(g.missionIndex||profile.missionIndex);
+      const rewardLabel=`+${Math.round((1.20-1)*100)}% reward`;
+      const pool=['voltarite','echo','ferriteBark','luminaSpores','crysalith','emberglass'];
+      const secondRes=pool[(g.missionIndex||1 + g.runIndex||1) % pool.length];
+      const mineral2=MINERALS[secondRes];
+      const target1=Math.floor(40*diff.objectiveMultiplier);
+      const target2=Math.floor((secondRes==='aetherQuartz'?4:12)*diff.objectiveMultiplier);
+      return [
+        { id:'harvest_gild', type:'harvest', resourceId:'gild',
+          displayName:`⛏️ Collect ${target1} Gild Shards [${rewardLabel}]`,
+          targetAmount:target1, currentAmount:0, completed:false },
+        { id:'harvest_'+secondRes, type:'harvest', resourceId:secondRes,
+          displayName:`⛏️ Collect ${target2} ${mineral2.displayName} [${rewardLabel}]`,
+          targetAmount:target2, currentAmount:0, completed:false }
+      ];
+    },
+    track:(g,dt)=>{},
+    isComplete:g=>g.objectives.filter(o=>o.type==='harvest').every(o=>o.completed)
+  },
+  {
+    id:'holdout',
+    name:'Holdout',
+    icon:'🛡️',
+    description:'Survive a set duration. Endless waves of enemies pressure your position.',
+    rewardModifier:1.25,
+    generateObjectives:(profile,g)=>{
+      const diff=missionDifficulty(g.missionIndex||profile.missionIndex);
+      const baseTime=120 + (g.missionIndex||1)*15;
+      const target=Math.floor(baseTime*diff.objectiveMultiplier);
+      const rewardLabel=`+${Math.round((1.25-1)*100)}% reward`;
+      return [{ id:'holdout_timer', type:'holdout',
+        displayName:`🛡️ Survive ${target}s [${rewardLabel}]`,
+        targetAmount:target, currentAmount:0, completed:false }];
+    },
+    track:(g,dt)=>{
+      const o=g.objectives.find(o=>o.id==='holdout_timer');
+      if(!o || o.completed) return;
+      o.currentAmount=Math.min(o.currentAmount+dt,o.targetAmount);
+      if(o.currentAmount>=o.targetAmount && !o.completed){
+        o.completed=true;
+        if(typeof log==='function') log(g,`${o.displayName} complete.`);
+        if(typeof sfx==='function') sfx('level',0.75);
+        if(g.runStats) g.runStats.objectivesCompleted=(g.runStats.objectivesCompleted||0)+1;
+      }
+    },
+    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='holdout_timer'); return o ? o.completed : false; }
   }
-  if(alpha <= 0) return;
-  const bossDef = BOSS_TYPES[Object.keys(BOSS_TYPES).find(k => BOSS_TYPES[k].name === bnd.text)];
-  const color = bossDef?.color || '#ff4fd8';
+];
 
-  ctx.save();
-  ctx.globalAlpha = alpha;
+// Track the mission type selected by the player for the next run.
+let selectedMissionType = MISSION_TYPES[0];
 
-  // Background banner
-  const text = `🔥 BOSS: ${bnd.text}`;
-  ctx.font = 'bold 42px Inter, Segoe UI, Arial';
-  ctx.textAlign = 'center';
-  const metrics = ctx.measureText(text);
-  const bw = metrics.width + 80;
-  const bx = (innerWidth - bw) / 2;
-  const by = innerHeight / 2 - 80;
-
-  // Sprite-based name plate background (fallback to procedural)
-  const plateDrawn = drawSpriteCentered(ctx, 'bossNamePlate', innerWidth / 2, by + 16, bw + 32, 80, {
-    alpha: 0.92,
-    glowColor: color,
-    glowBlur: 14
-  });
-  if(!plateDrawn){
-    ctx.fillStyle = 'rgba(0,0,0,0.78)';
-    ctx.shadowColor = 'rgba(0,0,0,0.6)';
-    ctx.shadowBlur = 20;
-    ctx.beginPath();
-    ctx.roundRect(bx - 8, by - 16, bw + 16, 72, 16);
-    ctx.fill();
-    ctx.shadowBlur = 0;
-
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 18;
-    ctx.beginPath();
-    ctx.roundRect(bx - 8, by - 16, bw + 16, 72, 16);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-  }
-
-  ctx.fillStyle = color;
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 14;
-  ctx.fillText(text, innerWidth / 2, by + 38);
-
-  // Subtitle
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 16px Inter, Segoe UI, Arial';
-  ctx.shadowBlur = 6;
-  ctx.shadowColor = '#000';
-  ctx.fillText('Prepare for combat.', innerWidth / 2, by + 72);
-
-  ctx.restore();
-}
+const PERMANENT_UPGRADES = [
+  { id:'maxHealth', category:'Player Core', name:'Reinforced Suit', desc:'+5% max HP per level.', next:'Another +5% max HP.', ore:'ferronRoot', max:20 },
+  { id:'armour', category:'Player Core', name:'Impact Weave', desc:'Reduces contact damage by 2% per level.', next:'Another -2% contact damage.', ore:'ferronRoot', max:15 },
+  { id:'moveSpeed', category:'Player Core', name:'Vector Servos', desc:'+2.5% movement speed per level.', next:'Another +2.5% movement speed.', ore:'lumicite', max:15 },
+  { id:'miningSpeed', category:'Mining', name:'Bore Calibration', desc:'+4% mining speed per level.', next:'Another +4% mining speed.', ore:'echoQuartz', max:15 },
+  { id:'weaponDamage', category:'Weapons', name:'Weapon Harmonics', desc:'+3% weapon damage per level.', next:'Another +3% weapon damage.', ore:'umbralAlloy', max:20 },
+  { id:'fireRate', category:'Weapons', name:'Trigger Relays', desc:'+2% fire rate per level.', next:'Another +2% fire rate.', ore:'voltarite', max:15 },
+  { id:'pickupRadius', category:'Utility', name:'Resonance Net', desc:'+5% pickup radius per level.', next:'Another +5% pickup range.', ore:'echoQuartz', max:12 },
+  { id:'droneEfficiency', category:'Drones', name:'Drone Uplinks', desc:'+4% drone damage and speed per level.', next:'Another +4% drone efficiency.', ore:'umbralAlloy', max:12 },
+  { id:'trapEffectiveness', category:'Character-Specific', name:'Trap Matrices', desc:'+5% trap damage and radius per level.', next:'Another +5% trap output.', ore:'pyroclastCore', max:12 },
+  { id:'arcDamage', category:'Weapons', name:'Arc Capacitors', desc:'+5% electric/arc damage per level.', next:'Another +5% arc damage.', ore:'voltarite', max:12 },
+];
 
 /*
- * Weak Point Highlight — glowing circle on the boss when weak point is active.
+ * Upgrade Synergies — Phase 2.1
+ *
+ * Synergies grant combo bonuses when a player acquires all required upgrades
+ * from UPGRADE_POOL during a single run. Once unlocked, they persist via the
+ * profile's unlockedSynergies array and are re-applied at run start.
+ *
+ * Each entry:
+ *   id              — unique string key
+ *   name            — display name
+ *   icon            — emoji/icon for the card
+ *   description     — flavour text
+ *   bonus           — short bonus description shown on the card
+ *   requiredUpgrades — array of UPGRADE_POOL entry names that must be owned
+ *   check           — function(g) => boolean; returns true if all requirements met
+ *   apply           — function(g) => void; applies the synergy bonus to game state
  */
-function drawWeakPointHighlight(g){
-  if(!g || !g.bossWeakPoint?.active) return;
-  const wp = g.bossWeakPoint;
-  const bossDef = BOSS_TYPES[g.bossType];
-
-  ctx.save();
-
-  const pulse = 0.6 + 0.4 * Math.sin(g.time * 10);
-  const glowRadius = wp.radius * (1 + 0.3 * pulse);
-
-  // Sprite-based weak point indicator (fallback to procedural glow)
-  const wpDrawn = drawSpriteCentered(ctx, 'bossWeakPoint', wp.x, wp.y, glowRadius * 2.4, glowRadius * 2.4, {
-    rotation: g.time * 1.5,
-    alpha: 0.7 + 0.3 * pulse,
-    glowColor: '#42d6ff',
-    glowBlur: 24
-  });
-
-  if(!wpDrawn){
-    // Multiple layered circles for glow effect
-    ctx.shadowColor = '#42d6ff';
-    ctx.shadowBlur = 30;
-    ctx.strokeStyle = `rgba(66,214,255,${0.5 + 0.4 * pulse})`;
-    ctx.lineWidth = 4;
-    ctx.beginPath();
-    ctx.arc(wp.x, wp.y, glowRadius, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.shadowBlur = 18;
-    ctx.strokeStyle = `rgba(66,214,255,${0.7 + 0.3 * pulse})`;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(wp.x, wp.y, glowRadius * 0.7, 0, Math.PI * 2);
-    ctx.stroke();
-
-    // Inner fill
-    ctx.shadowBlur = 12;
-    ctx.fillStyle = `rgba(66,214,255,${0.15 + 0.12 * pulse})`;
-    ctx.beginPath();
-    ctx.arc(wp.x, wp.y, wp.radius, 0, Math.PI * 2);
-    ctx.fill();
-
-    // Crosshair marks
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = `rgba(66,214,255,${0.6 + 0.3 * pulse})`;
-    ctx.lineWidth = 2;
-    const ch = wp.radius * 0.6;
-    for(const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
-      ctx.beginPath();
-      ctx.moveTo(wp.x + dx * ch * 0.4, wp.y + dy * ch * 0.4);
-      ctx.lineTo(wp.x + dx * ch, wp.y + dy * ch);
-      ctx.stroke();
+const SYNERGIES = [
+  {
+    id:'droneCommander',
+    name:'Drone Commander',
+    icon:'🛸',
+    description:'Warden Drone swarm coordination protocol.',
+    bonus:'Drones fire 30% faster and deal 25% more damage.',
+    requiredUpgrades:['Warden Drone Bay','Drone Bay Expansion','Drone Targeting AI'],
+    check:g=>g.collectedUpgrades && ['Warden Drone Bay','Drone Bay Expansion','Drone Targeting AI'].every(n=>g.collectedUpgrades.includes(n)),
+    apply:g=>{
+      g.player.droneFireRateMul*=1.30;
+      g.player.droneDamageMul*=1.25;
+    }
+  },
+  {
+    id:'miningMagnate',
+    name:'Mining Magnate',
+    icon:'⛏️',
+    description:'Industrial-grade mining optimisation.',
+    bonus:'Mining speed +50%, heat generation -40%, pickup range +50%.',
+    requiredUpgrades:['Tungsten Bore Bit','Cryo Coolant','Resonance Magnet'],
+    check:g=>g.collectedUpgrades && ['Tungsten Bore Bit','Cryo Coolant','Resonance Magnet'].every(n=>g.collectedUpgrades.includes(n)),
+    apply:g=>{
+      g.player.mineMul*=1.50;
+      g.player.heatEfficiency*=0.60;
+      g.player.pickupMul*=1.50;
+    }
+  },
+  {
+    id:'arcOverload',
+    name:'Arc Overload',
+    icon:'🌩️',
+    description:'Arc energy channelled to devastating effect.',
+    bonus:'Chain lightning jumps to 2 extra targets and deals 35% more damage.',
+    requiredUpgrades:['Arc Connection','Storm Lattice','Arc Capacitors'],
+    check:g=>{
+      const hasArcConn=g.collectedUpgrades && g.collectedUpgrades.includes('Arc Connection');
+      const hasStorm=g.collectedUpgrades && g.collectedUpgrades.includes('Storm Lattice');
+      // Arc Capacitors is a permanent upgrade — check profile level
+      const hasCaps=saveProfile && (saveProfile.permanentUpgrades.arcDamage||0)>0;
+      return hasArcConn && hasStorm && hasCaps;
+    },
+    apply:g=>{
+      g.arcConnection.maxTargets=(g.arcConnection.maxTargets||1)+2;
+      g.player.arcDamageMul=(g.player.arcDamageMul||1)*1.35;
+    }
+  },
+  {
+    id:'bulwarkArsenal',
+    name:'Bulwark Arsenal',
+    icon:'🚀',
+    description:'Full Hammerfall missile suite optimised for destruction.',
+    bonus:'Missiles fire 30% faster, travel 40% faster, deal 20% more damage.',
+    requiredUpgrades:['Hammerfall Salvo','Warhead Yield','Hot-Burn Motors'],
+    check:g=>g.collectedUpgrades && ['Hammerfall Salvo','Warhead Yield','Hot-Burn Motors'].every(n=>g.collectedUpgrades.includes(n)),
+    apply:g=>{
+      g.player.fireRateMul*=1.30;
+      // Missile speed handled via upgradeHammerfall(g,'speed') equivalent
+      // We apply a multiplicative bonus here that systems check
+      g.player.missileSpeedMul=(g.player.missileSpeedMul||1)*1.40;
+      g.player.damageMul*=1.20;
+    }
+  },
+  {
+    id:'borecasterDemolition',
+    name:'Borecaster Demolition',
+    icon:'💣',
+    description:'Advanced Borecaster explosive payload engineering.',
+    bonus:'Bombs deal 40% more damage, have 50% larger radius, throw 2 extra bombs.',
+    requiredUpgrades:['Seismic Charge','Extra Charges','Blast Radius'],
+    check:g=>{
+      // The Borecaster-specific Seismic Charge (borecasterBomb) is the required one
+      const hasBomb=g.weapons && g.weapons.some(w=>w.id==='borecasterBomb');
+      const hasExtra=g.collectedUpgrades && g.collectedUpgrades.includes('Extra Charges');
+      const hasRadius=g.collectedUpgrades && g.collectedUpgrades.includes('Blast Radius');
+      return hasBomb && hasExtra && hasRadius;
+    },
+    apply:g=>{
+      g.player.trapDamageMul=(g.player.trapDamageMul||1)*1.40;
+      g.player.trapRadiusMul=(g.player.trapRadiusMul||1)*1.50;
+      g.player.extraBombs=(g.player.extraBombs||0)+2;
+    }
+  },
+  {
+    id:'pathfinderTactics',
+    name:'Pathfinder Tactics',
+    icon:'🪤',
+    description:'Advanced reconnaissance and trap warfare integration.',
+    bonus:'Traps deal 60% more damage, kills restore 15 HP, mouse targeting always active.',
+    requiredUpgrades:['Trap Payload','Field Reclaimer','Targeting Cursor'],
+    check:g=>g.collectedUpgrades && ['Trap Payload','Field Reclaimer','Targeting Cursor'].every(n=>g.collectedUpgrades.includes(n)),
+    apply:g=>{
+      g.player.trapDamageMul*=1.60;
+      g.player.vampire=(g.player.vampire||0)+15;
+      g.player.mouseTargeting=true;
+    }
+  },
+  {
+    id:'vectorSpecialist',
+    name:'Vector Specialist',
+    icon:'✳️',
+    description:'Mastery of Vector Burst directional weapon technology.',
+    bonus:'Vector Burst fires 10 directions, deals 50% more damage, 40% faster projectiles.',
+    requiredUpgrades:['Vector Burst','Splitfire Array','Vector Focusing','Vector Accelerator','Vector Relay'],
+    check:g=>g.collectedUpgrades && ['Vector Burst','Splitfire Array','Vector Focusing','Vector Accelerator','Vector Relay'].every(n=>g.collectedUpgrades.includes(n)),
+    apply:g=>{
+      // Boost directions (base 5 + splitfire adds, we set to 10)
+      g.player.vectorBurstCount=(g.player.vectorBurstCount||5)+5;
+      g.player.damageMul*=1.50;
+      g.player.projectileSpeedMul=(g.player.projectileSpeedMul||1)*1.40;
+    }
+  },
+  {
+    id:'sifterMaster',
+    name:'Sifter Master',
+    icon:'🔍',
+    description:'Peak Sifter Drone automation and efficiency.',
+    bonus:'Sifter drones collect Echo Shards 100% faster and have 50% larger search radius.',
+    requiredUpgrades:['Sifter Drone','Sifter Optics','Sifter Turbo'],
+    check:g=>g.collectedUpgrades && ['Sifter Drone','Sifter Optics','Sifter Turbo'].every(n=>g.collectedUpgrades.includes(n)),
+    apply:g=>{
+      g.player.sweeperCollectMul=(g.player.sweeperCollectMul||1)*2.0;
+      g.player.sweeperRangeMul=(g.player.sweeperRangeMul||1)*1.50;
     }
   }
+];
 
-  // "⚡ WEAK POINT" floating text
-  const textAlpha = 0.7 + 0.3 * pulse;
-  ctx.fillStyle = `rgba(66,214,255,${textAlpha})`;
-  ctx.shadowColor = '#42d6ff';
-  ctx.shadowBlur = 14;
-  ctx.font = 'bold 14px Inter, Segoe UI, Arial';
-  ctx.textAlign = 'center';
-  ctx.fillText('⚡ WEAK POINT', wp.x, wp.y - wp.radius - 14);
+function defaultResources(){
+  return { gildShards:0, voltarite:0, echoQuartz:0, ferronRoot:0, lumicite:0, pyroclastCore:0, umbralAlloy:0, ferriteBark:0, luminaSpores:0, aetherQuartz:0, crysalith:0, emberglass:0 };
+}
 
-  ctx.restore();
+function defaultPermanentUpgrades(){
+  const result={};
+  for(const up of PERMANENT_UPGRADES) result[up.id]=0;
+  return result;
+}
+
+function createDefaultProfile(){
+  const stamp=new Date().toISOString();
+  return {
+    version:1,
+    profileName:'Default Profile',
+    createdAt:stamp,
+    lastPlayedAt:stamp,
+    missionIndex:1,
+    runIndex:1,
+    completedMissions:0,
+    resources:defaultResources(),
+    permanentUpgrades:defaultPermanentUpgrades(),
+    milestones:defaultMilestones(),
+    unlockedSynergies:[],
+    statistics:{
+      totalRunsStarted:0,
+      totalRunsCompleted:0,
+      totalMissionsCompleted:0,
+      totalEnemiesKilled:0,
+      totalElitesKilled:0,
+      totalBossesKilled:0,
+      totalOreMined:0,
+      totalGildMined:0,
+      totalEchoMined:0,
+      totalVoltariteMined:0,
+      totalResourcesCollected:0,
+      totalUpgradesBought:0,
+      maxLevelReached:0,
+      classRuns:{ bulwark:0, pathfinder:0, borecaster:0 }
+    }
+  };
+}
+
+function normalizeProfile(profile){
+  const base=createDefaultProfile();
+  const merged = {
+    ...base,
+    ...profile,
+    resources:{...base.resources,...(profile?.resources || {})},
+    permanentUpgrades:{...base.permanentUpgrades,...(profile?.permanentUpgrades || {})},
+    milestones:{...base.milestones,...(profile?.milestones || {})},
+    unlockedSynergies:profile?.unlockedSynergies || [],
+    statistics:{...base.statistics,...(profile?.statistics || {})}
+  };
+  // Merge classRuns sub-object safely.
+  if(profile?.statistics?.classRuns){
+    merged.statistics.classRuns = {
+      ...base.statistics.classRuns,
+      ...profile.statistics.classRuns
+    };
+  }
+  return merged;
+}
+
+function hasSaveData(){
+  return !!localStorage.getItem(SAVE_KEY);
+}
+
+function loadSave(){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(!raw) return null;
+    return normalizeProfile(JSON.parse(raw));
+  }catch(err){
+    console.warn('Could not load Echo Vein save.', err);
+    return null;
+  }
+}
+
+function saveGame(){
+  if(!saveProfile) return;
+  saveProfile.lastPlayedAt=new Date().toISOString();
+  localStorage.setItem(SAVE_KEY, JSON.stringify(saveProfile));
+}
+
+function newGame(){
+  saveProfile=createDefaultProfile();
+  saveGame();
+  showMainMenu();
+}
+
+function deleteSave(){
+  localStorage.removeItem(SAVE_KEY);
+  saveProfile=createDefaultProfile();
+  showMainMenu();
+}
+
+function resourceLabel(id){
+  return ({
+    gildShards:'Gild Shards',
+    voltarite:'Voltarite',
+    echoQuartz:'Echo Quartz',
+    ferronRoot:'Ferron Root',
+    lumicite:'Lumicite',
+    pyroclastCore:'Pyroclast Core',
+    umbralAlloy:'Umbral Alloy',
+    ferriteBark:'Ferrite Bark',
+    luminaSpores:'Lumina Spores',
+    aetherQuartz:'Aether Quartz',
+    crysalith:'Crysalith',
+    emberglass:'Emberglass',
+    gild:'Gild Shards',
+    echo:'Echo Shards'
+  })[id] || MINERALS[id]?.displayName || id;
+}
+
+function missionDifficulty(missionIndex){
+  const m=Math.max(1,missionIndex)-1;
+  return {
+    enemyHealthMultiplier:1+m*0.12,
+    enemyDamageMultiplier:1+m*0.08,
+    enemySpawnRateMultiplier:1+m*0.10,
+    bossHealthMultiplier:1+m*0.18,
+    bossDamageMultiplier:1+m*0.12,
+    objectiveMultiplier:1+m*0.16,
+    rewardMultiplier:1+m*0.15,
+  };
+}
+
+function permanentUpgradeCost(up){
+  const level=saveProfile.permanentUpgrades[up.id] || 0;
+  return {
+    gildShards:Math.floor(45 + level*28 + level*level*6),
+    [up.ore]:Math.floor(2 + level*1.35)
+  };
+}
+
+function canAfford(cost){
+  return Object.entries(cost).every(([id,amount])=>(saveProfile.resources[id] || 0)>=amount);
+}
+
+function spend(cost){
+  for(const [id,amount] of Object.entries(cost)) saveProfile.resources[id]-=amount;
+}
+
+function buyPermanentUpgrade(id){
+  const up=PERMANENT_UPGRADES.find(item=>item.id===id);
+  if(!up) return;
+  const level=saveProfile.permanentUpgrades[id] || 0;
+  if(level>=up.max) return;
+  const cost=permanentUpgradeCost(up);
+  if(!canAfford(cost)) return;
+  spend(cost);
+  saveProfile.permanentUpgrades[id]=level+1;
+  saveProfile.statistics.totalUpgradesBought = (saveProfile.statistics.totalUpgradesBought||0) + 1;
+  saveGame();
+  // Phase 1.1: check upgrade-count milestones.
+  if(typeof checkMilestoneOnUpgradeBought === 'function') checkMilestoneOnUpgradeBought(null);
+  showUpgradesMenu();
+}
+
+function applyPermanentUpgrades(g){
+  if(!saveProfile) return;
+  const up=saveProfile.permanentUpgrades;
+  const p=g.player;
+  p.maxHp=Math.round(p.maxHp*(1+(up.maxHealth || 0)*0.05));
+  p.hp=p.maxHp;
+  p.armourMul=Math.max(0.55,1-(up.armour || 0)*0.02);
+  p.speedMul*=1+(up.moveSpeed || 0)*0.025;
+  p.mineMul*=1+(up.miningSpeed || 0)*0.04;
+  p.damageMul*=1+(up.weaponDamage || 0)*0.03;
+  p.fireRateMul*=1+(up.fireRate || 0)*0.02;
+  p.pickupMul*=1+(up.pickupRadius || 0)*0.05;
+  const drone=1+(up.droneEfficiency || 0)*0.04;
+  p.droneDamageMul*=drone; p.droneSpeedMul*=drone;
+  const traps=1+(up.trapEffectiveness || 0)*0.05;
+  p.trapDamageMul*=traps; p.trapRadiusMul*=traps;
+  p.arcDamageMul=1+(up.arcDamage || 0)*0.05;
 }
 
 /*
- * Crystal Rain Indicators — floor markers showing where crystals will fall.
+ * Apply milestone rewards to the current run's game state.
+ * Called once at run start after permanent upgrades are applied.
+ * Only applies rewards for unlocked milestones.
  */
-function drawBossCrystalRainIndicators(g){
-  if(!g || !g.bossCrystalRainIndicators || !g.bossCrystalRainIndicators.length) return;
-  ctx.save();
-  for(const ind of g.bossCrystalRainIndicators){
-    const pulse = 0.5 + 0.5 * Math.sin(g.time * 12 + ind.x + ind.y);
-    const alpha = clamp(ind.timer / ind.maxTimer, 0, 1);
-    const radius = 18 + 6 * pulse;
+function applyMilestoneRewards(g){
+  if(!saveProfile || !g) return;
+  for(const m of MILESTONES){
+    const entry = saveProfile.milestones[m.id];
+    if(entry && entry.unlocked && typeof m.apply === 'function'){
+      m.apply(g);
+    }
+  }
+}
 
-    // Sprite-based indicator (fallback to procedural)
-    const indDrawn = drawSpriteCentered(ctx, 'crystalRainIndicator', ind.x, ind.y, radius * 2, radius * 2, {
-      rotation: -g.time * 0.8,
-      alpha: 0.5 + 0.3 * alpha * pulse,
-      glowColor: '#b46bff',
-      glowBlur: 14
+/*
+ * Apply synergy rewards to the current run's game state.
+ * Called once at run start after permanent upgrades and milestone rewards.
+ * Re-applies the apply() function for every unlocked synergy in the profile.
+ */
+function applySynergyRewards(g){
+  if(!saveProfile || !g || !saveProfile.unlockedSynergies) return;
+  for(const synergyId of saveProfile.unlockedSynergies){
+    const s = SYNERGIES.find(syn => syn.id === synergyId);
+    if(s && typeof s.apply === 'function'){
+      s.apply(g);
+    }
+  }
+}
+
+/*
+ * Check and unlock synergies — Phase 2.1
+ *
+ * Called after each upgrade is applied during a run. Checks every synergy
+ * whose check(g) now returns true, awards it, logs the unlock, and shows
+ * floating text. Prevents duplicate unlocks by checking g.unlockedSynergies.
+ */
+function checkSynergies(g){
+  if(!g || !saveProfile) return;
+  if(!g.unlockedSynergies) g.unlockedSynergies = [];
+  if(!g.collectedUpgrades) g.collectedUpgrades = [];
+
+  for(const syn of SYNERGIES){
+    // Skip if already unlocked this run
+    if(g.unlockedSynergies.includes(syn.id)) continue;
+    // Skip if already unlocked in profile (persistent)
+    if(saveProfile.unlockedSynergies && saveProfile.unlockedSynergies.includes(syn.id)) continue;
+    // Check if all requirements are met
+    if(syn.check(g)){
+      // Unlock it — apply the bonus immediately and mark it
+      syn.apply(g);
+      g.unlockedSynergies.push(syn.id);
+      // Persist to profile so it applies to future runs too
+      saveProfile.unlockedSynergies = saveProfile.unlockedSynergies || [];
+      if(!saveProfile.unlockedSynergies.includes(syn.id)){
+        saveProfile.unlockedSynergies.push(syn.id);
+        saveGame();
+      }
+      // Show floating unlock text
+      const msg = `⚡ SYNERGY UNLOCKED: ${syn.name}`;
+      if(typeof log === 'function') log(g, msg);
+      if(typeof floating === 'function' && g){
+        floating(g, g.player.x, g.player.y - 60, msg, '#b46bff');
+      }
+      // Flash shake for emphasis
+      if(typeof shake !== 'undefined') shake = Math.max(shake, 6);
+    }
+  }
+}
+
+/*
+ * Award a milestone: mark it as unlocked, save the timestamp, persist to
+ * localStorage, and log the event to the in-game log.
+ * Returns true if the milestone was newly unlocked, false if already awarded.
+ */
+function awardMilestone(g, milestoneId){
+  if(!saveProfile) return false;
+  const m = MILESTONES.find(m => m.id === milestoneId);
+  if(!m) return false;
+  const entry = saveProfile.milestones[milestoneId];
+  if(!entry || entry.unlocked) return false;
+  entry.unlocked = true;
+  entry.unlockedAt = new Date().toISOString();
+  saveGame();
+  const msg = `Milestone unlocked: ${m.name} — ${m.reward}`;
+  if(g && typeof log === 'function') log(g, msg);
+  if(typeof floating === 'function' && g){
+    floating(g, g.player.x, g.player.y - 40, `🏆 ${m.name}`, '#ffcc4d');
+  }
+  return true;
+}
+
+/*
+ * Check-and-award wrappers for event hook points.
+ *
+ * Each function checks all milestones whose condition may have been met by
+ * the triggering event.  Safe to call every frame — the internal unlocked
+ * check on each milestone is a fast boolean lookup.
+ *
+ * When a milestone check matches, awardMilestone() persists the unlock,
+ * saves the profile, logs to the in-game log, and shows a floating trophy
+ * text above the player.
+ */
+
+/* Called from killEnemy() — checks kill-count and elite-kill milestones. */
+function checkMilestoneOnKill(g){
+  if(!saveProfile) return;
+  const s=saveProfile.statistics;
+  // Kill-count milestones (FirstKill, Kill10, Kill50, Kill100, Kill250, Kill500)
+  const killIds=['FirstKill','Kill10','Kill50','Kill100','Kill250','Kill500'];
+  for(const id of killIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+  }
+  // Elite-kill milestones (EliteKill1, EliteKill10)
+  if((s.totalElitesKilled||0)>0){
+    const eliteIds=['EliteKill1','EliteKill10'];
+    for(const id of eliteIds){
+      const m=MILESTONES.find(x=>x.id===id);
+      if(!m) continue;
+      const entry=saveProfile.milestones[id];
+      if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+    }
+  }
+  // Boss-kill milestone (BossKill1)
+  if((s.totalBossesKilled||0)>0){
+    const m=MILESTONES.find(x=>x.id==='BossKill1');
+    const entry=saveProfile.milestones.BossKill1;
+    if(entry && !entry.unlocked && m && m.check(saveProfile)) awardMilestone(g,'BossKill1');
+  }
+}
+
+/* Called from mineTile() — checks ore-count and per-resource milestones. */
+function checkMilestoneOnMine(g){
+  if(!saveProfile) return;
+  const s=saveProfile.statistics;
+  // Generic ore-count milestones (FirstOre, Mine50, Mine200, Mine500, Mine1000)
+  const mineIds=['FirstOre','Mine50','Mine200','Mine500','Mine1000'];
+  for(const id of mineIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+  }
+  // Per-resource milestones
+  const resChecks=[{id:'Gild100',stat:s.totalGildMined},
+                   {id:'Echo100',stat:s.totalEchoMined},
+                   {id:'Voltarite50',stat:s.totalVoltariteMined}];
+  for(const rc of resChecks){
+    if(!(rc.stat||0)>0) continue;
+    const m=MILESTONES.find(x=>x.id===rc.id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[rc.id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,rc.id);
+  }
+  // Resource-collection milestones (Resources1000/5000/10000)
+  if((s.totalResourcesCollected||0)>0){
+    const resIds=['Resources1000','Resources5000','Resources10000'];
+    for(const id of resIds){
+      const m=MILESTONES.find(x=>x.id===id);
+      if(!m) continue;
+      const entry=saveProfile.milestones[id];
+      if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+    }
+  }
+}
+
+/* Called from gainXp() — checks level-based milestones. */
+function checkMilestoneOnLevelUp(g, newLevel){
+  if(!saveProfile) return;
+  // Keep track of the highest level reached across all runs.
+  if(newLevel > (saveProfile.statistics.maxLevelReached || 0)){
+    saveProfile.statistics.maxLevelReached = newLevel;
+  }
+  // Check ReachLevel5 / ReachLevel10
+  const levelIds=['ReachLevel5','ReachLevel10'];
+  for(const id of levelIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+  }
+}
+
+/* Called from completeRun() — checks run-count and class milestones. */
+function checkMilestoneOnRunComplete(g, classId){
+  if(!saveProfile) return;
+  // Increment class run counter.
+  if(classId && saveProfile.statistics.classRuns){
+    saveProfile.statistics.classRuns[classId] = (saveProfile.statistics.classRuns[classId] || 0) + 1;
+  }
+  // Run-count milestones (Run1, Run5, Run15, Run30)
+  const runIds=['Run1','Run5','Run15','Run30'];
+  for(const id of runIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+  }
+  // Class-specific milestones
+  const classIds=['ClassBulwark','ClassPathfinder','ClassBorecaster'];
+  for(const id of classIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+  }
+}
+
+/* Called from completeRun() after mission promotion. */
+function checkMilestoneOnMissionComplete(g){
+  if(!saveProfile) return;
+  const missionIds=['Mission1','Mission3','Mission5'];
+  for(const id of missionIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+  }
+}
+
+/* Called from buyPermanentUpgrade() after each purchase. */
+function checkMilestoneOnUpgradeBought(g){
+  if(!saveProfile) return;
+  const upgradeIds=['Upgrades5','Upgrades15'];
+  for(const id of upgradeIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+  }
+}
+
+function currentRunObjectives(){
+  const diff=missionDifficulty(saveProfile.missionIndex);
+  const run=saveProfile.runIndex;
+  const mission=saveProfile.missionIndex;
+  const choices=[...MISSION_RESOURCE_IDS];
+  const result=[];
+  const addResourceObjective=(resourceId,base,perRun)=>{
+    const mineral=MINERALS[resourceId];
+    const target=Math.floor((base+run*perRun+mission*1.5)*diff.objectiveMultiplier);
+    result.push({ id:`collect_${resourceId}`, type:'collectResource', resourceId, displayName:`Collect ${target} ${mineral.displayName}`, targetAmount:target, currentAmount:0, completed:false });
+  };
+  addResourceObjective('gild',200,5);
+  addResourceObjective('echo',100,10);
+  // Add one or two rotating ore objectives so the mission is not always Gild/Echo.
+  const pool=choices.filter(id=>id!=='gild');
+  const first=pool[(mission+run-2)%pool.length];
+  addResourceObjective(first, first==='aetherQuartz'?3:8, first==='aetherQuartz'?1:3);
+  if(run>=3){
+    const second=pool[(mission*2+run)%pool.length];
+    if(second!==first) addResourceObjective(second, second==='aetherQuartz'?2:6, second==='aetherQuartz'?1:2);
+  }
+  return result;
+}
+
+function bankRunRewards(g){
+  const diff=missionDifficulty(saveProfile.missionIndex);
+  const rewardMul=diff.rewardMultiplier;
+  // Phase 1.2: apply mission-type reward modifier.
+  let missionMul=1;
+  if(g && g.missionType){
+    const mt=MISSION_TYPES.find(m=>m.id===g.missionType);
+    if(mt) missionMul=mt.rewardModifier;
+  }
+  const resources=saveProfile.resources;
+  const runRes=g.resources || {};
+  resources.gildShards += Math.floor(((runRes.gild || g.gold || 0) + 35 + saveProfile.runIndex*10)*rewardMul*missionMul);
+  resources.voltarite += Math.floor(((runRes.voltarite || g.nitra || 0) + 4)*rewardMul*missionMul);
+  resources.echoQuartz += Math.max(1, Math.floor((runRes.echo || g.objectiveEchoCollected || 0)/35*missionMul));
+  for(const id of ['ferriteBark','luminaSpores','aetherQuartz','crysalith','emberglass']){
+    resources[id]=(resources[id] || 0)+Math.floor((runRes[id] || 0)*rewardMul*missionMul);
+  }
+  const bonusOre=SPECIAL_ORES[(saveProfile.missionIndex + saveProfile.runIndex - 2) % SPECIAL_ORES.length];
+  resources[bonusOre] = (resources[bonusOre] || 0) + 1 + Math.floor(saveProfile.missionIndex/3);
+  if(Math.random()<0.35){ const ore=SPECIAL_ORES[randi(0,SPECIAL_ORES.length-1)]; resources[ore]=(resources[ore] || 0)+1; }
+}
+
+function completeRun(g){
+  if(!saveProfile || g.runResolved) return;
+  g.runResolved=true;
+  bankRunRewards(g);
+  saveProfile.statistics.totalRunsCompleted++;
+  // totalEnemiesKilled is already tracked in real-time by killEnemy(), so we
+  // do not re-add g.kills here to avoid double-counting.
+  saveProfile.runIndex++;
+  // Phase 1.1: check run-complete milestones (includes class-specific).
+  if(typeof checkMilestoneOnRunComplete === 'function') checkMilestoneOnRunComplete(g, g.player?.classId || (g.selectedClass?.id));
+  let missionCompleted=false;
+  if(saveProfile.runIndex>RUNS_PER_MISSION){
+    saveProfile.runIndex=1;
+    saveProfile.missionIndex++;
+    saveProfile.completedMissions++;
+    saveProfile.statistics.totalMissionsCompleted++;
+    saveProfile.resources.gildShards += Math.floor(120*missionDifficulty(saveProfile.missionIndex).rewardMultiplier);
+    missionCompleted=true;
+    // Phase 1.1: check mission-complete milestones.
+    if(typeof checkMilestoneOnMissionComplete === 'function') checkMilestoneOnMissionComplete(g);
+  }
+  saveGame();
+  if(typeof showRunStatsScreen==='function') showRunStatsScreen(g,{title:missionCompleted ? 'Mission Complete' : 'Run Extracted', cause:missionCompleted ? 'Mission completed' : 'Extracted'});
+  else showRunComplete(g, missionCompleted);
+}
+
+function failRun(g,reason){
+  if(g.runResolved) return;
+  g.runResolved=true;
+  g.state='failed';
+  sfx('gameover');
+  saveGame();
+  if(typeof showRunStatsScreen==='function') showRunStatsScreen(g,{title:'Run Failed', cause:reason || 'Failed'});
+  else {
+    ui.gameOverText.innerHTML=`${reason}<br><br>Unbanked run resources were lost. Your saved mission remains at Mission <b>${saveProfile.missionIndex}</b>, Run <b>${saveProfile.runIndex}</b>.`;
+    ui.gameOverOverlay.classList.add('show');
+  }
+}
+
+function startRunWithClass(clsOrId){
+  const cls=typeof clsOrId==='string' ? getClassById(clsOrId) : clsOrId;
+  resumeAudio();
+  game=makeGame(cls);
+  // Phase 1.2: Apply selected mission type.
+  if(selectedMissionType){
+    game.missionType = selectedMissionType.id;
+    // Replace default objectives with mission-specific ones.
+    game.objectives = selectedMissionType.generateObjectives(saveProfile, game);
+  }
+  saveProfile.statistics.totalRunsStarted++;
+  // Phase 2.1: initialise synergy tracking arrays
+  game.collectedUpgrades = [];
+  game.unlockedSynergies = [];
+  // Apply milestone rewards first, then synergy rewards
+  applyMilestoneRewards(game);
+  applySynergyRewards(game);
+  saveGame();
+  appState='RUN_ACTIVE';
+  sfx('start');
+  paused=false; awaitingUpgrade=false;
+  hideAllOverlays();
+  updateUI(game);
+}
+
+function hideAllOverlays(){
+  ui.startOverlay.classList.remove('show');
+  ui.gameOverOverlay.classList.remove('show');
+  ui.upgradeOverlay.classList.remove('show');
+  document.getElementById('runStatsOverlay')?.classList.remove('show');
+}
+
+function clearMenu(){
+  ui.startOverlay.classList.add('show');
+  ui.gameOverOverlay.classList.remove('show');
+  ui.upgradeOverlay.classList.remove('show');
+  document.getElementById('runStatsOverlay')?.classList.remove('show');
+  ui.classCards.innerHTML='';
+  ui.menuButtons.innerHTML='';
+  ui.menuContent.innerHTML='';
+  ui.menuMeta.innerHTML='';
+}
+
+function setMenu(title,text){
+  clearMenu();
+  ui.startTitle.textContent=title;
+  ui.startText.textContent=text;
+}
+
+function addMenuButton(label,handler){
+  const btn=document.createElement('button');
+  btn.textContent=label;
+  btn.onclick=handler;
+  ui.menuButtons.appendChild(btn);
+  return btn;
+}
+
+function renderResourceLine(){
+  return Object.entries(saveProfile.resources)
+    .map(([id,value])=>`<span><b>${resourceLabel(id)}</b> ${value}</span>`)
+    .join('');
+}
+
+function showSaveSelect(){
+  appState='SAVE_SELECT';
+  const profile=loadSave();
+  setMenu('Saved Games', 'Continue a saved Hollowshift profile or start clean.');
+  if(profile){
+    ui.menuMeta.innerHTML=`<div class="saveCard"><b>${profile.profileName}</b><span>Last played ${new Date(profile.lastPlayedAt).toLocaleString()}</span><span>Mission ${profile.missionIndex}, Run ${profile.runIndex} of ${RUNS_PER_MISSION}</span><span>Total resources ${Object.values(profile.resources).reduce((a,b)=>a+b,0)}</span></div>`;
+  }
+  addMenuButton('Continue Latest Save',()=>{ saveProfile=profile || createDefaultProfile(); showMainMenu(); });
+  addMenuButton('New Game',newGame);
+  addMenuButton('Delete Save / Reset Progress',deleteSave);
+}
+
+function showMainMenu(){
+  appState='MAIN_MENU';
+  if(!saveProfile) saveProfile=createDefaultProfile();
+  saveGame();
+  game=null;
+  setMenu('Echo Vein', 'Prepare the next descent, spend permanent resources, or review your Hollowshift profile.');
+  ui.menuMeta.innerHTML=`<div class="menuStats"><span>Mission <b>${saveProfile.missionIndex}</b></span><span>Run <b>${saveProfile.runIndex}/${RUNS_PER_MISSION}</b></span><span>Completed Missions <b>${saveProfile.completedMissions}</b></span></div><div class="resourceStrip">${renderResourceLine()}</div>`;
+  addMenuButton('Play',showMissionSelect);
+  addMenuButton('Upgrades',showUpgradesMenu);
+  addMenuButton('Synergies',showSynergiesMenu);
+  addMenuButton('Gears',()=>showPlaceholderMenu('Gears','Gears feature coming later.'));
+  addMenuButton('Milestones',showMilestonesMenu);
+  addMenuButton('Settings',showSettingsMenu);
+  addMenuButton('Credits',showCreditsMenu);
+}
+
+/*
+ * Mission Select — Phase 1.2
+ * Shows available mission types. Player picks one, then proceeds to class select.
+ */
+function showMissionSelect(){
+  appState='MISSION_SELECT';
+  setMenu('Choose Mission Type', `Mission ${saveProfile.missionIndex}, Run ${saveProfile.runIndex} of ${RUNS_PER_MISSION}. Each mission type changes the primary objective and reward.`);
+  if(!saveProfile) saveProfile=createDefaultProfile();
+
+  const grid=document.createElement('div');
+  grid.className='missionSelectGrid';
+
+  for(const mt of MISSION_TYPES){
+    const card=document.createElement('div');
+    card.className='missionSelectCard';
+    card.setAttribute('role','button');
+    card.setAttribute('tabindex','0');
+
+    const iconEl=document.createElement('div');
+    iconEl.className='missionSelectIcon';
+    iconEl.textContent=mt.icon;
+    card.appendChild(iconEl);
+
+    const info=document.createElement('div');
+    info.className='missionSelectInfo';
+
+    const nameEl=document.createElement('div');
+    nameEl.className='missionSelectName';
+    nameEl.textContent=mt.name;
+    info.appendChild(nameEl);
+
+    const descEl=document.createElement('div');
+    descEl.className='missionSelectDesc';
+    descEl.textContent=mt.description;
+    info.appendChild(descEl);
+
+    const rewardEl=document.createElement('div');
+    rewardEl.className='missionSelectReward';
+    rewardEl.textContent=`Reward modifier: +${Math.round((mt.rewardModifier-1)*100)}%`;
+    info.appendChild(rewardEl);
+
+    card.appendChild(info);
+    card.onclick=()=>{
+      selectedMissionType=mt;
+      showClassSelect();
+    };
+    card.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); card.onclick(); }};
+    grid.appendChild(card);
+  }
+
+  ui.menuContent.appendChild(grid);
+  addMenuButton('Back',showMainMenu);
+}
+
+function showClassSelect(){
+  appState='MISSION_SELECT';
+  const mtLabel = selectedMissionType ? `${selectedMissionType.icon} ${selectedMissionType.name} mission` : 'Standard operation';
+  setMenu('Choose Operator', `${mtLabel} — Mission ${saveProfile.missionIndex}, Run ${saveProfile.runIndex} of ${RUNS_PER_MISSION}. Complete objectives, defeat the sector boss, then reach extraction.`);
+  setupClassCards();
+}
+
+
+function showSettingsMenu(){
+  appState='SETTINGS_MENU';
+  setMenu('Settings','Tune visibility and accessibility options. Changes apply immediately and are saved locally.');
+
+  const settings=getFogSettings();
+  const panel=document.createElement('div');
+  panel.className='settingsPanel';
+
+  const fogRow=document.createElement('label');
+  fogRow.className='settingsRow';
+  fogRow.innerHTML=`
+    <span><b>Fog of War</b><small>Limits cave visibility around the operator. Disable this for full-map visibility.</small></span>
+    <input id="fogToggle" type="checkbox" ${settings.fogOfWarEnabled?'checked':''}>
+  `;
+  panel.appendChild(fogRow);
+
+  const mouseRow=document.createElement('label');
+  mouseRow.className='settingsRow';
+  mouseRow.innerHTML=`
+    <span><b>Enable manual mouse control</b><small>Allow mouse-guided targeting and related upgrades.</small></span>
+    <input id="manualMouseToggle" type="checkbox" ${settings.manualMouseControlEnabled?'checked':''}>
+  `;
+  panel.appendChild(mouseRow);
+
+  const presetRow=document.createElement('div');
+  presetRow.className='settingsRow settingsPresetRow';
+  presetRow.innerHTML=`<span><b>Fog Intensity</b><small>Optional accessibility preset for visibility radius and darkness.</small></span>`;
+  const presetButtons=document.createElement('div');
+  presetButtons.className='settingsPresetButtons';
+  for(const [id,label] of [['low','Low'],['medium','Medium'],['high','High']]){
+    const btn=document.createElement('button');
+    btn.textContent=label;
+    btn.onclick=()=>{ setFogIntensityPreset(id); showSettingsMenu(); };
+    presetButtons.appendChild(btn);
+  }
+  presetRow.appendChild(presetButtons);
+  panel.appendChild(presetRow);
+
+  const values=document.createElement('div');
+  values.className='settingsValues';
+  values.innerHTML=`Visibility radius: <b>${settings.fogOfWarRadius}px</b> &middot; Soft edge: <b>${settings.fogOfWarSoftEdge}px</b> &middot; Outer intensity: <b>${Math.round(settings.fogOfWarIntensity*100)}%</b>`;
+  panel.appendChild(values);
+
+  ui.menuContent.appendChild(panel);
+  document.getElementById('fogToggle').addEventListener('change',ev=>{
+    setFogOfWarEnabled(ev.target.checked);
+  });
+  document.getElementById('manualMouseToggle').addEventListener('change',ev=>{
+    setManualMouseControlEnabled(ev.target.checked);
+    showSettingsMenu();
+  });
+  addMenuButton('Back',showMainMenu);
+}
+
+function showPlaceholderMenu(title,text){
+  appState=`${title.toUpperCase()}_MENU`;
+  setMenu(title,text);
+  addMenuButton('Back',showMainMenu);
+}
+
+/*
+ * Milestones Menu — displays all defined milestones with progress bars,
+ * grouped by category, showing unlock status and reward text.
+ * Locked milestones show a progress bar toward the unlock target.
+ */
+function showMilestonesMenu(){
+  appState='MILESTONES_MENU';
+  setMenu('Milestones','Permanent achievements earned through Hollowshift operations. Each milestone reward applies to all future runs.');
+  if(!saveProfile) saveProfile=createDefaultProfile();
+
+  // Group milestones by their 'group' field in display order.
+  const groupOrder=['combat','mining','run','resource','class'];
+  const groupLabels={ combat:'🔥 Combat', mining:'⛏️ Mining', run:'🏃 Runs & Missions', resource:'💎 Resources', class:'🎯 Class-Specific' };
+  const groups = new Map();
+  for(const m of MILESTONES){
+    const g = m.group || 'other';
+    if(!groups.has(g)) groups.set(g, []);
+    groups.get(g).push(m);
+  }
+
+  for(const g of groupOrder){
+    const items = groups.get(g);
+    if(!items || !items.length) continue;
+    const label = groupLabels[g] || g;
+
+    const section = document.createElement('div');
+    section.className = 'milestoneSection';
+
+    const header = document.createElement('div');
+    header.className = 'milestoneSectionHeader';
+    header.textContent = label;
+    section.appendChild(header);
+
+    for(const m of items){
+      const entry = saveProfile.milestones[m.id];
+      const unlocked = entry && entry.unlocked;
+      const card = document.createElement('div');
+      card.className = `milestoneCard ${unlocked ? 'unlocked' : 'locked'}`;
+
+      // Icon column
+      const iconEl = document.createElement('div');
+      iconEl.className = 'milestoneIcon';
+      iconEl.textContent = unlocked ? '✅' : (m.icon || '🔒');
+      card.appendChild(iconEl);
+
+      // Info column
+      const info = document.createElement('div');
+      info.className = 'milestoneInfo';
+
+      const nameLine = document.createElement('div');
+      nameLine.className = 'milestoneName';
+      nameLine.textContent = m.name;
+      info.appendChild(nameLine);
+
+      const descLine = document.createElement('div');
+      descLine.className = 'milestoneDesc';
+      descLine.textContent = m.desc;
+      info.appendChild(descLine);
+
+      const rewardLine = document.createElement('div');
+      rewardLine.className = 'milestoneReward';
+      rewardLine.textContent = `Reward: ${m.reward}`;
+      info.appendChild(rewardLine);
+
+      // Progress bar for milestones with a progress function
+      if(typeof m.progress === 'function'){
+        const prog = m.progress(saveProfile);
+        if(prog && prog.target > 0){
+          const pct = unlocked ? 100 : Math.min(100, Math.round((prog.current / prog.target) * 100));
+          const barWrap = document.createElement('div');
+          barWrap.className = 'milestoneProgressWrap';
+          const bar = document.createElement('div');
+          bar.className = `milestoneProgressBar ${unlocked ? 'complete' : ''}`;
+          bar.style.width = `${pct}%`;
+          barWrap.appendChild(bar);
+          info.appendChild(barWrap);
+
+          const labelEl = document.createElement('div');
+          labelEl.className = 'milestoneProgressLabel';
+          if(unlocked){
+            labelEl.textContent = `✓ ${prog.current} / ${prog.target}`;
+          } else {
+            labelEl.textContent = `${prog.current} / ${prog.target}`;
+          }
+          info.appendChild(labelEl);
+        }
+      }
+
+      // Date unlocked or lock indicator
+      if(unlocked && entry.unlockedAt){
+        const dateLine = document.createElement('div');
+        dateLine.className = 'milestoneDate';
+        dateLine.textContent = `Unlocked: ${new Date(entry.unlockedAt).toLocaleDateString()}`;
+        info.appendChild(dateLine);
+      } else if(!unlocked) {
+        const lockLine = document.createElement('div');
+        lockLine.className = 'milestoneLockedLabel';
+        lockLine.textContent = '🔒 Not yet unlocked';
+        info.appendChild(lockLine);
+      }
+
+      card.appendChild(info);
+      section.appendChild(card);
+    }
+
+    ui.menuContent.appendChild(section);
+  }
+
+  addMenuButton('Back', showMainMenu);
+}
+
+/*
+ * Synergies Menu — Phase 2.1
+ * Displays all 8 synergies in a responsive grid.
+ * Unlocked synergies show a green glow, bonus text, and "UNLOCKED" badge.
+ * Locked synergies are dimmed and show missing upgrades in red.
+ */
+function showSynergiesMenu(){
+  appState='SYNERGIES_MENU';
+  setMenu('Upgrade Synergies','Collect specific upgrade combinations during a run to unlock permanent combo bonuses. Synergies are persistent once unlocked.');
+  if(!saveProfile) saveProfile=createDefaultProfile();
+
+  const grid = document.createElement('div');
+  grid.className = 'synergyGrid';
+
+  for(const syn of SYNERGIES){
+    const isUnlocked = saveProfile.unlockedSynergies && saveProfile.unlockedSynergies.includes(syn.id);
+    const card = document.createElement('div');
+    card.className = `synergyCard ${isUnlocked ? 'synergyUnlocked' : 'synergyLocked'}`;
+
+    // Header row: icon + name + badge
+    const header = document.createElement('div');
+    header.className = 'synergyHeader';
+
+    const iconEl = document.createElement('span');
+    iconEl.className = 'synergyIcon';
+    iconEl.textContent = syn.icon;
+    header.appendChild(iconEl);
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'synergyName';
+    nameEl.textContent = syn.name;
+    header.appendChild(nameEl);
+
+    if(isUnlocked){
+      const badge = document.createElement('span');
+      badge.className = 'synergyBadge';
+      badge.textContent = '✅ UNLOCKED';
+      header.appendChild(badge);
+    }
+
+    card.appendChild(header);
+
+    // Description
+    const desc = document.createElement('div');
+    desc.className = 'synergyDesc';
+    desc.textContent = syn.description;
+    card.appendChild(desc);
+
+    // Bonus text
+    const bonus = document.createElement('div');
+    bonus.className = 'synergyBonus';
+    bonus.textContent = `✨ ${syn.bonus}`;
+    card.appendChild(bonus);
+
+    // Required upgrades list
+    const reqLabel = document.createElement('div');
+    reqLabel.className = 'synergyReqLabel';
+    reqLabel.textContent = 'Required Upgrades:';
+    card.appendChild(reqLabel);
+
+    const reqList = document.createElement('div');
+    reqList.className = 'synergyReqList';
+
+    // We need to know what upgrades the player has in their profile
+    // For UPGRADE_POOL items, we check collectedUpgrades (run-specific)
+    // For permanent upgrades (Arc Capacitors), we check the profile
+    for(const reqName of syn.requiredUpgrades){
+      const reqItem = document.createElement('span');
+      let owned = false;
+      // Check if it's a permanent upgrade (Arc Capacitors)
+      if(reqName === 'Arc Capacitors'){
+        owned = (saveProfile.permanentUpgrades.arcDamage || 0) > 0;
+      } else {
+        // For UPGRADE_POOL items, we check if the player has ever collected them
+        // Since synergies are persistent, we check the profile's upgrade history
+        // (in-run tracking is done via checkSynergies at runtime)
+        owned = false;
+      }
+      reqItem.className = `synergyReqItem ${isUnlocked ? '' : (owned ? 'synergyReqOwned' : 'synergyReqMissing')}`;
+      reqItem.textContent = isUnlocked ? `✅ ${reqName}` : (owned ? `✅ ${reqName}` : `🔒 ${reqName}`);
+      reqList.appendChild(reqItem);
+    }
+
+    card.appendChild(reqList);
+
+    grid.appendChild(card);
+  }
+
+  ui.menuContent.appendChild(grid);
+  addMenuButton('Back', showMainMenu);
+}
+
+function showCreditsMenu(){
+  appState='CREDITS_MENU';
+  setMenu('Credits','Designed by Alessandro and Dylan from King Peng Studio');
+  ui.menuContent.innerHTML='<p>Game Design: Alessandro and Dylan<br>Studio: King Peng Studio<br>Prototype Development: AI-assisted HTML/JavaScript prototype</p>';
+  addMenuButton('Back',showMainMenu);
+}
+
+
+function renderUpgradeCost(cost){
+  return Object.entries(cost).map(([id,amount])=>{
+    const have=saveProfile.resources[id] || 0;
+    const ok=have>=amount;
+    return `<span class="costLine ${ok?'ok':'missing'}">${resourceLabel(id)}: ${have} / ${amount}</span>`;
+  }).join('');
+}
+
+function groupedPermanentUpgrades(){
+  const order=['Player Core','Mining','Weapons','Drones','Utility','Character-Specific'];
+  const groups=new Map(order.map(name=>[name,[]]));
+  for(const up of PERMANENT_UPGRADES){
+    const key=up.category || 'Utility';
+    if(!groups.has(key)) groups.set(key,[]);
+    groups.get(key).push(up);
+  }
+  return [...groups.entries()].filter(([,items])=>items.length);
+}
+
+function showUpgradesMenu(){
+  appState='UPGRADES_MENU';
+  setMenu('Permanent Upgrades','Spend banked resources on account-wide upgrades. Upgrades are grouped by type; unavailable purchases are disabled until you have enough resources.');
+  ui.menuMeta.innerHTML=`<div class="resourceStrip">${renderResourceLine()}</div>`;
+
+  const wrapper=document.createElement('div');
+  wrapper.className='upgradeTableWrap';
+
+  for(const [category,items] of groupedPermanentUpgrades()){
+    const section=document.createElement('section');
+    section.className='upgradeCategorySection';
+    section.innerHTML=`<h3>${category}</h3>`;
+
+    const table=document.createElement('table');
+    table.className='upgradeTable';
+    table.innerHTML='<thead><tr><th>Upgrade</th><th>Level</th><th>Current Effect</th><th>Next Effect</th><th>Cost</th><th>Action</th></tr></thead>';
+    const tbody=document.createElement('tbody');
+
+    const sorted=[...items].sort((a,b)=>{
+      const la=saveProfile.permanentUpgrades[a.id] || 0;
+      const lb=saveProfile.permanentUpgrades[b.id] || 0;
+      const sa=la>=a.max ? 2 : (canAfford(permanentUpgradeCost(a)) ? 0 : 1);
+      const sb=lb>=b.max ? 2 : (canAfford(permanentUpgradeCost(b)) ? 0 : 1);
+      return sa-sb;
     });
 
-    if(!indDrawn){
-      ctx.shadowColor = '#b46bff';
-      ctx.shadowBlur = 12;
-      ctx.strokeStyle = `rgba(180,107,255,${0.5 + 0.3 * pulse * alpha})`;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(ind.x, ind.y, radius, 0, Math.PI * 2);
-      ctx.stroke();
-
-      ctx.fillStyle = `rgba(180,107,255,${0.08 * alpha})`;
-      ctx.beginPath();
-      ctx.arc(ind.x, ind.y, radius * 0.6, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Diagonal cross
-      ctx.shadowBlur = 0;
-      ctx.strokeStyle = `rgba(180,107,255,${0.4 * alpha})`;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.moveTo(ind.x - radius * 0.4, ind.y - radius * 0.4);
-      ctx.lineTo(ind.x + radius * 0.4, ind.y + radius * 0.4);
-      ctx.moveTo(ind.x + radius * 0.4, ind.y - radius * 0.4);
-      ctx.lineTo(ind.x - radius * 0.4, ind.y + radius * 0.4);
-      ctx.stroke();
+    for(const up of sorted){
+      const level=saveProfile.permanentUpgrades[up.id] || 0;
+      const cost=permanentUpgradeCost(up);
+      const affordable=canAfford(cost);
+      const maxed=level>=up.max;
+      const tr=document.createElement('tr');
+      tr.className=maxed?'maxed':(affordable?'affordable':'locked');
+      tr.innerHTML=`
+        <td><b>${up.name}</b><small>${up.category || category}</small></td>
+        <td>${level}/${up.max}</td>
+        <td>${up.desc}</td>
+        <td>${maxed?'Complete':(up.next || up.desc)}</td>
+        <td class="cost">${maxed?'—':renderUpgradeCost(cost)}</td>
+        <td></td>`;
+      const btn=document.createElement('button');
+      btn.className='buyBtn';
+      btn.textContent=maxed?'Maxed':(affordable?'Buy':'Not enough resources');
+      btn.disabled=maxed || !affordable;
+      btn.title=maxed?'Upgrade complete':(affordable?'Purchase upgrade':'Collect more resources to buy this upgrade');
+      btn.onclick=()=>{ if(!btn.disabled) buyPermanentUpgrade(up.id); };
+      tr.lastElementChild.appendChild(btn);
+      tbody.appendChild(tr);
     }
+    table.appendChild(tbody);
+    section.appendChild(table);
+    wrapper.appendChild(section);
   }
-  ctx.restore();
+  ui.menuContent.appendChild(wrapper);
+  addMenuButton('Back',showMainMenu);
 }
+
+function showRunComplete(g,missionCompleted){
+  appState='RUN_COMPLETE';
+  setMenu(missionCompleted ? 'Mission Complete' : 'Run Extracted', missionCompleted ? 'The sector chain is cleared. A harder mission is now available.' : 'Resources were banked to your Hollowshift profile.');
+  ui.menuMeta.innerHTML=`<div class="menuStats"><span>Current Mission <b>${saveProfile.missionIndex}</b></span><span>Current Run <b>${saveProfile.runIndex}/${RUNS_PER_MISSION}</b></span><span>Kills <b>${g.kills}</b></span></div><div class="resourceStrip">${renderResourceLine()}</div>`;
+  addMenuButton('Continue',showMainMenu);
+  addMenuButton('Upgrades',showUpgradesMenu);
+}
+
+function startupFlow(){
+  if(hasSaveData()) showSaveSelect();
+  else {
+    saveProfile=createDefaultProfile();
+    saveGame();
+    showMainMenu();
+  }
+}
+
+window.showMainMenu=showMainMenu;
+window.MISSION_TYPES=MISSION_TYPES;
+window.selectedMissionType=selectedMissionType;
+window.SYNERGIES=SYNERGIES;
+window.checkSynergies=checkSynergies;
+window.applySynergyRewards=applySynergyRewards;
+window.showSynergiesMenu=showSynergiesMenu;
+
+
+EchoVein/js/run-stats.js:
+'use strict';
+
+/* Mission objective HUD helpers, run statistics, end-of-run summary, and trend charts. */
+
+const RUN_STAT_SAMPLE_INTERVAL = 5;
+const RUN_STAT_MAX_SAMPLES = 720;
+let runStatsLastChartKey = 'enemiesKilled';
+
+function createRunStats(){
+  return {
+    startTime: performance.now(), endTime:null, durationSec:0, lastSampleTime:0,
+    tileSizeBase:typeof TILE_SIZE_BASE!=='undefined'?TILE_SIZE_BASE:0, tileSizeScale:typeof TILE_SIZE_SCALE!=='undefined'?TILE_SIZE_SCALE:1, effectiveTileSize:typeof TILE!=='undefined'?TILE:0,
+    enemiesKilled:0, elitesKilled:0, bossesKilled:0, playerLevelMax:1, xpCollected:0,
+    resourcesCollected:{}, blocksMined:0, distanceTravelled:0, damageDealt:0, damageTaken:0,
+    shotsFired:0, shotsHit:0, dashesUsed:0, trapsPlaced:0, dronesDeployed:0, dronesPeak:0,
+    missilesFired:0, boomerangsFired:0, arcDetonations:0, lavaDamageTaken:0, borecasterBombsThrown:0, borecasterBombsExploded:0,
+    objectivesCompleted:0, causeOfEnd:null, endTitle:null, samples:[], lastX:null, lastY:null,
+    maxEnemiesAlive:0, criticalHealthTime:0, miningTime:0,
+    chargingWavesSpawned:0, chargingWaveEnemiesSpawned:0, chargingWaveEnemiesKilled:0, chargingWaveEnemiesExploded:0,
+    damageTakenFromChargingWaves:0, blocksBrokenByChargingWaves:0, oresDestroyedByChargingWaves:0
+  };
+}
+
+function ensureRunStats(g){ if(g && !g.runStats) g.runStats=createRunStats(); return g?.runStats; }
+function totalRunResources(stats){ return Object.values(stats?.resourcesCollected || {}).reduce((a,b)=>a+(+b||0),0); }
+function runAccuracy(stats){ return stats?.shotsFired>0 ? (stats.shotsHit/stats.shotsFired)*100 : 0; }
+function formatDuration(sec){ sec=Math.max(0,Math.floor(sec||0)); return `${Math.floor(sec/60)}:${String(sec%60).padStart(2,'0')}`; }
+function recordRunResource(g,id,amount){ const s=ensureRunStats(g); if(!s||!id) return; s.resourcesCollected[id]=(s.resourcesCollected[id]||0)+(amount||0); }
+function recordRunDamageTaken(g,amount,cause='damage'){ const s=ensureRunStats(g); if(!s) return; s.damageTaken+=(amount||0); if(cause==='lava') s.lavaDamageTaken+=(amount||0); if(amount>0 && !s.causeOfEnd) s.lastDamageCause=cause; }
+function recordRunDamageDealt(g,amount){ const s=ensureRunStats(g); if(!s) return; s.damageDealt+=(amount||0); }
+function recordShotFired(g,count=1){ const s=ensureRunStats(g); if(s) s.shotsFired+=count; }
+function recordShotHit(g,count=1){ const s=ensureRunStats(g); if(s) s.shotsHit+=count; }
+
+function updateRunStatsFrame(g,dt){
+  const s=ensureRunStats(g); if(!s || g.state!=='playing') return;
+  s.durationSec=g.time || 0;
+  s.playerLevelMax=Math.max(s.playerLevelMax||1,g.level||1);
+  s.maxEnemiesAlive=Math.max(s.maxEnemiesAlive||0,g.enemies?.length||0);
+  s.dronesPeak=Math.max(s.dronesPeak||0,(g.wardenDrones?.length||0)+(g.sifterDrones?.length||0));
+  if(s.lastX==null){ s.lastX=g.player.x; s.lastY=g.player.y; }
+  else { const d=Math.hypot(g.player.x-s.lastX,g.player.y-s.lastY); if(Number.isFinite(d)&&d<160) s.distanceTravelled+=d; s.lastX=g.player.x; s.lastY=g.player.y; }
+  if((g.player.hp/(g.player.maxHp||1))<0.25) s.criticalHealthTime+=dt;
+  updateRunStatSampling(g);
+}
+
+function createRunStatSample(g){
+  const s=ensureRunStats(g);
+  return {
+    t:g.time||0, enemiesKilled:s.enemiesKilled||0, elitesKilled:s.elitesKilled||0,
+    playerLevel:g.level||1, xpCollected:s.xpCollected||0, totalOreCollected:totalRunResources(s),
+    damageTaken:s.damageTaken||0, damageDealt:s.damageDealt||0, enemiesAlive:g.enemies?.length||0,
+    enemyBulletsAlive:g.enemyBullets?.length||0, fpsAverage:g.performance?.averageFPS||60, blocksMined:s.blocksMined||0, tileSize:typeof TILE!=='undefined'?TILE:0
+  };
+}
+function updateRunStatSampling(g){
+  const s=ensureRunStats(g); if(!s) return;
+  if((g.time||0)-s.lastSampleTime < RUN_STAT_SAMPLE_INTERVAL && s.samples.length) return;
+  s.lastSampleTime=g.time||0;
+  s.samples.push(createRunStatSample(g));
+  if(s.samples.length>RUN_STAT_MAX_SAMPLES) s.samples.splice(0,s.samples.length-RUN_STAT_MAX_SAMPLES);
+}
+
+function finalizeRunStats(g,cause,title){
+  const s=ensureRunStats(g); if(!s) return null;
+  s.endTime=performance.now(); s.durationSec=g.time||s.durationSec||0; s.causeOfEnd=cause||s.causeOfEnd||'Ended'; s.endTitle=title||s.endTitle||'Run Ended';
+  s.playerLevelMax=Math.max(s.playerLevelMax||1,g.level||1);
+  if(!s.samples.length || (s.samples.at(-1).t||0)!==(g.time||0)) s.samples.push(createRunStatSample(g));
+  return s;
+}
+
+function getObjectiveProgress(o){ const target=o?.targetAmount ?? o?.target ?? 0; const cur=o?.currentAmount ?? o?.current ?? 0; return target>0 ? clamp(cur/target,0,1) : 0; }
+function objectiveProgressText(o){
+  const target=o?.targetAmount ?? o?.target ?? 0; const cur=o?.currentAmount ?? o?.current ?? 0;
+  if(!target) return o?.completed ? 'Complete' : 'Active';
+  if((o.id||'').includes('level')) return `Level ${Math.floor(cur)} / ${target}`;
+  return `${Math.floor(cur)} / ${target}`;
+}
+
+function renderObjectiveChips(g){
+  const pulse=0.65+0.35*(0.5+0.5*Math.sin((g.time||0)*4));
+  return (g.objectives||[]).map((o,i)=>{
+    const pct=getObjectiveProgress(o)*100;
+    const done=!!o.completed;
+    const priority=!done && i===0;
+    const style=done?'':`style="--pulse:${pulse.toFixed(3)}"`;
+    return `<div class="objectiveRow ${done?'done':'active'} ${priority?'priority':''}" ${style}>
+      <div class="objectiveTop"><span>${done?'✓':'◆'} ${o.displayName}</span><b>${objectiveProgressText(o)}</b></div>
+      <div class="objectiveBar"><i style="width:${pct.toFixed(1)}%"></i></div>
+    </div>`;
+  }).join('');
+}
+
+function runStatsSummaryHtml(g){
+  const s=ensureRunStats(g); const res=s.resourcesCollected||{};
+  const resRows=Object.keys(res).sort().map(id=>`<div><span>${MINERALS[id]?.displayName||id}</span><b>${Math.floor(res[id]||0)}</b></div>`).join('') || '<div><span>No resources collected</span><b>0</b></div>';
+  const cards=[
+    ['Duration',formatDuration(s.durationSec)], ['Kills',s.enemiesKilled||0], ['Elites',s.elitesKilled||0], ['Bosses',s.bossesKilled||0],
+    ['Level',s.playerLevelMax||g.level||1], ['Resources',totalRunResources(s)], ['Damage dealt',Math.round(s.damageDealt||0)], ['Damage taken',Math.round(s.damageTaken||0)],
+    ['Accuracy',`${runAccuracy(s).toFixed(1)}%`], ['Blocks mined',s.blocksMined||0], ['Dashes',s.dashesUsed||0], ['Traps',s.trapsPlaced||0],
+    ...((s.borecasterBombsThrown||0)>0 ? [
+      ['Seismic bombs thrown',s.borecasterBombsThrown||0], ['Seismic bombs exploded',s.borecasterBombsExploded||0]
+    ] : []),
+    ...((s.chargingWavesSpawned||0)>0 ? [
+      ['Charging waves',s.chargingWavesSpawned||0], ['Rift Chargers',s.chargingWaveEnemiesSpawned||0],
+      ['Chargers exploded',s.chargingWaveEnemiesExploded||0], ['Wave damage',Math.round(s.damageTakenFromChargingWaves||0)],
+      ['Wave blocks broken',s.chargingWaveBlocksBroken||s.blocksBrokenByChargingWaves||0]
+    ] : [])
+  ].map(([k,v])=>`<div class="statCard"><span>${k}</span><b>${v}</b></div>`).join('');
+  return `<div class="runStatsSummary"><div class="statCards">${cards}</div><h3>Resource Breakdown</h3><div class="resourceBreakdown">${resRows}</div></div>`;
+}
+
+function drawRunStatsChart(canvas,g,key='enemiesKilled'){
+  if(!canvas||!g?.runStats) return;
+  const ctx2=canvas.getContext('2d'); const dpr=window.devicePixelRatio||1; const w=canvas.clientWidth||680,h=canvas.clientHeight||230;
+  canvas.width=Math.floor(w*dpr); canvas.height=Math.floor(h*dpr); ctx2.setTransform(dpr,0,0,dpr,0,0);
+  ctx2.clearRect(0,0,w,h); ctx2.fillStyle='rgba(7,9,13,0.72)'; ctx2.fillRect(0,0,w,h);
+  const samples=g.runStats.samples||[]; ctx2.font='12px Segoe UI, Arial'; ctx2.fillStyle='#d7ecff';
+  const titles={enemiesKilled:'Enemies killed over time',totalOreCollected:'Resources collected over time',damageTaken:'Damage taken over time',playerLevel:'Player level over time',fpsAverage:'Average FPS over time'};
+  ctx2.fillText(titles[key]||key,16,22);
+  if(samples.length<2){ ctx2.fillStyle='#95a2ba'; ctx2.fillText('Not enough data for trend graph.',16,64); return; }
+  const pad={l:48,r:20,t:38,b:30}; const xs=samples.map(s=>s.t||0); const ys=samples.map(s=>+s[key]||0);
+  const minX=Math.min(...xs), maxX=Math.max(...xs)||1; const minY=0, maxY=Math.max(1,...ys);
+  ctx2.strokeStyle='rgba(255,255,255,0.10)'; ctx2.lineWidth=1;
+  for(let i=0;i<4;i++){ const y=pad.t+(h-pad.t-pad.b)*i/3; ctx2.beginPath(); ctx2.moveTo(pad.l,y); ctx2.lineTo(w-pad.r,y); ctx2.stroke(); }
+  ctx2.strokeStyle='#42d6ff'; ctx2.lineWidth=3; ctx2.beginPath();
+  samples.forEach((s,i)=>{ const x=pad.l+((s.t-minX)/(maxX-minX||1))*(w-pad.l-pad.r); const y=h-pad.b-(((+s[key]||0)-minY)/(maxY-minY||1))*(h-pad.t-pad.b); if(i===0)ctx2.moveTo(x,y); else ctx2.lineTo(x,y); }); ctx2.stroke();
+  ctx2.fillStyle='#95a2ba'; ctx2.fillText(`0s`,pad.l,h-10); ctx2.fillText(`${Math.floor(maxX)}s`,w-pad.r-44,h-10); ctx2.fillText(`End: ${ys.at(-1)??0}`,w-110,22);
+}
+
+function showRunStatsScreen(g,opts={}){
+  const s=finalizeRunStats(g,opts.cause,opts.title); if(!s) return;
+  const overlay=document.getElementById('runStatsOverlay'); const title=document.getElementById('runStatsTitle'); const reason=document.getElementById('runStatsReason'); const body=document.getElementById('runStatsBody');
+  if(!overlay||!body) return;
+  title.textContent=s.endTitle||'Run Complete'; reason.textContent=`Reason: ${s.causeOfEnd||'Ended'}`; body.innerHTML=runStatsSummaryHtml(g);
+  overlay.classList.add('show');
+  const tabs=document.querySelectorAll('[data-run-chart]'); tabs.forEach(btn=>{btn.onclick=()=>{runStatsLastChartKey=btn.dataset.runChart; drawRunStatsChart(document.getElementById('runStatsChart'),g,runStatsLastChartKey);};});
+  setTimeout(()=>drawRunStatsChart(document.getElementById('runStatsChart'),g,runStatsLastChartKey),30);
+}
+function hideRunStatsScreen(){ document.getElementById('runStatsOverlay')?.classList.remove('show'); }
+function runStatsContinue(){ hideRunStatsScreen(); showMainMenu(); }
+function runStatsRetry(){ const cls=game?.selectedClass || CLASSES[0]; hideRunStatsScreen(); startRunWithClass(cls); }
+function runStatsMainMenu(){ hideRunStatsScreen(); showMainMenu(); }
+
+function debugGenerateFakeRunStats(){
+  if(!game) game=makeGame(CLASSES[0]);
+  game.runStats=createRunStats(); const s=game.runStats; game.time=180; s.enemiesKilled=120; s.elitesKilled=4; s.bossesKilled=1; s.playerLevelMax=7; s.damageDealt=4200; s.damageTaken=84; s.shotsFired=350; s.shotsHit=220; s.blocksMined=165; s.resourcesCollected={gild:70,voltarite:34,echo:180,emberglass:7};
+  s.samples=[]; for(let t=0;t<=180;t+=5){ s.samples.push({t,enemiesKilled:Math.floor(t*0.65),totalOreCollected:Math.floor(t*0.55),damageTaken:Math.floor(t*0.45),playerLevel:1+Math.floor(t/30),fpsAverage:58+Math.sin(t/18)*5,blocksMined:Math.floor(t*0.9)}); }
+  showRunStatsScreen(game,{title:'Debug Run Statistics',cause:'Generated fake test data'});
+}
+function debugPrintRunStats(){ console.log(game?.runStats || null); }
+
+window.getObjectiveProgress=getObjectiveProgress;
+window.renderObjectiveChips=renderObjectiveChips;
+window.createRunStats=createRunStats;
+window.ensureRunStats=ensureRunStats;
+window.updateRunStatsFrame=updateRunStatsFrame;
+window.finalizeRunStats=finalizeRunStats;
+window.showRunStatsScreen=showRunStatsScreen;
+window.recordRunResource=recordRunResource;
+window.recordRunDamageTaken=recordRunDamageTaken;
+window.recordRunDamageDealt=recordRunDamageDealt;
+window.recordShotFired=recordShotFired;
+window.recordShotHit=recordShotHit;
+window.debugGenerateFakeRunStats=debugGenerateFakeRunStats;
+window.debugPrintRunStats=debugPrintRunStats;
+window.runStatsContinue=runStatsContinue;
+window.runStatsRetry=runStatsRetry;
+window.runStatsMainMenu=runStatsMainMenu;
 
 

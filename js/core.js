@@ -503,15 +503,29 @@ function menuInputClock(){
 }
 
 function visibleMenuGamepadElements(){
-  if(!ui.startOverlay?.classList?.contains('show')) return [];
+  // Determine which overlay is active: startOverlay (main menus), gameOverOverlay (run failed), or runStatsOverlay (mission summary)
+  const startActive = ui.startOverlay?.classList?.contains('show');
+  const gameOverActive = document.getElementById('gameOverOverlay')?.classList?.contains('show');
+  const statsActive = document.getElementById('runStatsOverlay')?.classList?.contains('show');
+  if(!startActive && !gameOverActive && !statsActive) return [];
+
+  let container = null;
+  if(startActive) container = ui.startOverlay;
+  else if(gameOverActive) container = document.getElementById('gameOverOverlay');
+  else if(statsActive) container = document.getElementById('runStatsOverlay');
   const selectors = [
     '#menuButtons button',
     '#classCards .card[data-class-id]',
     '#menuContent button',
-    '#menuContent input[type="checkbox"]'
+    '#menuContent input[type="checkbox"]',
+    '#menuContent .missionSelectCard[tabindex]',
+    '#menuContent .milestoneCard[tabindex]',
+    '#menuContent .synergyCard',
+    '.buttonRow button',
+    '[data-run-chart]'
   ];
   return selectors
-    .flatMap(sel=>Array.from(ui.startOverlay.querySelectorAll(sel)))
+    .flatMap(sel=>Array.from(container.querySelectorAll(sel)))
     .filter(el=>{
       if(el.disabled) return false;
       const style=getComputedStyle(el);
@@ -524,14 +538,21 @@ function refreshMenuGamepadSelection(elements=visibleMenuGamepadElements()){
     const selected=i===menuGamepadState.selectedIndex;
     el.classList.toggle('controllerSelected', selected);
     el.setAttribute('aria-selected', selected ? 'true' : 'false');
-    if(selected && document.activeElement!==el){
-      try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); }
+    if(selected){
+      // Scroll the container to keep the selected element visible
+      try{ el.scrollIntoView({block:'nearest', behavior:'smooth'}); }catch(_){}
+      if(document.activeElement!==el){
+        try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); }
+      }
     }
   });
 }
 
 function updateMenuGamepadInput(dt){
-  if(!ui.startOverlay?.classList?.contains('show')) return false;
+  const startActive = ui.startOverlay?.classList?.contains('show');
+  const gameOverActive = document.getElementById('gameOverOverlay')?.classList?.contains('show');
+  const statsActive = document.getElementById('runStatsOverlay')?.classList?.contains('show');
+  if(!startActive && !gameOverActive && !statsActive) return false;
   const elements=visibleMenuGamepadElements();
   if(!elements.length) return false;
   const signature=elements.map(el=>el.textContent || el.dataset.classId || el.id || el.tagName).join('|');

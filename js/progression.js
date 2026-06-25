@@ -1218,6 +1218,8 @@ function showMilestonesMenu(){
       const unlocked = entry && entry.unlocked;
       const card = document.createElement('div');
       card.className = `milestoneCard ${unlocked ? 'unlocked' : 'locked'}`;
+      card.setAttribute('role','button');
+      card.setAttribute('tabindex','0');
 
       // Icon column
       const iconEl = document.createElement('div');
@@ -1309,6 +1311,8 @@ function showSynergiesMenu(){
     const isUnlocked = saveProfile.unlockedSynergies && saveProfile.unlockedSynergies.includes(syn.id);
     const card = document.createElement('div');
     card.className = `synergyCard ${isUnlocked ? 'synergyUnlocked' : 'synergyLocked'}`;
+    card.setAttribute('role','button');
+    card.setAttribute('tabindex','0');
 
     // Header row: icon + name + badge
     const header = document.createElement('div');

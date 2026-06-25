@@ -2450,10 +2450,11 @@ function handleSecondaryActionAt(g,worldX,worldY,source='input'){
 function updateGamepadInput(dt){
   pollGamepadState();
 
-  // The game can be fully controlled from a pad before a run exists.  Earlier
-  // builds returned here when game === null, so class/menu selection never saw
-  // controller input.
-  if(ui.startOverlay?.classList?.contains('show') && !awaitingUpgrade){
+  // Check all three overlays for controller navigation:
+  // startOverlay (main menus), gameOverOverlay (run failed), runStatsOverlay (mission summary)
+  const gameOverActive = document.getElementById('gameOverOverlay')?.classList?.contains('show');
+  const statsActive = document.getElementById('runStatsOverlay')?.classList?.contains('show');
+  if((ui.startOverlay?.classList?.contains('show') || gameOverActive || statsActive) && !awaitingUpgrade){
     updateMenuGamepadInput(dt);
     return;
   }
