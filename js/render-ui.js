@@ -633,12 +633,13 @@ function drawEnemyBullets(g){
   for(const b of g.enemyBullets){
     ctx.save();
     const angle=Math.atan2(b.vy,b.vx);
-    const spriteId=b.destructive?'destructiveEnemyBullet':'enemyRedBullet';
-    const size=b.destructive?24:(b.small?15:19);
+    // Phase 2.2: support custom boss projectile sprites
+    let spriteId=b.spriteId || (b.destructive?'destructiveEnemyBullet':'enemyRedBullet');
+    let size=b.spriteId ? b.r*2.2 : (b.destructive?24:(b.small?15:19));
     const drawn=drawSpriteCentered(ctx,spriteId,b.x,b.y,size,size,{
       rotation:angle,
       glowColor:b.color || '#ff3030',
-      glowBlur:b.destructive?18:(b.small?8:12)
+      glowBlur:b.spriteId?14:(b.destructive?18:(b.small?8:12))
     });
     if(!drawn){
       ctx.fillStyle=b.color || '#ff3030';
@@ -1348,26 +1349,33 @@ function drawBossHealthBar(g){
 
   ctx.save();
 
-  // Background
-  ctx.fillStyle = 'rgba(0,0,0,0.72)';
-  ctx.shadowColor = 'rgba(0,0,0,0.5)';
-  ctx.shadowBlur = 12;
-  ctx.beginPath();
-  ctx.roundRect(x - 4, y - 4, barW + 8, barH + 8, 12);
-  ctx.fill();
-  ctx.shadowBlur = 0;
+  // Background frame sprite (fallback to procedural if sprite missing)
+  const frameDrawn = drawSpriteCentered(ctx, 'bossHealthBarFrame', x + barW/2, y + barH/2, barW + 12, barH + 16, {
+    alpha: 0.85,
+    glowColor: bossDef.color,
+    glowBlur: 6
+  });
+  if(!frameDrawn){
+    // Procedural fallback background
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.roundRect(x - 4, y - 4, barW + 8, barH + 8, 12);
+    ctx.fill();
+    ctx.shadowBlur = 0;
 
-  // Bar border
-  ctx.strokeStyle = bossDef.color;
-  ctx.lineWidth = 2;
-  ctx.shadowColor = bossDef.color;
-  ctx.shadowBlur = 10;
-  ctx.beginPath();
-  ctx.roundRect(x - 2, y - 2, barW + 4, barH + 4, 10);
-  ctx.stroke();
-  ctx.shadowBlur = 0;
+    ctx.strokeStyle = bossDef.color;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = bossDef.color;
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.roundRect(x - 2, y - 2, barW + 4, barH + 4, 10);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
 
-  // HP fill
+  // HP fill (always procedural — the bar itself fills over the frame)
   const gradient = ctx.createLinearGradient(x, y, x + barW, y);
   if(boss.bossPhase >= 2){
     gradient.addColorStop(0, '#ff3030');
@@ -1451,26 +1459,34 @@ function drawBossName(g){
   ctx.font = 'bold 42px Inter, Segoe UI, Arial';
   ctx.textAlign = 'center';
   const metrics = ctx.measureText(text);
-  const bw = metrics.width + 60;
+  const bw = metrics.width + 80;
   const bx = (innerWidth - bw) / 2;
   const by = innerHeight / 2 - 80;
 
-  ctx.fillStyle = 'rgba(0,0,0,0.78)';
-  ctx.shadowColor = 'rgba(0,0,0,0.6)';
-  ctx.shadowBlur = 20;
-  ctx.beginPath();
-  ctx.roundRect(bx - 8, by - 16, bw + 16, 72, 16);
-  ctx.fill();
-  ctx.shadowBlur = 0;
+  // Sprite-based name plate background (fallback to procedural)
+  const plateDrawn = drawSpriteCentered(ctx, 'bossNamePlate', innerWidth / 2, by + 16, bw + 32, 80, {
+    alpha: 0.92,
+    glowColor: color,
+    glowBlur: 14
+  });
+  if(!plateDrawn){
+    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.roundRect(bx - 8, by - 16, bw + 16, 72, 16);
+    ctx.fill();
+    ctx.shadowBlur = 0;
 
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.shadowColor = color;
-  ctx.shadowBlur = 18;
-  ctx.beginPath();
-  ctx.roundRect(bx - 8, by - 16, bw + 16, 72, 16);
-  ctx.stroke();
-  ctx.shadowBlur = 0;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.roundRect(bx - 8, by - 16, bw + 16, 72, 16);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
 
   ctx.fillStyle = color;
   ctx.shadowColor = color;
@@ -1497,43 +1513,52 @@ function drawWeakPointHighlight(g){
 
   ctx.save();
 
-  // Outer glow ring — pulsing
   const pulse = 0.6 + 0.4 * Math.sin(g.time * 10);
   const glowRadius = wp.radius * (1 + 0.3 * pulse);
 
-  // Multiple layered circles for glow effect
-  ctx.shadowColor = '#42d6ff';
-  ctx.shadowBlur = 30;
-  ctx.strokeStyle = `rgba(66,214,255,${0.5 + 0.4 * pulse})`;
-  ctx.lineWidth = 4;
-  ctx.beginPath();
-  ctx.arc(wp.x, wp.y, glowRadius, 0, Math.PI * 2);
-  ctx.stroke();
+  // Sprite-based weak point indicator (fallback to procedural glow)
+  const wpDrawn = drawSpriteCentered(ctx, 'bossWeakPoint', wp.x, wp.y, glowRadius * 2.4, glowRadius * 2.4, {
+    rotation: g.time * 1.5,
+    alpha: 0.7 + 0.3 * pulse,
+    glowColor: '#42d6ff',
+    glowBlur: 24
+  });
 
-  ctx.shadowBlur = 18;
-  ctx.strokeStyle = `rgba(66,214,255,${0.7 + 0.3 * pulse})`;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(wp.x, wp.y, glowRadius * 0.7, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // Inner fill
-  ctx.shadowBlur = 12;
-  ctx.fillStyle = `rgba(66,214,255,${0.15 + 0.12 * pulse})`;
-  ctx.beginPath();
-  ctx.arc(wp.x, wp.y, wp.radius, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Crosshair marks
-  ctx.shadowBlur = 0;
-  ctx.strokeStyle = `rgba(66,214,255,${0.6 + 0.3 * pulse})`;
-  ctx.lineWidth = 2;
-  const ch = wp.radius * 0.6;
-  for(const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+  if(!wpDrawn){
+    // Multiple layered circles for glow effect
+    ctx.shadowColor = '#42d6ff';
+    ctx.shadowBlur = 30;
+    ctx.strokeStyle = `rgba(66,214,255,${0.5 + 0.4 * pulse})`;
+    ctx.lineWidth = 4;
     ctx.beginPath();
-    ctx.moveTo(wp.x + dx * ch * 0.4, wp.y + dy * ch * 0.4);
-    ctx.lineTo(wp.x + dx * ch, wp.y + dy * ch);
+    ctx.arc(wp.x, wp.y, glowRadius, 0, Math.PI * 2);
     ctx.stroke();
+
+    ctx.shadowBlur = 18;
+    ctx.strokeStyle = `rgba(66,214,255,${0.7 + 0.3 * pulse})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(wp.x, wp.y, glowRadius * 0.7, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner fill
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = `rgba(66,214,255,${0.15 + 0.12 * pulse})`;
+    ctx.beginPath();
+    ctx.arc(wp.x, wp.y, wp.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Crosshair marks
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = `rgba(66,214,255,${0.6 + 0.3 * pulse})`;
+    ctx.lineWidth = 2;
+    const ch = wp.radius * 0.6;
+    for(const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      ctx.beginPath();
+      ctx.moveTo(wp.x + dx * ch * 0.4, wp.y + dy * ch * 0.4);
+      ctx.lineTo(wp.x + dx * ch, wp.y + dy * ch);
+      ctx.stroke();
+    }
   }
 
   // "⚡ WEAK POINT" floating text
@@ -1557,31 +1582,41 @@ function drawBossCrystalRainIndicators(g){
   for(const ind of g.bossCrystalRainIndicators){
     const pulse = 0.5 + 0.5 * Math.sin(g.time * 12 + ind.x + ind.y);
     const alpha = clamp(ind.timer / ind.maxTimer, 0, 1);
-    const radius = 14 + 6 * pulse;
+    const radius = 18 + 6 * pulse;
 
-    ctx.shadowColor = '#b46bff';
-    ctx.shadowBlur = 12;
-    ctx.strokeStyle = `rgba(180,107,255,${0.5 + 0.3 * pulse * alpha})`;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(ind.x, ind.y, radius, 0, Math.PI * 2);
-    ctx.stroke();
+    // Sprite-based indicator (fallback to procedural)
+    const indDrawn = drawSpriteCentered(ctx, 'crystalRainIndicator', ind.x, ind.y, radius * 2, radius * 2, {
+      rotation: -g.time * 0.8,
+      alpha: 0.5 + 0.3 * alpha * pulse,
+      glowColor: '#b46bff',
+      glowBlur: 14
+    });
 
-    ctx.fillStyle = `rgba(180,107,255,${0.08 * alpha})`;
-    ctx.beginPath();
-    ctx.arc(ind.x, ind.y, radius * 0.6, 0, Math.PI * 2);
-    ctx.fill();
+    if(!indDrawn){
+      ctx.shadowColor = '#b46bff';
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = `rgba(180,107,255,${0.5 + 0.3 * pulse * alpha})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(ind.x, ind.y, radius, 0, Math.PI * 2);
+      ctx.stroke();
 
-    // Diagonal cross
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = `rgba(180,107,255,${0.4 * alpha})`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.moveTo(ind.x - radius * 0.4, ind.y - radius * 0.4);
-    ctx.lineTo(ind.x + radius * 0.4, ind.y + radius * 0.4);
-    ctx.moveTo(ind.x + radius * 0.4, ind.y - radius * 0.4);
-    ctx.lineTo(ind.x - radius * 0.4, ind.y + radius * 0.4);
-    ctx.stroke();
+      ctx.fillStyle = `rgba(180,107,255,${0.08 * alpha})`;
+      ctx.beginPath();
+      ctx.arc(ind.x, ind.y, radius * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Diagonal cross
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = `rgba(180,107,255,${0.4 * alpha})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(ind.x - radius * 0.4, ind.y - radius * 0.4);
+      ctx.lineTo(ind.x + radius * 0.4, ind.y + radius * 0.4);
+      ctx.moveTo(ind.x + radius * 0.4, ind.y - radius * 0.4);
+      ctx.lineTo(ind.x - radius * 0.4, ind.y + radius * 0.4);
+      ctx.stroke();
+    }
   }
   ctx.restore();
 }

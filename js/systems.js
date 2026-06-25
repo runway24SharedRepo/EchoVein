@@ -1779,10 +1779,11 @@ function executeBossAttack(g, boss, attackName, dt){
         x: boss.x, y: boss.y,
         vx: Math.cos(a) * waveSpeed,
         vy: Math.sin(a) * waveSpeed,
-        r: 12, damage: Math.round(boss.damage * 0.8),
+        r: 22, damage: Math.round(boss.damage * 0.8),
         color: '#ff4fd8', life: 1.2,
         destructive: false, small: false,
-        bossAttack: true
+        bossAttack: true,
+        spriteId: 'bossShockwave'
       });
     }
     shake = Math.max(shake, 14);
@@ -1804,10 +1805,11 @@ function executeBossAttack(g, boss, attackName, dt){
         x: boss.x, y: boss.y,
         vx: Math.cos(a) * speed,
         vy: Math.sin(a) * speed,
-        r: 8, damage: Math.round(boss.damage * 0.7),
+        r: 10, damage: Math.round(boss.damage * 0.7),
         color: '#b46bff', life: 2.0,
         destructive: false, small: true,
-        bossAttack: true
+        bossAttack: true,
+        spriteId: 'bossCrystalShard'
       });
     }
     sfx('shoot', 0.6);
@@ -1875,11 +1877,10 @@ function executeBossAttack(g, boss, attackName, dt){
       for(let i = 0; i < 8; i++){
         const a = Math.random() * Math.PI * 2;
         const d = rand(20, 60);
-        g.particles.push({
-          x: boss.x + Math.cos(a)*d, y: boss.y + Math.sin(a)*d,
-          vx: 0, vy: 0, color: '#ff7038',
-          life: 3.0, maxLife: 3.0, size: rand(8, 15), shape: 'circle'
-        });
+        addParticle(g, boss.x + Math.cos(a)*d, boss.y + Math.sin(a)*d,
+          0, 0, '#ff7038', 3.0, rand(14, 22), 'sprite');
+        const lastP = g.particles[g.particles.length - 1];
+        if(lastP) lastP.spriteId = 'fireTrail';
       }
       boss.lastAttack = 'burrowErupt';
     }
@@ -1891,12 +1892,11 @@ function executeBossAttack(g, boss, attackName, dt){
       for(let i = 0; i < 3; i++){
         const tx = boss.x + rand(-30, 30);
         const ty = boss.y + rand(-30, 30);
-        g.particles.push({
-          x: tx, y: ty,
-          vx: rand(-10, 10), vy: rand(-20, -5),
-          color: '#ff5b00', life: 1.5, maxLife: 1.5,
-          size: rand(6, 12), shape: 'circle'
-        });
+        // Sprite-based fire trail ground decal
+        addParticle(g, tx, ty, rand(-10, 10), rand(-20, -5), '#ff5b00', 1.5, rand(18, 28), 'sprite');
+        // Attach spriteId to the last particle via a reference
+        const lastP = g.particles[g.particles.length - 1];
+        if(lastP) lastP.spriteId = 'fireTrail';
       }
       // Damage player if standing on trail
       if(dist2(boss.x,boss.y,p.x,p.y) < (boss.r + 50)*(boss.r + 50)){
@@ -1919,12 +1919,13 @@ function executeBossAttack(g, boss, attackName, dt){
         x: boss.x, y: boss.y,
         vx: Math.cos(a) * speed,
         vy: Math.sin(a) * speed,
-        r: 10, damage: Math.round(boss.damage * 0.9),
+        r: 14, damage: Math.round(boss.damage * 0.9),
         color: '#ff7a38', life: 2.5,
         destructive: false, small: false,
         bossAttack: true,
         tracking: boss.bossPhase >= 2,   // Phase 3: tracking
-        trackTurnRate: 2.5
+        trackTurnRate: 2.5,
+        spriteId: 'bossFireball'
       });
     }
     sfx('shoot', 0.7);
@@ -2142,10 +2143,11 @@ function updateBoss(g, boss, dt){
       g.enemyBullets.push({
         x: rain.x, y: rain.y - 60,
         vx: 0, vy: rain.speed,
-        r: 8, damage: rain.damage,
+        r: 10, damage: rain.damage,
         color: '#b46bff', life: 1.5,
         destructive: false, small: true,
-        bossAttack: true
+        bossAttack: true,
+        spriteId: 'bossCrystalShard'
       });
       g.bossCrystalRain.splice(i, 1);
     }

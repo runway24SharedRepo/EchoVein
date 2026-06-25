@@ -111,9 +111,14 @@ const SPRITES = {
   // Phase 2.2: Boss sprites
   hexShardColossus: 'assets/sprites/hex_shard_colossus.png',
   moltenMaw: 'assets/sprites/molten_maw.png',
-  bossCrystalShard: 'assets/sprites/boss_crystal_shard.png',
-  bossFireball: 'assets/sprites/boss_fireball.png',
-  bossShockwave: 'assets/sprites/boss_shockwave.png'
+  bossCrystalShard: 'assets/sprites/crystal_shard_projectile.png',
+  bossFireball: 'assets/sprites/fireball_projectile.png',
+  bossShockwave: 'assets/sprites/shockwave_ring.png',
+  crystalRainIndicator: 'assets/sprites/crystal_rain_indicator.png',
+  fireTrail: 'assets/sprites/fire_trail.png',
+  bossWeakPoint: 'assets/sprites/boss_weak_point.png',
+  bossHealthBarFrame: 'assets/sprites/boss_health_bar_frame.png',
+  bossNamePlate: 'assets/sprites/boss_name_plate.png'
 };
 
 // Compatibility alias used by older rendering code.
