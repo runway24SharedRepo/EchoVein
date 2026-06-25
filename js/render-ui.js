@@ -231,6 +231,26 @@ function drawPlayer(g){
   ctx.save(); ctx.translate(p.x,p.y);
   const a=Math.atan2(p.lastDy,p.lastDx);
   ctx.rotate(a);
+
+  // Determine which operator sprite to use based on classId
+  const cls = CLASSES.find(c => c.id === p.classId);
+  const spriteId = cls?.spriteId || null;
+  const size = 60;
+
+  if(spriteId){
+    const drawn = drawSpriteCentered(ctx, spriteId, 0, 0, size, size, {
+      rotation: 0,
+      alpha: p.iframes > 0 ? 0.65 : 1,
+      glowColor: '#42d6ff',
+      glowBlur: 10
+    });
+    if(drawn){
+      ctx.restore();
+      return;
+    }
+  }
+
+  // Procedural fallback (identical to original)
   ctx.shadowColor='#42d6ff'; ctx.shadowBlur=8;
   ctx.fillStyle=p.iframes>0?'rgba(255,255,255,0.85)':'#4fa3ff';
   ctx.beginPath(); ctx.roundRect(-15,-12,30,24,7); ctx.fill();
@@ -1174,7 +1194,8 @@ function setupClassCards(){
     div.dataset.classId=cls.id;
     div.setAttribute('role','button');
     div.setAttribute('tabindex','0');
-    div.innerHTML=`<div class="icon">${cls.icon}</div><h3>${cls.name}</h3><p>${cls.desc}</p><span class="tag">${cls.tag}</span>`;
+    const iconHtml = cls.spriteId ? spriteIconHtml(cls.spriteId, cls.icon) : cls.icon;
+    div.innerHTML=`<div class="icon">${iconHtml}</div><h3>${cls.name}</h3><p>${cls.desc}</p><span class="tag">${cls.tag}</span>`;
     ui.classCards.appendChild(div);
   }
 }

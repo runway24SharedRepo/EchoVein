@@ -108,6 +108,11 @@ const SPRITES = {
   obsidianTitan: 'assets/sprites/enemies/obsidian_titan.png',
   hollowTyrantVariant: 'assets/sprites/enemies/hollow_tyrant_variant.png',
 
+  // Operator class sprites
+  bulwarkOperator: 'assets/sprites/MainCharacters/bulwark_operator.png',
+  pathfinderOperator: 'assets/sprites/MainCharacters/pathfinder_operator.png',
+  borecasterOperator: 'assets/sprites/MainCharacters/borecaster_operator.png',
+
   // Phase 2.2: Boss sprites
   hexShardColossus: 'assets/sprites/hex_shard_colossus.png',
   moltenMaw: 'assets/sprites/molten_maw.png',
