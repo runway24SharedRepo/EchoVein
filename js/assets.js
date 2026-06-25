@@ -113,6 +113,13 @@ const SPRITES = {
   pathfinderOperator: 'assets/sprites/MainCharacters/pathfinder_operator.png',
   borecasterOperator: 'assets/sprites/MainCharacters/borecaster_operator.png',
 
+  // King Peng Studio logo sprites (splash screen)
+  kingPengLogo512: 'assets/sprites/KPSadmin/king_peng_logo_sprite_512.png',
+  kingPengLogo256: 'assets/sprites/KPSadmin/king_peng_logo_sprite_256.png',
+  kingPengLogo128: 'assets/sprites/KPSadmin/king_peng_logo_sprite_128.png',
+  kingPengLogoTransparent: 'assets/sprites/KPSadmin/king_peng_logo_transparent.png',
+  kingPengLogoCropped: 'assets/sprites/KPSadmin/king_peng_logo_sprite_cropped.png',
+
   // Phase 2.2: Boss sprites
   hexShardColossus: 'assets/sprites/hex_shard_colossus.png',
   moltenMaw: 'assets/sprites/molten_maw.png',

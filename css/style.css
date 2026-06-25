@@ -23,6 +23,55 @@
     user-select: none;
   }
 
+  /* ── Splash Screen ──────────────────────────────────────────────── */
+  .splashScreen {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    background: #07090d;
+    opacity: 1;
+    transition: opacity 0.8s ease-out;
+    pointer-events: auto;
+  }
+  .splashScreen.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .splashLogo {
+    width: 256px;
+    height: 256px;
+    image-rendering: auto;
+    animation: splashPulse 2.4s ease-in-out infinite;
+  }
+
+  .splashLoading {
+    color: var(--muted);
+    font-size: 15px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.28em;
+  }
+
+  .splashStudio {
+    color: rgba(255,255,255,0.18);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-top: -12px;
+  }
+
+  @keyframes splashPulse {
+    0%, 100% { opacity: 0.88; transform: scale(1); }
+    50%      { opacity: 1;    transform: scale(1.03); }
+  }
+
   #game {
     display: block;
     width: 100vw;
