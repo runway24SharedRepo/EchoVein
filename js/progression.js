@@ -323,6 +323,150 @@ const PERMANENT_UPGRADES = [
   { id:'arcDamage', category:'Weapons', name:'Arc Capacitors', desc:'+5% electric/arc damage per level.', next:'Another +5% arc damage.', ore:'voltarite', max:12 },
 ];
 
+/*
+ * Upgrade Synergies — Phase 2.1
+ *
+ * Synergies grant combo bonuses when a player acquires all required upgrades
+ * from UPGRADE_POOL during a single run. Once unlocked, they persist via the
+ * profile's unlockedSynergies array and are re-applied at run start.
+ *
+ * Each entry:
+ *   id              — unique string key
+ *   name            — display name
+ *   icon            — emoji/icon for the card
+ *   description     — flavour text
+ *   bonus           — short bonus description shown on the card
+ *   requiredUpgrades — array of UPGRADE_POOL entry names that must be owned
+ *   check           — function(g) => boolean; returns true if all requirements met
+ *   apply           — function(g) => void; applies the synergy bonus to game state
+ */
+const SYNERGIES = [
+  {
+    id:'droneCommander',
+    name:'Drone Commander',
+    icon:'🛸',
+    description:'Warden Drone swarm coordination protocol.',
+    bonus:'Drones fire 30% faster and deal 25% more damage.',
+    requiredUpgrades:['Warden Drone Bay','Drone Bay Expansion','Drone Targeting AI'],
+    check:g=>g.collectedUpgrades && ['Warden Drone Bay','Drone Bay Expansion','Drone Targeting AI'].every(n=>g.collectedUpgrades.includes(n)),
+    apply:g=>{
+      g.player.droneFireRateMul*=1.30;
+      g.player.droneDamageMul*=1.25;
+    }
+  },
+  {
+    id:'miningMagnate',
+    name:'Mining Magnate',
+    icon:'⛏️',
+    description:'Industrial-grade mining optimisation.',
+    bonus:'Mining speed +50%, heat generation -40%, pickup range +50%.',
+    requiredUpgrades:['Tungsten Bore Bit','Cryo Coolant','Resonance Magnet'],
+    check:g=>g.collectedUpgrades && ['Tungsten Bore Bit','Cryo Coolant','Resonance Magnet'].every(n=>g.collectedUpgrades.includes(n)),
+    apply:g=>{
+      g.player.mineMul*=1.50;
+      g.player.heatEfficiency*=0.60;
+      g.player.pickupMul*=1.50;
+    }
+  },
+  {
+    id:'arcOverload',
+    name:'Arc Overload',
+    icon:'🌩️',
+    description:'Arc energy channelled to devastating effect.',
+    bonus:'Chain lightning jumps to 2 extra targets and deals 35% more damage.',
+    requiredUpgrades:['Arc Connection','Storm Lattice','Arc Capacitors'],
+    check:g=>{
+      const hasArcConn=g.collectedUpgrades && g.collectedUpgrades.includes('Arc Connection');
+      const hasStorm=g.collectedUpgrades && g.collectedUpgrades.includes('Storm Lattice');
+      // Arc Capacitors is a permanent upgrade — check profile level
+      const hasCaps=saveProfile && (saveProfile.permanentUpgrades.arcDamage||0)>0;
+      return hasArcConn && hasStorm && hasCaps;
+    },
+    apply:g=>{
+      g.arcConnection.maxTargets=(g.arcConnection.maxTargets||1)+2;
+      g.player.arcDamageMul=(g.player.arcDamageMul||1)*1.35;
+    }
+  },
+  {
+    id:'bulwarkArsenal',
+    name:'Bulwark Arsenal',
+    icon:'🚀',
+    description:'Full Hammerfall missile suite optimised for destruction.',
+    bonus:'Missiles fire 30% faster, travel 40% faster, deal 20% more damage.',
+    requiredUpgrades:['Hammerfall Salvo','Warhead Yield','Hot-Burn Motors'],
+    check:g=>g.collectedUpgrades && ['Hammerfall Salvo','Warhead Yield','Hot-Burn Motors'].every(n=>g.collectedUpgrades.includes(n)),
+    apply:g=>{
+      g.player.fireRateMul*=1.30;
+      // Missile speed handled via upgradeHammerfall(g,'speed') equivalent
+      // We apply a multiplicative bonus here that systems check
+      g.player.missileSpeedMul=(g.player.missileSpeedMul||1)*1.40;
+      g.player.damageMul*=1.20;
+    }
+  },
+  {
+    id:'borecasterDemolition',
+    name:'Borecaster Demolition',
+    icon:'💣',
+    description:'Advanced Borecaster explosive payload engineering.',
+    bonus:'Bombs deal 40% more damage, have 50% larger radius, throw 2 extra bombs.',
+    requiredUpgrades:['Seismic Charge','Extra Charges','Blast Radius'],
+    check:g=>{
+      // The Borecaster-specific Seismic Charge (borecasterBomb) is the required one
+      const hasBomb=g.weapons && g.weapons.some(w=>w.id==='borecasterBomb');
+      const hasExtra=g.collectedUpgrades && g.collectedUpgrades.includes('Extra Charges');
+      const hasRadius=g.collectedUpgrades && g.collectedUpgrades.includes('Blast Radius');
+      return hasBomb && hasExtra && hasRadius;
+    },
+    apply:g=>{
+      g.player.trapDamageMul=(g.player.trapDamageMul||1)*1.40;
+      g.player.trapRadiusMul=(g.player.trapRadiusMul||1)*1.50;
+      g.player.extraBombs=(g.player.extraBombs||0)+2;
+    }
+  },
+  {
+    id:'pathfinderTactics',
+    name:'Pathfinder Tactics',
+    icon:'🪤',
+    description:'Advanced reconnaissance and trap warfare integration.',
+    bonus:'Traps deal 60% more damage, kills restore 15 HP, mouse targeting always active.',
+    requiredUpgrades:['Trap Payload','Field Reclaimer','Targeting Cursor'],
+    check:g=>g.collectedUpgrades && ['Trap Payload','Field Reclaimer','Targeting Cursor'].every(n=>g.collectedUpgrades.includes(n)),
+    apply:g=>{
+      g.player.trapDamageMul*=1.60;
+      g.player.vampire=(g.player.vampire||0)+15;
+      g.player.mouseTargeting=true;
+    }
+  },
+  {
+    id:'vectorSpecialist',
+    name:'Vector Specialist',
+    icon:'✳️',
+    description:'Mastery of Vector Burst directional weapon technology.',
+    bonus:'Vector Burst fires 10 directions, deals 50% more damage, 40% faster projectiles.',
+    requiredUpgrades:['Vector Burst','Splitfire Array','Vector Focusing','Vector Accelerator','Vector Relay'],
+    check:g=>g.collectedUpgrades && ['Vector Burst','Splitfire Array','Vector Focusing','Vector Accelerator','Vector Relay'].every(n=>g.collectedUpgrades.includes(n)),
+    apply:g=>{
+      // Boost directions (base 5 + splitfire adds, we set to 10)
+      g.player.vectorBurstCount=(g.player.vectorBurstCount||5)+5;
+      g.player.damageMul*=1.50;
+      g.player.projectileSpeedMul=(g.player.projectileSpeedMul||1)*1.40;
+    }
+  },
+  {
+    id:'sifterMaster',
+    name:'Sifter Master',
+    icon:'🔍',
+    description:'Peak Sifter Drone automation and efficiency.',
+    bonus:'Sifter drones collect Echo Shards 100% faster and have 50% larger search radius.',
+    requiredUpgrades:['Sifter Drone','Sifter Optics','Sifter Turbo'],
+    check:g=>g.collectedUpgrades && ['Sifter Drone','Sifter Optics','Sifter Turbo'].every(n=>g.collectedUpgrades.includes(n)),
+    apply:g=>{
+      g.player.sweeperCollectMul=(g.player.sweeperCollectMul||1)*2.0;
+      g.player.sweeperRangeMul=(g.player.sweeperRangeMul||1)*1.50;
+    }
+  }
+];
+
 function defaultResources(){
   return { gildShards:0, voltarite:0, echoQuartz:0, ferronRoot:0, lumicite:0, pyroclastCore:0, umbralAlloy:0, ferriteBark:0, luminaSpores:0, aetherQuartz:0, crysalith:0, emberglass:0 };
 }
@@ -346,6 +490,7 @@ function createDefaultProfile(){
     resources:defaultResources(),
     permanentUpgrades:defaultPermanentUpgrades(),
     milestones:defaultMilestones(),
+    unlockedSynergies:[],
     statistics:{
       totalRunsStarted:0,
       totalRunsCompleted:0,
@@ -373,6 +518,7 @@ function normalizeProfile(profile){
     resources:{...base.resources,...(profile?.resources || {})},
     permanentUpgrades:{...base.permanentUpgrades,...(profile?.permanentUpgrades || {})},
     milestones:{...base.milestones,...(profile?.milestones || {})},
+    unlockedSynergies:profile?.unlockedSynergies || [],
     statistics:{...base.statistics,...(profile?.statistics || {})}
   };
   // Merge classRuns sub-object safely.
@@ -512,6 +658,61 @@ function applyMilestoneRewards(g){
     const entry = saveProfile.milestones[m.id];
     if(entry && entry.unlocked && typeof m.apply === 'function'){
       m.apply(g);
+    }
+  }
+}
+
+/*
+ * Apply synergy rewards to the current run's game state.
+ * Called once at run start after permanent upgrades and milestone rewards.
+ * Re-applies the apply() function for every unlocked synergy in the profile.
+ */
+function applySynergyRewards(g){
+  if(!saveProfile || !g || !saveProfile.unlockedSynergies) return;
+  for(const synergyId of saveProfile.unlockedSynergies){
+    const s = SYNERGIES.find(syn => syn.id === synergyId);
+    if(s && typeof s.apply === 'function'){
+      s.apply(g);
+    }
+  }
+}
+
+/*
+ * Check and unlock synergies — Phase 2.1
+ *
+ * Called after each upgrade is applied during a run. Checks every synergy
+ * whose check(g) now returns true, awards it, logs the unlock, and shows
+ * floating text. Prevents duplicate unlocks by checking g.unlockedSynergies.
+ */
+function checkSynergies(g){
+  if(!g || !saveProfile) return;
+  if(!g.unlockedSynergies) g.unlockedSynergies = [];
+  if(!g.collectedUpgrades) g.collectedUpgrades = [];
+
+  for(const syn of SYNERGIES){
+    // Skip if already unlocked this run
+    if(g.unlockedSynergies.includes(syn.id)) continue;
+    // Skip if already unlocked in profile (persistent)
+    if(saveProfile.unlockedSynergies && saveProfile.unlockedSynergies.includes(syn.id)) continue;
+    // Check if all requirements are met
+    if(syn.check(g)){
+      // Unlock it — apply the bonus immediately and mark it
+      syn.apply(g);
+      g.unlockedSynergies.push(syn.id);
+      // Persist to profile so it applies to future runs too
+      saveProfile.unlockedSynergies = saveProfile.unlockedSynergies || [];
+      if(!saveProfile.unlockedSynergies.includes(syn.id)){
+        saveProfile.unlockedSynergies.push(syn.id);
+        saveGame();
+      }
+      // Show floating unlock text
+      const msg = `⚡ SYNERGY UNLOCKED: ${syn.name}`;
+      if(typeof log === 'function') log(g, msg);
+      if(typeof floating === 'function' && g){
+        floating(g, g.player.x, g.player.y - 60, msg, '#b46bff');
+      }
+      // Flash shake for emphasis
+      if(typeof shake !== 'undefined') shake = Math.max(shake, 6);
     }
   }
 }
@@ -777,7 +978,12 @@ function startRunWithClass(clsOrId){
     game.objectives = selectedMissionType.generateObjectives(saveProfile, game);
   }
   saveProfile.statistics.totalRunsStarted++;
+  // Phase 2.1: initialise synergy tracking arrays
+  game.collectedUpgrades = [];
+  game.unlockedSynergies = [];
+  // Apply milestone rewards first, then synergy rewards
   applyMilestoneRewards(game);
+  applySynergyRewards(game);
   saveGame();
   appState='RUN_ACTIVE';
   sfx('start');
@@ -845,6 +1051,7 @@ function showMainMenu(){
   ui.menuMeta.innerHTML=`<div class="menuStats"><span>Mission <b>${saveProfile.missionIndex}</b></span><span>Run <b>${saveProfile.runIndex}/${RUNS_PER_MISSION}</b></span><span>Completed Missions <b>${saveProfile.completedMissions}</b></span></div><div class="resourceStrip">${renderResourceLine()}</div>`;
   addMenuButton('Play',showMissionSelect);
   addMenuButton('Upgrades',showUpgradesMenu);
+  addMenuButton('Synergies',showSynergiesMenu);
   addMenuButton('Gears',()=>showPlaceholderMenu('Gears','Gears feature coming later.'));
   addMenuButton('Milestones',showMilestonesMenu);
   addMenuButton('Settings',showSettingsMenu);
@@ -1084,6 +1291,98 @@ function showMilestonesMenu(){
   addMenuButton('Back', showMainMenu);
 }
 
+/*
+ * Synergies Menu — Phase 2.1
+ * Displays all 8 synergies in a responsive grid.
+ * Unlocked synergies show a green glow, bonus text, and "UNLOCKED" badge.
+ * Locked synergies are dimmed and show missing upgrades in red.
+ */
+function showSynergiesMenu(){
+  appState='SYNERGIES_MENU';
+  setMenu('Upgrade Synergies','Collect specific upgrade combinations during a run to unlock permanent combo bonuses. Synergies are persistent once unlocked.');
+  if(!saveProfile) saveProfile=createDefaultProfile();
+
+  const grid = document.createElement('div');
+  grid.className = 'synergyGrid';
+
+  for(const syn of SYNERGIES){
+    const isUnlocked = saveProfile.unlockedSynergies && saveProfile.unlockedSynergies.includes(syn.id);
+    const card = document.createElement('div');
+    card.className = `synergyCard ${isUnlocked ? 'synergyUnlocked' : 'synergyLocked'}`;
+
+    // Header row: icon + name + badge
+    const header = document.createElement('div');
+    header.className = 'synergyHeader';
+
+    const iconEl = document.createElement('span');
+    iconEl.className = 'synergyIcon';
+    iconEl.textContent = syn.icon;
+    header.appendChild(iconEl);
+
+    const nameEl = document.createElement('span');
+    nameEl.className = 'synergyName';
+    nameEl.textContent = syn.name;
+    header.appendChild(nameEl);
+
+    if(isUnlocked){
+      const badge = document.createElement('span');
+      badge.className = 'synergyBadge';
+      badge.textContent = '✅ UNLOCKED';
+      header.appendChild(badge);
+    }
+
+    card.appendChild(header);
+
+    // Description
+    const desc = document.createElement('div');
+    desc.className = 'synergyDesc';
+    desc.textContent = syn.description;
+    card.appendChild(desc);
+
+    // Bonus text
+    const bonus = document.createElement('div');
+    bonus.className = 'synergyBonus';
+    bonus.textContent = `✨ ${syn.bonus}`;
+    card.appendChild(bonus);
+
+    // Required upgrades list
+    const reqLabel = document.createElement('div');
+    reqLabel.className = 'synergyReqLabel';
+    reqLabel.textContent = 'Required Upgrades:';
+    card.appendChild(reqLabel);
+
+    const reqList = document.createElement('div');
+    reqList.className = 'synergyReqList';
+
+    // We need to know what upgrades the player has in their profile
+    // For UPGRADE_POOL items, we check collectedUpgrades (run-specific)
+    // For permanent upgrades (Arc Capacitors), we check the profile
+    for(const reqName of syn.requiredUpgrades){
+      const reqItem = document.createElement('span');
+      let owned = false;
+      // Check if it's a permanent upgrade (Arc Capacitors)
+      if(reqName === 'Arc Capacitors'){
+        owned = (saveProfile.permanentUpgrades.arcDamage || 0) > 0;
+      } else {
+        // For UPGRADE_POOL items, we check if the player has ever collected them
+        // Since synergies are persistent, we check the profile's upgrade history
+        // (in-run tracking is done via checkSynergies at runtime)
+        owned = false;
+      }
+      reqItem.className = `synergyReqItem ${isUnlocked ? '' : (owned ? 'synergyReqOwned' : 'synergyReqMissing')}`;
+      reqItem.textContent = isUnlocked ? `✅ ${reqName}` : (owned ? `✅ ${reqName}` : `🔒 ${reqName}`);
+      reqList.appendChild(reqItem);
+    }
+
+    card.appendChild(reqList);
+
+    grid.appendChild(card);
+  }
+
+  ui.menuContent.appendChild(grid);
+  addMenuButton('Back', showMainMenu);
+}
+
 function showCreditsMenu(){
   appState='CREDITS_MENU';
   setMenu('Credits','Designed by Alessandro and Dylan from King Peng Studio');
@@ -1188,3 +1487,7 @@ function startupFlow(){
 window.showMainMenu=showMainMenu;
 window.MISSION_TYPES=MISSION_TYPES;
 window.selectedMissionType=selectedMissionType;
+window.SYNERGIES=SYNERGIES;
+window.checkSynergies=checkSynergies;
+window.applySynergyRewards=applySynergyRewards;
+window.showSynergiesMenu=showSynergiesMenu;

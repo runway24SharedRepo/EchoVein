@@ -686,3 +686,142 @@ input.controllerSelected {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==============================
+   Upgrade Synergies Menu (Phase 2.1)
+   ============================== */
+.synergyGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.synergyCard {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  transition: transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.synergyCard:hover {
+  transform: translateY(-2px);
+}
+
+.synergyUnlocked {
+  border-color: rgba(93,255,154,0.50);
+  background: rgba(93,255,154,0.07);
+  box-shadow: 0 0 20px rgba(93,255,154,0.10);
+}
+
+.synergyLocked {
+  border-color: rgba(255,255,255,0.07);
+  opacity: 0.78;
+}
+
+.synergyHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.synergyIcon {
+  font-size: 28px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+
+.synergyUnlocked .synergyIcon {
+  background: rgba(93,255,154,0.14);
+  box-shadow: 0 0 14px rgba(93,255,154,0.18);
+}
+
+.synergyName {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text);
+  flex: 1;
+}
+
+.synergyLocked .synergyName {
+  color: var(--muted);
+}
+
+.synergyBadge {
+  font-size: 11px;
+  font-weight: 900;
+  color: #0a1a0a;
+  background: var(--green);
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.synergyDesc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.synergyBonus {
+  font-size: 13px;
+  color: var(--purple);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.synergyReqLabel {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+
+.synergyReqList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.synergyReqItem {
+  font-size: 11px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  color: var(--muted);
+}
+
+.synergyReqOwned {
+  border-color: rgba(93,255,154,0.35);
+  color: var(--green);
+  background: rgba(93,255,154,0.08);
+}
+
+.synergyReqMissing {
+  border-color: rgba(255,75,75,0.40);
+  color: #ff8f8f;
+  background: rgba(255,75,75,0.08);
+}
+
+.synergyUnlocked .synergyReqItem {
+  border-color: rgba(93,255,154,0.25);
+  color: var(--green);
+  background: rgba(93,255,154,0.06);
+}
+
+@media (max-width: 700px) {
+  .synergyGrid {
+    grid-template-columns: 1fr;
+  }
+}

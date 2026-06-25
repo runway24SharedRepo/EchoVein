@@ -23,26 +23,34 @@
 - ⏳ **1.5 Operator XP & Prestige** — Planned
 - ⏳ **1.6 Run History / Hall of Records** — Planned
 
-## 🎯 Current Task: Phase 2.1 — Upgrade Synergies
+## ✅ Completed Phases
 
-**Goal:** Combo bonuses when certain upgrades are acquired together.
+### Phase 2.1 — Upgrade Synergies ✅
 
 **8 Synergies:**
-1. Drone Commander — Warden Drone Bay + Drone Bay Expansion + Drone Targeting AI
-2. Mining Magnate — Tungsten Bore Bit + Cryo Coolant + Resonance Magnet
-3. Arc Overload — Arc Connection + Storm Lattice + Arc Capacitors
-4. Bulwark Arsenal — Hammerfall Salvo + Warhead Yield + Hot-Burn Motors
-5. Borecaster Demolition — Seismic Charge + Extra Charges + Blast Radius
-6. Pathfinder Tactics — Trap Payload + Field Reclaimer + Targeting Cursor
-7. Vector Specialist — Vector Burst + Splitfire Array + Vector Focusing + Vector Accelerator + Vector Relay
-8. Sifter Master — Sifter Drone + Sifter Optics + Sifter Turbo
+1. **Drone Commander** — Drones fire 30% faster, 25% more damage
+2. **Mining Magnate** — Mining speed +50%, heat -40%, pickup range +50%
+3. **Arc Overload** — Chain lightning +2 targets, 35% more damage
+4. **Bulwark Arsenal** — Missiles 30% faster, 40% travel speed, 20% more damage
+5. **Borecaster Demolition** — Bombs 40% more damage, 50% larger radius, +2 bombs
+6. **Pathfinder Tactics** — Traps 60% more damage, kills restore 15 HP, mouse targeting always
+7. **Vector Specialist** — 10 directions, 50% more damage, 40% faster projectiles
+8. **Sifter Master** — 100% faster collection, 50% larger search radius
 
-**Key Files:**
-- progression.js → SYNERGIES array, checkSynergies()
-- systems.js → Hook after upgrade application
-- render-ui.js → Synergies menu UI
-- core.js → Synergy state in game object
-- style.css → Synergy card styles
+**Implementation:**
+- `SYNERGIES` array in progression.js with id, name, icon, description, bonus, requiredUpgrades, check(), apply()
+- `checkSynergies(g)` — runs after each upgrade pick, checks requirements, unlocks, shows floating text
+- `applySynergyRewards(g)` — re-applies persistent synergies at run start
+- Hooked in `selectUpgradeByIndex()` in systems.js
+- `showSynergiesMenu()` — responsive grid with locked/unlocked states, missing upgrades in red
+- "Synergies" button in main menu
+- `unlockedSynergies` array in profile for persistence
+
+## 🎯 Next Tasks (Planned)
+- ⏳ Phase 1.4 — Resource Economy Rebalance
+- ⏳ Phase 1.5 — Operator XP & Prestige
+- ⏳ Phase 1.6 — Run History / Hall of Records
+- ⏳ Phase 2.2+ — TBD
 
 ## Code Patterns
 - Use existing stat tracking in progression.js

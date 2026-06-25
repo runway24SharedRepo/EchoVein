@@ -1955,11 +1955,16 @@ function selectUpgradeByIndex(g,index,source='input'){
   const choices=g.upgradeMenuState?.choices || [];
   const up=choices[index];
   if(!up) return false;
+  // Record the upgrade name for synergy tracking
+  if(!g.collectedUpgrades) g.collectedUpgrades = [];
+  g.collectedUpgrades.push(up.name);
   up.apply(g);
   awaitingUpgrade=false;
   g.upgradeMenuState.open=false;
   ui.upgradeOverlay.classList.remove('show');
   updateUI(g);
+  // Phase 2.1: check if this upgrade completes any synergy
+  if(typeof checkSynergies === 'function') checkSynergies(g);
   return true;
 }
 
