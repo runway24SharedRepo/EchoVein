@@ -106,7 +106,14 @@ const SPRITES = {
   fractureBeetle: 'assets/sprites/enemies/fracture_beetle.png',
   gloomBat: 'assets/sprites/enemies/gloom_bat.png',
   obsidianTitan: 'assets/sprites/enemies/obsidian_titan.png',
-  hollowTyrantVariant: 'assets/sprites/enemies/hollow_tyrant_variant.png'
+  hollowTyrantVariant: 'assets/sprites/enemies/hollow_tyrant_variant.png',
+
+  // Phase 2.2: Boss sprites
+  hexShardColossus: 'assets/sprites/hex_shard_colossus.png',
+  moltenMaw: 'assets/sprites/molten_maw.png',
+  bossCrystalShard: 'assets/sprites/boss_crystal_shard.png',
+  bossFireball: 'assets/sprites/boss_fireball.png',
+  bossShockwave: 'assets/sprites/boss_shockwave.png'
 };
 
 // Compatibility alias used by older rendering code.

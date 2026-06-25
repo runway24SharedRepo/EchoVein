@@ -23,40 +23,66 @@
 - ⏳ **1.5 Operator XP & Prestige** — Planned
 - ⏳ **1.6 Run History / Hall of Records** — Planned
 
-## ✅ Completed Phases
-
 ### Phase 2.1 — Upgrade Synergies ✅
+- 8 synergies with check/apply logic, UI menu, profile persistence, and in-run hooks
 
-**8 Synergies:**
-1. **Drone Commander** — Drones fire 30% faster, 25% more damage
-2. **Mining Magnate** — Mining speed +50%, heat -40%, pickup range +50%
-3. **Arc Overload** — Chain lightning +2 targets, 35% more damage
-4. **Bulwark Arsenal** — Missiles 30% faster, 40% travel speed, 20% more damage
-5. **Borecaster Demolition** — Bombs 40% more damage, 50% larger radius, +2 bombs
-6. **Pathfinder Tactics** — Traps 60% more damage, kills restore 15 HP, mouse targeting always
-7. **Vector Specialist** — 10 directions, 50% more damage, 40% faster projectiles
-8. **Sifter Master** — 100% faster collection, 50% larger search radius
-
-**Implementation:**
-- `SYNERGIES` array in progression.js with id, name, icon, description, bonus, requiredUpgrades, check(), apply()
-- `checkSynergies(g)` — runs after each upgrade pick, checks requirements, unlocks, shows floating text
-- `applySynergyRewards(g)` — re-applies persistent synergies at run start
-- Hooked in `selectUpgradeByIndex()` in systems.js
-- `showSynergiesMenu()` — responsive grid with locked/unlocked states, missing upgrades in red
-- "Synergies" button in main menu
-- `unlockedSynergies` array in profile for persistence
+### Phase 2.2 — Boss Rework ✅
+- 3 unique bosses (Hollow Tyrant, Hex Shard Colossus, Molten Maw)
+- Phase system with 3 transitions per boss (P1/P2/Enrage)
+- Weak point mechanic with stagger (2x damage on hit)
+- 9 boss-specific attack patterns across 3 bosses
+- Boss health bar UI with phase markers
+- Boss name display on spawn with dramatic animation
+- Unique boss drops per boss type
+- Boss selection logic (Mission 1 = Tyrant, Mission 2+ = random)
+- Audio: bossRoar, bossPhase, bossDefeat, weakPointAppear, weakPointHit
 
 ## 🎯 Next Tasks (Planned)
 - ⏳ Phase 1.4 — Resource Economy Rebalance
 - ⏳ Phase 1.5 — Operator XP & Prestige
 - ⏳ Phase 1.6 — Run History / Hall of Records
-- ⏳ Phase 2.2+ — TBD
+- ⏳ Phase 2.3+ — TBD
+- Phase 1: Slow melee swipe, charge attack
+- Phase 2: Faster swipe, ground slam (shockwave)
+- Phase 3 (Enrage): All attacks 30% faster, rage roar (multiple shockwaves)
+
+**Hex Shard Colossus (Ranged/Artillery):**
+- Phase 1: 3-crystal spread, spawns 1 Hex Shard
+- Phase 2: 5-crystal spread, spawns 2 Hex Shards, Crystal Rain
+- Phase 3 (Enrage): 7-crystal spread, spawns 3 Hex Shards, faster Crystal Rain
+
+**Molten Maw (Burrower/Fire):**
+- Phase 1: Burrow → erupt, leaves lava pool
+- Phase 2: Faster burrow, fire trail, 3 fireballs
+- Phase 3 (Enrage): Even faster, longer fire trail, tracking fireballs
+
+### Boss Rewards
+- **XP:** 120 XP (scaled with mission difficulty)
+- **Resources:** Bonus Gild Shards + rare ore drop on defeat
+- **Unique Drop:** Each boss drops a unique boss-specific resource:
+  - Hollow Tyrant → **Tyrant Core** (used for future crafting/synergies)
+  - Hex Shard Colossus → **Hex Crystal Fragment**
+  - Molten Maw → **Molten Ember**
+- **Milestone:** Counts toward BossKill1 milestone
+- **Run Progress:** Triggers extraction sequence
+
+### Key Files to Modify
+| File | Changes |
+|---|---|
+| `entities.js` | Add BOSS_TYPES data, boss constructors, weak point logic |
+| `systems.js` | Add updateBoss() function, phase transitions, attack timers, weak point tracking |
+| `render-ui.js` | Add boss health bar (top of screen), boss name display, phase indicator, weak point highlight |
+| `core.js` | Add bossType, bossPhase, bossWeakPoint to game state |
+| `world.js` | Add boss selection logic (random with Mission 1 guarantee) |
+| `audio.js` | Add boss-specific sounds (roar, phase change, defeat, weak point hit) |
+| `assets.js` | Add sprites for each boss and their attacks |
+| `style.css` | Add boss health bar styling, phase indicators |
 
 ## Code Patterns
-- Use existing stat tracking in progression.js
+- Use existing enemy system in entities.js
 - UI rendering uses render-ui.js
 - Event system in systems.js
-- Synergy state stored in `g.unlockedSynergies`
+- Boss state stored in `g.bossType`, `g.bossPhase`, `g.bossWeakPoint`
 
 ## File References
 - Main entry: index.html

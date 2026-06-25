@@ -105,7 +105,12 @@ function sfx(name, strength=1){
     case 'wave': tone(196,0.18,'sawtooth',0.055,130); setTimeout(()=>tone(196,0.18,'sawtooth',0.055,130),230); break;
     case 'elite': tone(110,0.35,'sawtooth',0.07,55); setTimeout(()=>tone(82,0.35,'sawtooth',0.07,41),180); break;
     case 'dash': tone(310,0.06,'triangle',0.045,620); noise(0.05,0.03,2200); break;
-    case 'gameover': tone(185,0.24,'triangle',0.06,130); setTimeout(()=>tone(123,0.35,'triangle',0.06,80),240); break;
+    // Phase 2.2: boss-specific sounds
+    case 'bossRoar': tone(82,0.45,'sawtooth',0.08,42); noise(0.35,0.07,600); setTimeout(()=>tone(68,0.35,'sawtooth',0.06,34),220); break;
+    case 'bossPhase': tone(165,0.18,'sawtooth',0.065,110); setTimeout(()=>tone(220,0.15,'sawtooth',0.055,165),120); setTimeout(()=>tone(280,0.22,'sawtooth',0.07,220),240); break;
+    case 'bossDefeat': tone(330,0.12,'triangle',0.06); setTimeout(()=>tone(494,0.15,'triangle',0.06),130); setTimeout(()=>tone(660,0.25,'triangle',0.07),260); setTimeout(()=>tone(880,0.40,'triangle',0.08),400); noise(0.25,0.06,1200); break;
+    case 'weakPointAppear': tone(1400,0.06,'sine',0.05,1800); setTimeout(()=>tone(2200,0.08,'sine',0.045),70); break;
+    case 'weakPointHit': tone(1800,0.04,'sine',0.06,2400); noise(0.05,0.04,3500); break;
   }
 }
 

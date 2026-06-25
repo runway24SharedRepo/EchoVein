@@ -183,6 +183,84 @@ const ENEMY_VISUAL_VARIANTS = {
   ],
 };
 
+/*
+ * Boss Roster — Phase 2.2
+ *
+ * Three unique bosses with phase transitions, weak points, and specific attacks.
+ * BOSS_TYPES keys are used as the bossType property on the boss enemy entity.
+ * Each boss has:
+ *   - phases: array of { hpThreshold, attacks[], speedMul, damageMul, enrage? }
+ *   - weakPointCooldown: seconds between weak point appearances
+ *   - weakPointDuration: seconds the weak point stays active
+ *   - staggerDuration: seconds the boss is stunned when weak point is hit
+ *   - uniqueDrop: resource id dropped on defeat
+ */
+const BOSS_TYPES = {
+  hollowTyrant: {
+    id: 'hollowTyrant',
+    name: 'Hollow Tyrant',
+    icon: '🏛️',
+    description: 'Massive armored behemoth. Slow but devastating.',
+    spriteId: 'hollowTyrantBoss',
+    color: '#ff4fd8',
+    baseHp: 980,
+    speed: 58,
+    damage: 48,
+    xp: 120,
+    weakPointCooldown: 10,
+    weakPointDuration: 4,
+    staggerDuration: 0.5,
+    uniqueDrop: 'tyrantCore',
+    phases: [
+      { hpThreshold: 1.0, attacks: ['swipe', 'charge'], speedMul: 1.0, damageMul: 1.0 },
+      { hpThreshold: 0.66, attacks: ['swipe', 'charge', 'slam'], speedMul: 1.2, damageMul: 1.15 },
+      { hpThreshold: 0.33, attacks: ['swipe', 'charge', 'slam', 'rageRoar'], speedMul: 1.5, damageMul: 1.3, enrage: true }
+    ]
+  },
+  hexShardColossus: {
+    id: 'hexShardColossus',
+    name: 'Hex Shard Colossus',
+    icon: '🔷',
+    description: 'Ranged artillery boss that spawns hex shard enemies.',
+    spriteId: 'hexShardColossus',
+    color: '#b46bff',
+    baseHp: 840,
+    speed: 48,
+    damage: 32,
+    xp: 130,
+    weakPointCooldown: 11,
+    weakPointDuration: 4,
+    staggerDuration: 0.5,
+    uniqueDrop: 'hexCrystalFragment',
+    phases: [
+      { hpThreshold: 1.0, attacks: ['crystalSpread', 'spawnHexShard'], speedMul: 1.0, damageMul: 1.0 },
+      { hpThreshold: 0.66, attacks: ['crystalSpread', 'spawnHexShard', 'crystalRain'], speedMul: 1.15, damageMul: 1.15 },
+      { hpThreshold: 0.33, attacks: ['crystalSpread', 'spawnHexShard', 'crystalRain'], speedMul: 1.3, damageMul: 1.3, enrage: true }
+    ]
+  },
+  moltenMaw: {
+    id: 'moltenMaw',
+    name: 'Molten Maw',
+    icon: '🌋',
+    description: 'Burrowing beast that erupts from the ground.',
+    spriteId: 'moltenMaw',
+    color: '#ff7a38',
+    baseHp: 920,
+    speed: 72,
+    damage: 38,
+    xp: 140,
+    weakPointCooldown: 9,
+    weakPointDuration: 4,
+    staggerDuration: 0.5,
+    uniqueDrop: 'moltenEmber',
+    phases: [
+      { hpThreshold: 1.0, attacks: ['burrowErupt'], speedMul: 1.0, damageMul: 1.0 },
+      { hpThreshold: 0.66, attacks: ['burrowErupt', 'fireTrail', 'fireballSpew'], speedMul: 1.2, damageMul: 1.15 },
+      { hpThreshold: 0.33, attacks: ['burrowErupt', 'fireTrail', 'fireballSpew'], speedMul: 1.4, damageMul: 1.3, enrage: true }
+    ]
+  }
+};
+
 const ENEMY_ROTATION_STYLE_PRESETS = {
   fastSpin:      { speed:[-2.6, 2.6], wobble:[0.04,0.16], wobbleSpeed:[3.0,6.2], scalePulse:[0.00,0.035], scaleSpeed:[2.0,4.5] },
   slowSpin:      { speed:[-0.75,0.75], wobble:[0.02,0.10], wobbleSpeed:[1.2,3.0], scalePulse:[0.00,0.045], scaleSpeed:[1.0,2.8] },
@@ -276,6 +354,22 @@ function makeGame(cls){
     objectives:[],
     bossSpawned:false,
     bossDefeated:false,
+    bossType:null,          // string key into BOSS_TYPES, set at run start
+    bossPhase:0,            // current phase index (0, 1, 2)
+    bossPhaseTimer:0,       // visual timer for phase transition effects
+    bossWeakPoint:{         // Phase 2.2 weak point mechanic
+      active:false,
+      timer:0,              // countdown until next weak point appearance
+      duration:0,           // how long current weak point stays active
+      cooldown:0,           // cooldown after stagger
+      x:0, y:0,             // position on boss (world coords)
+      radius:24             // hit radius
+    },
+    bossNameDisplay:{        // Phase 2.2 boss name overlay on spawn
+      text:'',
+      timer:0,
+      fadeOut:false
+    },
     extraction:null,
     extractionTimer:0,
     runResolved:false,

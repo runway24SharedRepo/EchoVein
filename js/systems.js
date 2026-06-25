@@ -1658,16 +1658,595 @@ function spawnRunBoss(g){
   g.bossSpawned=true;
   const spot=findSafeBossSpawn(g);
   ensureBossSpawnPocket(g,spot.x,spot.y);
+
+  // Phase 2.2: determine which boss type to spawn
+  const bossId = selectBossForMission(g);
+  const bossDef = BOSS_TYPES[bossId];
+  if(!bossDef) return;
+
+  g.bossType = bossId;
+  g.bossPhase = 0;
+  g.bossPhaseTimer = 0;
+  g.bossWeakPoint = {
+    active:false,
+    timer:bossDef.weakPointCooldown,
+    duration:0,
+    cooldown:0,
+    x:spot.x, y:spot.y,
+    radius:24
+  };
+  g.bossNameDisplay = {
+    text:bossDef.name,
+    timer:3.5,
+    fadeOut:false
+  };
+
   const boss=new Enemy(spot.x,spot.y,'boss');
   const diff=g.missionDifficulty || missionDifficulty(1);
-  boss.hp*=diff.bossHealthMultiplier;
-  boss.maxHp=boss.hp;
-  boss.damage=Math.round(boss.damage*diff.bossDamageMultiplier);
-  boss.rangedCd=1.8;
+  // Override base stats with boss-type-specific values
+  boss.bossType = bossId;
+  boss.bossPhase = 0;
+  boss.hp = Math.round(bossDef.baseHp * diff.bossHealthMultiplier);
+  boss.maxHp = boss.hp;
+  boss.speed = bossDef.speed;
+  boss.damage = Math.round(bossDef.damage * diff.bossDamageMultiplier);
+  boss.xp = bossDef.xp;
+  boss.color = bossDef.color;
+  boss.spriteId = bossDef.spriteId;
+  boss.rangedCd = 1.8;
+  boss.attackCd = 0;           // general attack cooldown
+  boss.attackIndex = 0;        // used for multi-part attack sequences
+  boss.lastAttack = '';        // name of last attack (prevent repeats)
+  boss.isBurrowed = false;     // Molten Maw state
+  boss.burrowTarget = null;    // Molten Maw burrow destination
+  boss.fireTrailTimer = 0;     // Molten Maw fire trail timer
   g.enemies.push(boss);
-  log(g,'Sector boss incoming. Clear it to call extraction.');
-  sfx('elite',1.2);
-  shake=Math.max(shake,9);
+  log(g,`${bossDef.icon} Boss: ${bossDef.name} incoming. Clear it to call extraction.`);
+  sfx('bossRoar',1.0);
+  shake=Math.max(shake,12);
+}
+
+/*
+ * Phase 2.2: Boss Update System
+ *
+ * Called each frame from updateEnemies() for the active boss enemy.
+ * Handles:
+ *   - Phase transitions with visual/audio feedback
+ *   - Attack cooldown management with phase-scaled timing
+ *   - Weak point countdown, appearance, and stagger
+ *   - Boss-specific attack execution (all 9 patterns across 3 bosses)
+ */
+
+function executeBossAttack(g, boss, attackName, dt){
+  const p = g.player;
+  if(!p) return;
+  const diff = g.missionDifficulty || missionDifficulty(1);
+
+  // ── HOLLOW TYRANT ATTACKS ─────────────────────────────────────────
+  if(attackName === 'swipe'){
+    // Slow melee arc in front of boss. Telegraphed with red indicator.
+    const angle = Math.atan2(p.y - boss.y, p.x - boss.x);
+    const arcHalf = 0.6; // ~70 degree arc
+    const range = boss.r + 80;
+    // Check enemies hit in arc
+    if(dist2(boss.x,boss.y,p.x,p.y) < range*range){
+      const aToP = Math.atan2(p.y - boss.y, p.x - boss.x);
+      const diffA = Math.abs(normalizeAngle(aToP - angle));
+      if(diffA < arcHalf){
+        const dmg = Math.round(boss.damage * 1.0);
+        damagePlayer(g, dmg, 'bossSwipe');
+        shake = Math.max(shake, 6);
+      }
+    }
+    // Visual: red arc indicator
+    spawnVfxComposition(g, 'bossShockwave', boss.x + Math.cos(angle)*40, boss.y + Math.sin(angle)*40, {radius:50, color:'#ff3030'});
+    boss.lastAttack = 'swipe';
+  }
+
+  if(attackName === 'charge'){
+    // Boss charges toward player. Dodgeable sideways.
+    const angle = Math.atan2(p.y - boss.y, p.x - boss.x);
+    const chargeSpeed = boss.speed * 3.5 * (boss.bossPhase > 0 ? 1.2 : 1.0);
+    boss.vx = Math.cos(angle) * chargeSpeed;
+    boss.vy = Math.sin(angle) * chargeSpeed;
+    boss.chargeTimer = 0.5;
+    boss.lastAttack = 'charge';
+    sfx('missileWhoosh', 0.8);
+  }
+
+  if(attackName === 'slam'){
+    // Slams ground, creates expanding shockwave ring
+    shake = Math.max(shake, 10);
+    addRing(g, boss.x, boss.y, 'rgba(255,80,80,0.6)', 0.6, 20, boss.r + 120, 6);
+    // Damage in expanding ring
+    const dmg = Math.round(boss.damage * 1.2);
+    if(dist2(boss.x,boss.y,p.x,p.y) < (boss.r + 130)*(boss.r + 130)){
+      damagePlayer(g, dmg, 'bossSlam');
+    }
+    sfx('explosion', 0.9);
+    spawnVfxComposition(g, 'bossShockwave', boss.x, boss.y, {radius:boss.r+40, color:'#ff4f4f'});
+    boss.lastAttack = 'slam';
+  }
+
+  if(attackName === 'rageRoar'){
+    // Sends out 3-4 shockwaves in all directions (Phase 3 only)
+    const numWaves = 3 + (Math.random() < 0.5 ? 1 : 0);
+    for(let i = 0; i < numWaves; i++){
+      const a = (Math.PI * 2 / numWaves) * i + Math.random() * 0.3;
+      const waveSpeed = 160;
+      // Fire a damaging projectile ring
+      g.enemyBullets.push({
+        x: boss.x, y: boss.y,
+        vx: Math.cos(a) * waveSpeed,
+        vy: Math.sin(a) * waveSpeed,
+        r: 12, damage: Math.round(boss.damage * 0.8),
+        color: '#ff4fd8', life: 1.2,
+        destructive: false, small: false,
+        bossAttack: true
+      });
+    }
+    shake = Math.max(shake, 14);
+    sfx('bossRoar', 1.2);
+    spawnVfxComposition(g, 'bossShockwave', boss.x, boss.y, {radius:80, color:'#ff4fd8'});
+    boss.lastAttack = 'rageRoar';
+  }
+
+  // ── HEX SHARD COLOSSUS ATTACKS ─────────────────────────────────────
+  if(attackName === 'crystalSpread'){
+    // Fires 3/5/7 crystal shards in a spread depending on phase
+    const numShards = boss.bossPhase === 0 ? 3 : boss.bossPhase === 1 ? 5 : 7;
+    const angle = Math.atan2(p.y - boss.y, p.x - boss.x);
+    const spread = 0.3 + boss.bossPhase * 0.05;
+    for(let i = 0; i < numShards; i++){
+      const a = angle - spread + (spread * 2 / Math.max(1, numShards - 1)) * i;
+      const speed = 140 + Math.random() * 40;
+      g.enemyBullets.push({
+        x: boss.x, y: boss.y,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        r: 8, damage: Math.round(boss.damage * 0.7),
+        color: '#b46bff', life: 2.0,
+        destructive: false, small: true,
+        bossAttack: true
+      });
+    }
+    sfx('shoot', 0.6);
+    boss.lastAttack = 'crystalSpread';
+  }
+
+  if(attackName === 'spawnHexShard'){
+    // Spawns 1/2/3 Hex Shard enemies
+    const numSpawns = boss.bossPhase === 0 ? 1 : boss.bossPhase === 1 ? 2 : 3;
+    for(let i = 0; i < numSpawns; i++){
+      const a = Math.random() * Math.PI * 2;
+      const d = 120 + Math.random() * 60;
+      const sx = clamp(boss.x + Math.cos(a) * d, TILE*3, WORLD_W - TILE*3);
+      const sy = clamp(boss.y + Math.sin(a) * d, TILE*3, WORLD_H - TILE*3);
+      const [tx, ty] = worldToTile(sx, sy);
+      if(tileWalkable(g, tx, ty)){
+        const spawned = new Enemy(sx, sy, 'hexShardThrower');
+        spawned.hp = Math.round(spawned.hp * 1.2);
+        spawned.maxHp = spawned.hp;
+        g.enemies.push(spawned);
+      }
+    }
+    sfx('hexBlip', 0.8);
+    boss.lastAttack = 'spawnHexShard';
+  }
+
+  if(attackName === 'crystalRain'){
+    // Shards fall from ceiling with floor indicators
+    const numRain = 5 + boss.bossPhase * 2;
+    for(let i = 0; i < numRain; i++){
+      const rx = p.x + rand(-200, 200);
+      const ry = p.y + rand(-200, 200);
+      // Add warning indicator (rendered as a floor marker)
+      addBossCrystalRainIndicator(g, rx, ry, 0.7);
+      // Schedule the actual crystal shard to fall after warning
+      g.bossCrystalRain = g.bossCrystalRain || [];
+      g.bossCrystalRain.push({x: rx, y: ry - 60, targetY: ry, timer: 0.7, speed: 180, damage: Math.round(boss.damage * 0.6)});
+    }
+    boss.lastAttack = 'crystalRain';
+  }
+
+  // ── MOLTEN MAW ATTACKS ────────────────────────────────────────────
+  if(attackName === 'burrowErupt'){
+    if(!boss.isBurrowed){
+      // Burrow into the ground — become invulnerable, move toward player
+      boss.isBurrowed = true;
+      boss.burrowTarget = {x: p.x + rand(-60, 60), y: p.y + rand(-60, 60)};
+      boss.attackCd = 0.8; // Brief delay before eruption
+      boss.color = 'rgba(255,120,56,0.4)';
+      spawnVfxComposition(g, 'enemyDeathBurst', boss.x, boss.y, {radius:30, color:'#ff7038'});
+    } else {
+      // Erupt from the ground
+      boss.isBurrowed = false;
+      boss.x = clamp(boss.burrowTarget?.x || boss.x, TILE*3, WORLD_W - TILE*3);
+      boss.y = clamp(boss.burrowTarget?.y || boss.y, TILE*3, WORLD_H - TILE*3);
+      boss.color = bossDef.color || '#ff7a38';
+      shake = Math.max(shake, 10);
+      // Damage in eruption radius
+      if(dist2(boss.x,boss.y,p.x,p.y) < (boss.r + 80)*(boss.r + 80)){
+        damagePlayer(g, Math.round(boss.damage * 1.1), 'bossErupt');
+      }
+      spawnVfxComposition(g, 'lavaBurst', boss.x, boss.y, {radius:boss.r+30, color:'#ff7038'});
+      sfx('explosion', 1.0);
+      // Leave lava pool
+      for(let i = 0; i < 8; i++){
+        const a = Math.random() * Math.PI * 2;
+        const d = rand(20, 60);
+        g.particles.push({
+          x: boss.x + Math.cos(a)*d, y: boss.y + Math.sin(a)*d,
+          vx: 0, vy: 0, color: '#ff7038',
+          life: 3.0, maxLife: 3.0, size: rand(8, 15), shape: 'circle'
+        });
+      }
+      boss.lastAttack = 'burrowErupt';
+    }
+  }
+
+  if(attackName === 'fireTrail'){
+    // Leave a damaging fire trail while burrowed (Phase 2+)
+    if(boss.isBurrowed){
+      for(let i = 0; i < 3; i++){
+        const tx = boss.x + rand(-30, 30);
+        const ty = boss.y + rand(-30, 30);
+        g.particles.push({
+          x: tx, y: ty,
+          vx: rand(-10, 10), vy: rand(-20, -5),
+          color: '#ff5b00', life: 1.5, maxLife: 1.5,
+          size: rand(6, 12), shape: 'circle'
+        });
+      }
+      // Damage player if standing on trail
+      if(dist2(boss.x,boss.y,p.x,p.y) < (boss.r + 50)*(boss.r + 50)){
+        damagePlayer(g, Math.round(boss.damage * 0.3), 'bossFireTrail');
+      }
+      boss.lastAttack = 'fireTrail';
+    }
+  }
+
+  if(attackName === 'fireballSpew'){
+    // Spews 3 fireballs in a spread. Phase 3: tracking fireballs
+    const numBalls = 3;
+    const baseAngle = Math.atan2(p.y - boss.y, p.x - boss.x);
+    const spread = 0.4;
+    for(let i = 0; i < numBalls; i++){
+      const a = boss.bossPhase >= 2 ? baseAngle - spread + (spread * 2 / (numBalls - 1)) * i : baseAngle - spread + (spread * 2 / (numBalls - 1)) * i;
+      // Phase 3: tracking — fireballs curve toward player
+      const speed = 130 + Math.random() * 30;
+      g.enemyBullets.push({
+        x: boss.x, y: boss.y,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        r: 10, damage: Math.round(boss.damage * 0.9),
+        color: '#ff7a38', life: 2.5,
+        destructive: false, small: false,
+        bossAttack: true,
+        tracking: boss.bossPhase >= 2,   // Phase 3: tracking
+        trackTurnRate: 2.5
+      });
+    }
+    sfx('shoot', 0.7);
+    boss.lastAttack = 'fireballSpew';
+  }
+}
+
+function addBossCrystalRainIndicator(g, x, y, duration){
+  g.bossCrystalRainIndicators = g.bossCrystalRainIndicators || [];
+  g.bossCrystalRainIndicators.push({x, y, timer: duration, maxTimer: duration});
+}
+
+/*
+ * Update boss-specific logic each frame.
+ * Called from updateEnemies() for the active boss.
+ */
+function updateBoss(g, boss, dt){
+  if(!boss || boss.hp <= 0) return;
+
+  const bossDef = BOSS_TYPES[boss.bossType];
+  if(!bossDef) return;
+
+  // ── Boss Name Display Timer ────────────────────────────────────────
+  // Decrement each frame; fade begins in the last 1.5 seconds.
+  if(g.bossNameDisplay && g.bossNameDisplay.timer > 0){
+    g.bossNameDisplay.timer -= dt;
+    if(g.bossNameDisplay.timer <= 1.5 && !g.bossNameDisplay.fadeOut){
+      g.bossNameDisplay.fadeOut = true;
+    }
+  }
+
+  // ── Phase Transition Check ────────────────────────────────────────
+  const hpPct = boss.hp / boss.maxHp;
+  let targetPhase = 0;
+  if(hpPct <= 0.33) targetPhase = 2;
+  else if(hpPct <= 0.66) targetPhase = 1;
+
+  if(targetPhase !== boss.bossPhase){
+    // Phase transition!
+    boss.bossPhase = targetPhase;
+    g.bossPhase = targetPhase;
+    g.bossPhaseTimer = 1.5;
+    shake = Math.max(shake, 8);
+    const phaseText = targetPhase === 2 ? 'ENRAGE!' : `PHASE ${targetPhase + 1}`;
+    if(typeof floating === 'function') floating(g, boss.x, boss.y - 60, `${bossDef.icon} ${phaseText}`, bossDef.color);
+    if(typeof log === 'function') log(g, `${bossDef.name} ${phaseText}`);
+    sfx('bossPhase', 1.0);
+    // Particle burst for phase transition
+    spawnVfxComposition(g, 'eliteDeathBurst', boss.x, boss.y, {radius:60, color:bossDef.color});
+  }
+
+  // ── Weak Point Timer ──────────────────────────────────────────────
+  const wp = g.bossWeakPoint;
+  if(!wp) return;
+
+  // Cooldown after stagger
+  if(wp.cooldown > 0){
+    wp.cooldown -= dt;
+    if(wp.cooldown <= 0){
+      wp.timer = bossDef.weakPointCooldown;
+    }
+    return; // Don't update weak point during cooldown
+  }
+
+  // Weak point active countdown
+  if(wp.active){
+    wp.duration -= dt;
+    // Update weak point position to follow boss
+    wp.x = boss.x;
+    wp.y = boss.y - boss.r * 0.3;
+    if(wp.duration <= 0){
+      wp.active = false;
+      wp.timer = bossDef.weakPointCooldown;
+    }
+  } else {
+    wp.timer -= dt;
+    if(wp.timer <= 0){
+      // Weak point appears!
+      wp.active = true;
+      wp.duration = bossDef.weakPointDuration;
+      wp.x = boss.x;
+      wp.y = boss.y - boss.r * 0.3;
+      if(typeof floating === 'function') floating(g, boss.x, boss.y - boss.r - 20, '⚡ WEAK POINT', '#42d6ff');
+      sfx('weakPointAppear', 1.0);
+    }
+  }
+
+  // ── Attack Execution ──────────────────────────────────────────────
+  // Phase-scaled cooldowns
+  const phaseCfg = bossDef.phases[boss.bossPhase] || bossDef.phases[0];
+  boss.attackCd = boss.attackCd || 0;
+  boss.attackCd -= dt * phaseCfg.speedMul;
+
+  if(boss.attackCd <= 0 && !boss.isCharging){
+    // Pick a random attack from this phase that isn't the last attack
+    const available = phaseCfg.attacks.filter(a => a !== boss.lastAttack);
+    const pool = available.length ? available : phaseCfg.attacks;
+    const attack = pool[randi(0, pool.length - 1)];
+
+    // Set cooldown based on attack type (1-3 seconds baseline)
+    let cdBase = 2.5;
+    if(attack === 'charge') cdBase = 4.0;
+    else if(attack === 'slam') cdBase = 4.5;
+    else if(attack === 'rageRoar') cdBase = 5.0;
+    else if(attack === 'spawnHexShard') cdBase = 4.0;
+    else if(attack === 'crystalRain') cdBase = 4.5;
+    else if(attack === 'burrowErupt') cdBase = 3.5;
+    else if(attack === 'fireballSpew') cdBase = 3.0;
+
+    boss.attackCd = cdBase + Math.random() * 1.0;
+    executeBossAttack(g, boss, attack, dt);
+  }
+
+  // ── General Boss Movement ─────────────────────────────────────────
+  // Bosses need continuous chase/positioning movement toward the player.
+  // This runs every frame (except during charge or burrow).
+  const p = g.player;
+  if(p && !boss.isBurrowed && (!boss.chargeTimer || boss.chargeTimer <= 0)){
+    const dx = p.x - boss.x;
+    const dy = p.y - boss.y;
+    const dist = Math.hypot(dx, dy) || 1;
+
+    if(boss.bossType === 'hollowTyrant'){
+      // Melee boss — charge toward player
+      const chaseSpeed = boss.speed * (phaseCfg.speedMul || 1);
+      const dirX = dx / dist;
+      const dirY = dy / dist;
+      moveCircle(g, boss, dirX * chaseSpeed * dt * 0.6, dirY * chaseSpeed * dt * 0.6);
+    }
+    else if(boss.bossType === 'hexShardColossus'){
+      // Ranged boss — maintain preferred distance (~350px)
+      const preferredRange = 350;
+      let moveDirX = 0, moveDirY = 0;
+      const chaseSpeed = boss.speed * 0.8;
+      if(dist < preferredRange - 60){
+        // Too close — back away
+        moveDirX = -dx / dist;
+        moveDirY = -dy / dist;
+      } else if(dist > preferredRange + 80){
+        // Too far — move closer
+        moveDirX = dx / dist;
+        moveDirY = dy / dist;
+      } else {
+        // In preferred range — strafe slightly
+        moveDirX = -dy / dist;
+        moveDirY = dx / dist;
+      }
+      moveCircle(g, boss, moveDirX * chaseSpeed * dt * 0.6, moveDirY * chaseSpeed * dt * 0.6);
+    }
+    else if(boss.bossType === 'moltenMaw'){
+      // Melee burrower — move toward player (when not burrowed)
+      const chaseSpeed = boss.speed * 0.6;
+      const dirX = dx / dist;
+      const dirY = dy / dist;
+      moveCircle(g, boss, dirX * chaseSpeed * dt * 0.6, dirY * chaseSpeed * dt * 0.6);
+    }
+  }
+
+  // ── Boss-specific continuous updates ──────────────────────────────
+  // Molten Maw: burrow movement
+  if(boss.bossType === 'moltenMaw' && boss.isBurrowed && boss.burrowTarget){
+    const dx = boss.burrowTarget.x - boss.x;
+    const dy = boss.burrowTarget.y - boss.y;
+    const d = Math.hypot(dx, dy);
+    if(d > 20){
+      const speed = boss.speed * 1.5;
+      boss.x += (dx / d) * speed * dt;
+      boss.y += (dy / d) * speed * dt;
+    } else {
+      // Reached target — erupt
+      boss.isBurrowed = false;
+      boss.attackCd = Math.min(boss.attackCd || 0, 0.3);
+    }
+  }
+
+  // Molten Maw: fire trail while burrowed
+  if(boss.bossType === 'moltenMaw' && boss.isBurrowed && boss.bossPhase >= 1){
+    boss.fireTrailTimer = (boss.fireTrailTimer || 0) - dt;
+    if(boss.fireTrailTimer <= 0){
+      executeBossAttack(g, boss, 'fireTrail', dt);
+      boss.fireTrailTimer = 0.3;
+    }
+  }
+
+  // Charge movement for Hollow Tyrant (overrides general movement)
+  if(boss.bossType === 'hollowTyrant' && boss.chargeTimer !== undefined && boss.chargeTimer > 0){
+    boss.chargeTimer -= dt;
+    boss.x += (boss.vx || 0) * dt;
+    boss.y += (boss.vy || 0) * dt;
+    // Damage check while charging
+    if(p && dist2(boss.x,boss.y,p.x,p.y) < (boss.r + p.r + 8)*(boss.r + p.r + 8)){
+      damagePlayer(g, Math.round(boss.damage * 0.8), 'bossCharge');
+      boss.chargeTimer = 0; // End charge on hit
+    }
+    // Slow down
+    if(boss.vx) boss.vx *= 0.95;
+    if(boss.vy) boss.vy *= 0.95;
+  }
+
+  // Phase 3 visual glow for enrage
+  if(boss.bossPhase >= 2 && phaseCfg.enrage){
+    const pulse = 0.5 + 0.5 * Math.sin(g.time * 8);
+    boss.enrageGlow = pulse;
+  } else {
+    boss.enrageGlow = 0;
+  }
+
+  // ── Update crystal rain indicators ────────────────────────────────
+  g.bossCrystalRain = g.bossCrystalRain || [];
+  for(let i = g.bossCrystalRain.length - 1; i >= 0; i--){
+    const rain = g.bossCrystalRain[i];
+    rain.timer -= dt;
+    if(rain.timer <= 0){
+      // Fire the crystal shard
+      g.enemyBullets.push({
+        x: rain.x, y: rain.y - 60,
+        vx: 0, vy: rain.speed,
+        r: 8, damage: rain.damage,
+        color: '#b46bff', life: 1.5,
+        destructive: false, small: true,
+        bossAttack: true
+      });
+      g.bossCrystalRain.splice(i, 1);
+    }
+  }
+
+  // Clean up indicators
+  g.bossCrystalRainIndicators = g.bossCrystalRainIndicators || [];
+  for(let i = g.bossCrystalRainIndicators.length - 1; i >= 0; i--){
+    g.bossCrystalRainIndicators[i].timer -= dt;
+    if(g.bossCrystalRainIndicators[i].timer <= 0){
+      g.bossCrystalRainIndicators.splice(i, 1);
+    }
+  }
+}
+
+/*
+ * Check if a player bullet hits the boss's active weak point.
+ * Called from bullet collision code.
+ * Returns true if the weak point was hit (2x damage, stagger).
+ */
+function checkBossWeakPointHit(g, boss, bullet){
+  if(!boss || !g.bossWeakPoint?.active) return false;
+  const wp = g.bossWeakPoint;
+  if(dist2(wp.x, wp.y, bullet.x || 0, bullet.y || 0) < wp.radius * wp.radius){
+    // Weak point hit! Apply stagger.
+    staggerBoss(g, boss);
+    // The bullet caller should multiply damage by 2x
+    sfx('weakPointHit', 1.0);
+    spawnVfxComposition(g, 'genericExplosion', wp.x, wp.y, {radius:20, color:'#42d6ff'});
+    return true;
+  }
+  return false;
+}
+
+/*
+ * Stagger the boss — brief stun, reset weak point, apply cooldown.
+ */
+function staggerBoss(g, boss){
+  if(!boss || !g.bossWeakPoint) return;
+  const bossDef = BOSS_TYPES[boss.bossType];
+  if(!bossDef) return;
+
+  // Stagger: brief stun
+  boss.slow = bossDef.staggerDuration || 0.5;
+  boss.hitFlash = 0.3;
+
+  // Reset weak point
+  g.bossWeakPoint.active = false;
+  g.bossWeakPoint.cooldown = (bossDef.weakPointCooldown || 10) * 0.6; // 60% of normal cooldown after stagger
+  g.bossWeakPoint.duration = 0;
+  g.bossWeakPoint.timer = 0;
+
+  shake = Math.max(shake, 6);
+  if(typeof floating === 'function') floating(g, boss.x, boss.y - boss.r - 30, '💥 STAGGERED!', '#ffcc4d');
+  if(typeof log === 'function') log(g, `${bossDef.name} staggered!`);
+}
+
+/*
+ * Normalise an angle to [-PI, PI].
+ */
+function normalizeAngle(a){
+  while(a > Math.PI) a -= Math.PI * 2;
+  while(a < -Math.PI) a += Math.PI * 2;
+  return a;
+}
+
+/*
+ * Check if a specific enemy is the active boss.
+ */
+function isActiveBoss(g, e){
+  return e && e.role === 'boss' && e.hp > 0 && g.bossType && BOSS_TYPES[g.bossType];
+}
+
+/*
+ * Apply boss-specific rewards on defeat.
+ */
+function rewardBossDefeat(g, boss){
+  if(!boss || !g.bossType) return;
+  const bossDef = BOSS_TYPES[g.bossType];
+  if(!bossDef) return;
+
+  const diff = g.missionDifficulty || missionDifficulty(1);
+  // Bonus XP
+  const bonusXp = Math.round(bossDef.xp * diff.rewardMultiplier);
+  g.xp = (g.xp || 0) + bonusXp;
+
+  // Gild Shards
+  const gildReward = Math.round((50 + Math.random() * 50) * diff.rewardMultiplier);
+  g.resources.gild = (g.resources.gild || 0) + gildReward;
+
+  // Unique boss drop
+  const dropAmount = bossDef.uniqueDrop ? 1 : 0;
+  if(dropAmount > 0 && bossDef.uniqueDrop === 'tyrantCore'){
+    g.resources.ferriteBark = (g.resources.ferriteBark || 0) + Math.round(3 * diff.rewardMultiplier);
+  } else if(dropAmount > 0 && bossDef.uniqueDrop === 'hexCrystalFragment'){
+    g.resources.crysalith = (g.resources.crysalith || 0) + Math.round(3 * diff.rewardMultiplier);
+  } else if(dropAmount > 0 && bossDef.uniqueDrop === 'moltenEmber'){
+    g.resources.emberglass = (g.resources.emberglass || 0) + Math.round(3 * diff.rewardMultiplier);
+  }
+
+  log(g, `${bossDef.icon} ${bossDef.name} defeated! Gained ${bonusXp} XP and ${gildReward} Gild Shards.`);
 }
 
 function spawnExtractionCraft(g){
@@ -2140,7 +2719,7 @@ function missileImpact(g,m,target){
   sfx('missileImpact',0.82);
   for(let k=0;k<18;k++){
     const a=rand(0,Math.PI*2), sp=rand(120,330);
-    addParticle(g,m.x,m.y,Math.cos(a)*sp,Math.sin(a)*sp,k%3?'rgba(255,159,67,0.9)':'rgba(255,238,180,0.95)',rand(0.12,0.32),rand(2,7),'spark');
+    addParticle(g,m.x,m.y,Math.cos(a)*sp,Math.sin(a)*sp,k%3?'rgba(255,159,67,0.9)':'rgba(255,238,180,0.95)',rand(0.18,0.32),rand(3,8),'spark');
   }
   for(let k=0;k<6;k++){
     const a=rand(0,Math.PI*2), sp=rand(35,110);
@@ -2510,9 +3089,9 @@ function updateWardenDrones(g,dt){
       const a=Math.atan2(threat.y-d.y,threat.x-d.x)+rand(-0.06,0.06);
       g.bullets.push({x:d.x,y:d.y,vx:Math.cos(a)*650,vy:Math.sin(a)*650,r:3,life:1.05,damage:(9+w.level*3)*p.droneDamageMul,pierce:0,color:'#d6a2ff',drone:true});
       if(Math.random()<0.55) sfx('shoot',0.25);
-      addParticle(g,d.x,d.y,-Math.cos(a)*55,-Math.sin(a)*55,'#d6a2ff',0.12,4,'spark');
+      addParticle(g,d.x,d.y,-d.vx*0.04+rand(-8,8),-d.vy*0.04+rand(-8,8),'rgba(214,162,255,0.7)',0.18,2);
     }
-    if(Math.random()<0.15) addParticle(g,d.x,d.y,-d.vx*0.04+rand(-8,8),-d.vy*0.04+rand(-8,8),'rgba(214,162,255,0.7)',0.18,2);
+    if(Math.random()<0.15) addParticle(g,d.x,d.y,-d.vx*0.04+rand(-10,10),-d.vy*0.04+rand(-10,10),'rgba(214,162,255,0.72)',0.18,2,'spark');
   }
 }
 
@@ -2565,7 +3144,7 @@ function updateSifterDrones(g,dt){
   for(let i=0;i<g.sifterDrones.length;i++){
     const sw=g.sifterDrones[i];
     sw.retarget -= dt;
-    if(!sw.target || sw.target.life<=0 || sw.target.type!=='xp' || sw.retarget<=0){
+    if(!sw.target || sw.target.life<=0 || sw.retarget<=0){
       sw.target=nearestXpPickup(g,sw.x,sw.y,searchRange);
       sw.retarget=0.22;
     }
@@ -2648,7 +3227,8 @@ function fireVectorBurst(g,w,target){
   const accuracy = clamp((p.accuracy ?? 0.35) + (w.accuracyBonus || 0), 0, 1);
   const inaccuracy = weaponSpreadRadians(accuracy);
   for(let i=0;i<count;i++){
-    const a=base+(i-center)*spread+rand(-inaccuracy,inaccuracy);
+    const offset = count===1 ? 0 : (i-(count-1)/2)*spread;
+    const a=base+offset+rand(-inaccuracy,inaccuracy);
     const speed=w.speed || 560;
     g.bullets.push({
       x:p.x+Math.cos(a)*p.r,y:p.y+Math.sin(a)*p.r,
@@ -2750,6 +3330,12 @@ function updateEnemies(g,dt){
   for(const e of g.enemies){
     e.hitFlash=Math.max(0,e.hitFlash-dt);
     e.slow=Math.max(0,e.slow-dt);
+    // Phase 2.2: boss-specific update
+    if(e.role === 'boss' && e.hp > 0 && g.bossType){
+      updateBoss(g, e, dt);
+      // Skip standard enemy AI — bosses have custom movement, attacks, and contact logic
+      continue;
+    }
     if(e.isChargingWaveEnemy || (ENEMY_TYPES[e.type]?.behavior || e.behavior) === 'chargingExploder') {
       updateChargingWaveEnemy(g,e,dt);
       continue;
@@ -2862,7 +3448,24 @@ function updateEnemies(g,dt){
   }
   for(let i=g.enemies.length-1;i>=0;i--){
     const e=g.enemies[i];
-    if(e.hp<=0){ if(!e.noDrop) killEnemy(g,e); g.enemies.splice(i,1); }
+    if(e.hp<=0){
+      // Phase 2.2: boss defeat rewards
+      if(e.role === 'boss' && e.bossType){
+        g.bossDefeated = true;
+        rewardBossDefeat(g, e);
+        sfx('bossDefeat', 1.0);
+        shake = Math.max(shake, 12);
+        // Particle celebration
+        for(let k = 0; k < 20; k++){
+          const a = Math.random() * Math.PI * 2;
+          const speed = rand(40, 120);
+          const colors = ['#ffcc4d', '#42d6ff', '#ff5b5b', '#b46bff', '#5dff9a'];
+          addParticle(g, e.x, e.y, Math.cos(a)*speed, Math.sin(a)*speed, colors[randi(0,colors.length-1)], rand(0.5, 1.5), rand(4, 10), 'spark');
+        }
+      }
+      if(!e.noDrop) killEnemy(g,e);
+      g.enemies.splice(i,1);
+    }
   }
 }
 
@@ -3074,7 +3677,7 @@ function smallEnemyProjectileConfig(g,e){
   const typeMul = e.type==='swarmer' ? 0.78 : e.type==='guard' ? 1.15 : 1.0;
   return {
     cooldown:(7.2/(typeMul*earlyFactor))/(1+stage*0.13+runLevel*0.05+(mission-1)*0.025+(g.hollowPressure||0)*0.10),
-    speed:(205 + stage*9 + runLevel*6) * (e.type==='swarmer'?0.92:1) * (1+(g.hollowPressure||0)*0.04),
+    speed:(205 + stage*9 + runLevel*6) * (e.type==='swarmer' ? 0.92 : 1) * (1+(g.hollowPressure||0)*0.04),
     damage:Math.round(clamp(3 + stage*0.75 + (mission-1)*0.45 + (e.type==='guard'?2:0) + (g.hollowPressure||0)*0.6,3,11)),
     fireChance:clamp(0.18 + stage*0.045 + g.level*0.012 + (g.hollowPressure||0)*0.035,0.18,0.72),
     color:'#ff2f2f',
@@ -3256,7 +3859,12 @@ function updateBullets(g,dt){
     if(isSolid(tileAt(g,tx,ty)) && !b.rail){ b.life=0; continue; }
     for(const e of g.enemies){
       if(e.hp>0 && dist2(b.x,b.y,e.x,e.y)<(b.r+e.r)*(b.r+e.r)){
-        damageEnemy(g,e,b.damage,b.color);
+        // Phase 2.2: check boss weak point hit (2x damage + stagger)
+        let dmgMul = 1;
+        if(e.role === 'boss' && g.bossWeakPoint?.active && checkBossWeakPointHit(g, e, b)){
+          dmgMul = 2;
+        }
+        damageEnemy(g,e,Math.round(b.damage * dmgMul),b.color);
         if(g.player.splash>0 && !b.drone) explode(g,b.x,b.y,42,g.player.splash,'#ffcc4d',true);
         b.pierce--;
         if(b.pierce<0){ b.life=0; break; }
@@ -3452,7 +4060,7 @@ function explode(g,x,y,r,damage,color,noShake=false,theme='auto'){
 
 function collectRunResource(g,resourceId,amount,options={}){
   if(!g.resources) g.resources={};
-  g.resources[resourceId]=(g.resources[resourceId] || 0)+amount;
+  g.resources[resourceId]=(g.resources[resourceId] || 0) + amount;
   if(typeof recordRunResource==='function') recordRunResource(g,resourceId,amount);
   if(resourceId==='gild') g.gold=(g.resources.gild || 0);
   if(resourceId==='voltarite') g.nitra=(g.resources.voltarite || 0);

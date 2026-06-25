@@ -84,7 +84,13 @@ function render(g){
   drawArcs(g);
   drawTargetingCursor(g);
   drawTexts(g);
+  // Phase 2.2: boss weak point overlay and crystal rain indicators (world-space)
+  drawWeakPointHighlight(g);
+  drawBossCrystalRainIndicators(g);
   ctx.restore();
+  // Phase 2.2: boss health bar and name display (screen-space)
+  drawBossHealthBar(g);
+  drawBossName(g);
   drawFogOfWar(g,cam,sx,sy);
   drawVignette();
   drawChargingWaveScreenOverlay(g);
@@ -1313,5 +1319,269 @@ function drawAccuracyCone(g){
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+  ctx.restore();
+}
+
+/*
+ * Phase 2.2: Boss UI Rendering
+ *
+ * Four drawing functions called from render():
+ *   drawBossHealthBar(g)     — Top-center bar with phase markers
+ *   drawBossName(g)          — Dramatic name display on spawn
+ *   drawWeakPointHighlight(g) — Glowing weak point circle on boss
+ *   drawBossCrystalRainIndicators(g) — Floor markers for crystal rain
+ */
+
+function drawBossHealthBar(g){
+  if(!g || !g.bossSpawned || g.bossDefeated) return;
+  // Find the boss enemy
+  const boss = g.enemies.find(e => e.role === 'boss' && e.hp > 0);
+  if(!boss) return;
+  const bossDef = BOSS_TYPES[g.bossType];
+  if(!bossDef) return;
+
+  const hpPct = clamp(boss.hp / boss.maxHp, 0, 1);
+  const barW = 380;
+  const barH = 28;
+  const x = (innerWidth - barW) / 2;
+  const y = 12;
+
+  ctx.save();
+
+  // Background
+  ctx.fillStyle = 'rgba(0,0,0,0.72)';
+  ctx.shadowColor = 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.roundRect(x - 4, y - 4, barW + 8, barH + 8, 12);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // Bar border
+  ctx.strokeStyle = bossDef.color;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = bossDef.color;
+  ctx.shadowBlur = 10;
+  ctx.beginPath();
+  ctx.roundRect(x - 2, y - 2, barW + 4, barH + 4, 10);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // HP fill
+  const gradient = ctx.createLinearGradient(x, y, x + barW, y);
+  if(boss.bossPhase >= 2){
+    gradient.addColorStop(0, '#ff3030');
+    gradient.addColorStop(0.5, '#ff6060');
+    gradient.addColorStop(1, '#ff3030');
+  } else if(boss.bossPhase >= 1){
+    gradient.addColorStop(0, '#ff8a5b');
+    gradient.addColorStop(0.5, '#ffb84d');
+    gradient.addColorStop(1, '#ff8a5b');
+  } else {
+    gradient.addColorStop(0, '#ff5b5b');
+    gradient.addColorStop(0.5, '#ff8a5b');
+    gradient.addColorStop(1, '#ff5b5b');
+  }
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.roundRect(x, y, barW * hpPct, barH, 8);
+  ctx.fill();
+
+  // Phase markers on bar (at 66% and 33%)
+  const markers = [0.66, 0.33];
+  for(const m of markers){
+    const mx = x + barW * (1 - m);
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(mx, y - 4);
+    ctx.lineTo(mx, y + barH + 4);
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px Inter, Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(m === 0.66 ? 'P2' : 'P3', mx, y + barH + 18);
+  }
+
+  // Boss name above bar
+  ctx.fillStyle = bossDef.color;
+  ctx.shadowColor = bossDef.color;
+  ctx.shadowBlur = 8;
+  ctx.font = 'bold 15px Inter, Segoe UI, Arial';
+  ctx.textAlign = 'center';
+  const phaseText = boss.bossPhase >= 2 ? ' ⚡ENRAGE' : (boss.bossPhase >= 1 ? ` • Phase ${boss.bossPhase + 1}` : '');
+  ctx.fillText(`${bossDef.icon} ${bossDef.name}${phaseText}`, innerWidth / 2, y - 8);
+  ctx.shadowBlur = 0;
+
+  // HP percentage text
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 13px Inter, Segoe UI, Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${Math.round(hpPct * 100)}%`, x + barW / 2, y + barH / 2 + 5);
+
+  ctx.restore();
+}
+
+/*
+ * Boss name display — appears dramatically when boss spawns.
+ * Fades out after 3 seconds.
+ */
+function drawBossName(g){
+  if(!g || !g.bossNameDisplay) return;
+  const bnd = g.bossNameDisplay;
+  // Skip rendering if completely faded out (timer <= 0)
+  if(bnd.timer <= 0) return;
+  // Alpha: full opacity for first half of timer, then fade out over last 1.5 seconds
+  const alpha = bnd.fadeOut ? clamp(bnd.timer / 1.5, 0, 1) : 1;
+  // Also hide if the boss is already dead
+  const bossAlive = g.enemies && g.enemies.some(e => e.role === 'boss' && e.hp > 0);
+  if(!bossAlive && !bnd.fadeOut){
+    // Boss died before name faded — force immediate fade
+    bnd.fadeOut = true;
+  }
+  if(alpha <= 0) return;
+  const bossDef = BOSS_TYPES[Object.keys(BOSS_TYPES).find(k => BOSS_TYPES[k].name === bnd.text)];
+  const color = bossDef?.color || '#ff4fd8';
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Background banner
+  const text = `🔥 BOSS: ${bnd.text}`;
+  ctx.font = 'bold 42px Inter, Segoe UI, Arial';
+  ctx.textAlign = 'center';
+  const metrics = ctx.measureText(text);
+  const bw = metrics.width + 60;
+  const bx = (innerWidth - bw) / 2;
+  const by = innerHeight / 2 - 80;
+
+  ctx.fillStyle = 'rgba(0,0,0,0.78)';
+  ctx.shadowColor = 'rgba(0,0,0,0.6)';
+  ctx.shadowBlur = 20;
+  ctx.beginPath();
+  ctx.roundRect(bx - 8, by - 16, bw + 16, 72, 16);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 18;
+  ctx.beginPath();
+  ctx.roundRect(bx - 8, by - 16, bw + 16, 72, 16);
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 14;
+  ctx.fillText(text, innerWidth / 2, by + 38);
+
+  // Subtitle
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 16px Inter, Segoe UI, Arial';
+  ctx.shadowBlur = 6;
+  ctx.shadowColor = '#000';
+  ctx.fillText('Prepare for combat.', innerWidth / 2, by + 72);
+
+  ctx.restore();
+}
+
+/*
+ * Weak Point Highlight — glowing circle on the boss when weak point is active.
+ */
+function drawWeakPointHighlight(g){
+  if(!g || !g.bossWeakPoint?.active) return;
+  const wp = g.bossWeakPoint;
+  const bossDef = BOSS_TYPES[g.bossType];
+
+  ctx.save();
+
+  // Outer glow ring — pulsing
+  const pulse = 0.6 + 0.4 * Math.sin(g.time * 10);
+  const glowRadius = wp.radius * (1 + 0.3 * pulse);
+
+  // Multiple layered circles for glow effect
+  ctx.shadowColor = '#42d6ff';
+  ctx.shadowBlur = 30;
+  ctx.strokeStyle = `rgba(66,214,255,${0.5 + 0.4 * pulse})`;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(wp.x, wp.y, glowRadius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.shadowBlur = 18;
+  ctx.strokeStyle = `rgba(66,214,255,${0.7 + 0.3 * pulse})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(wp.x, wp.y, glowRadius * 0.7, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Inner fill
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = `rgba(66,214,255,${0.15 + 0.12 * pulse})`;
+  ctx.beginPath();
+  ctx.arc(wp.x, wp.y, wp.radius, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Crosshair marks
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = `rgba(66,214,255,${0.6 + 0.3 * pulse})`;
+  ctx.lineWidth = 2;
+  const ch = wp.radius * 0.6;
+  for(const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+    ctx.beginPath();
+    ctx.moveTo(wp.x + dx * ch * 0.4, wp.y + dy * ch * 0.4);
+    ctx.lineTo(wp.x + dx * ch, wp.y + dy * ch);
+    ctx.stroke();
+  }
+
+  // "⚡ WEAK POINT" floating text
+  const textAlpha = 0.7 + 0.3 * pulse;
+  ctx.fillStyle = `rgba(66,214,255,${textAlpha})`;
+  ctx.shadowColor = '#42d6ff';
+  ctx.shadowBlur = 14;
+  ctx.font = 'bold 14px Inter, Segoe UI, Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('⚡ WEAK POINT', wp.x, wp.y - wp.radius - 14);
+
+  ctx.restore();
+}
+
+/*
+ * Crystal Rain Indicators — floor markers showing where crystals will fall.
+ */
+function drawBossCrystalRainIndicators(g){
+  if(!g || !g.bossCrystalRainIndicators || !g.bossCrystalRainIndicators.length) return;
+  ctx.save();
+  for(const ind of g.bossCrystalRainIndicators){
+    const pulse = 0.5 + 0.5 * Math.sin(g.time * 12 + ind.x + ind.y);
+    const alpha = clamp(ind.timer / ind.maxTimer, 0, 1);
+    const radius = 14 + 6 * pulse;
+
+    ctx.shadowColor = '#b46bff';
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = `rgba(180,107,255,${0.5 + 0.3 * pulse * alpha})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(ind.x, ind.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = `rgba(180,107,255,${0.08 * alpha})`;
+    ctx.beginPath();
+    ctx.arc(ind.x, ind.y, radius * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Diagonal cross
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = `rgba(180,107,255,${0.4 * alpha})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(ind.x - radius * 0.4, ind.y - radius * 0.4);
+    ctx.lineTo(ind.x + radius * 0.4, ind.y + radius * 0.4);
+    ctx.moveTo(ind.x + radius * 0.4, ind.y - radius * 0.4);
+    ctx.lineTo(ind.x - radius * 0.4, ind.y + radius * 0.4);
+    ctx.stroke();
+  }
   ctx.restore();
 }

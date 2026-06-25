@@ -419,3 +419,27 @@ function spawnBurst(g,count,type){
   }
   return spawned;
 }
+
+/*
+ * Boss Selection — Phase 2.2
+ *
+ * Determines which boss spawns for the current run.
+ * Mission 1 always spawns Hollow Tyrant (intro boss).
+ * Mission 2+ randomly picks from all 3 bosses, seeded at run start.
+ * The result is stored in g.bossType so it persists for the entire run.
+ */
+function selectBossForMission(g){
+  const missionIndex = g.missionIndex || 1;
+  if(missionIndex <= 1){
+    // Mission 1: always Hollow Tyrant
+    return 'hollowTyrant';
+  }
+  // Mission 2+: random from all 3
+  const bossKeys = Object.keys(BOSS_TYPES);
+  const seed = (missionIndex * 73856093 ^ Math.floor(g.time || 0) * 19349663) >>> 0;
+  // Use a simple pseudo-random based on mission + run index for consistency
+  const idx = ((missionIndex * 7 + (g.runIndex || 1) * 13) % bossKeys.length + bossKeys.length) % bossKeys.length;
+  return bossKeys[idx];
+}
+
+window.selectBossForMission = selectBossForMission;
