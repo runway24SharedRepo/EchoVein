@@ -78,6 +78,7 @@ function render(g){
   drawWardenDrones(g);
   drawSifterDrones(g);
   drawPlayer(g);
+  drawThermalLanceCone(g);
   drawMiningDebug(g);
   drawScaledTileDebug(g,cam);
   drawParticles(g);
@@ -294,6 +295,112 @@ function drawPlayer(g){
   ctx.fillStyle='#f5c16c'; ctx.fillRect(-4,-18,10,10);
   ctx.fillStyle='#222'; ctx.fillRect(2,-8,20,5);
   ctx.fillStyle='#ffcc4d'; ctx.fillRect(-12,11,8,6);
+  ctx.restore();
+}
+
+function drawThermalLanceCone(g){
+  const p = g.player;
+  const w = g.weapons.find(w => w.id === 'flamer');
+  if(!w || w.cd > 0.05) return;
+
+  // Check if we have a target OR active fire input
+  const e = targetEnemy(g, 250, 130);
+  const isFiring = mouse.down || (g.controllerCursor?.primaryHoldTimer || 0) > 0;
+  if(!e && !isFiring) return;
+
+  // ── Angle calculation ──
+  let angle;
+  if(e){
+    angle = Math.atan2(e.y - p.y, e.x - p.x);
+  } else {
+    const aim = manualAimPoint(g);
+    angle = Math.atan2(aim.y - p.y, aim.x - p.x);
+  }
+
+  const range = 210 + w.level * 18;
+  const coneHalf = 0.45 + w.level * 0.04;
+
+  ctx.save();
+  ctx.translate(p.x, p.y);
+
+  // ── Cone Fill ──
+  const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, range);
+  gradient.addColorStop(0, 'rgba(255, 180, 50, 0.25)');
+  gradient.addColorStop(0.4, 'rgba(255, 120, 30, 0.20)');
+  gradient.addColorStop(0.8, 'rgba(255, 80, 20, 0.12)');
+  gradient.addColorStop(1, 'rgba(255, 40, 10, 0.0)');
+
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.arc(0, 0, range, angle - coneHalf, angle + coneHalf);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Flame Sprites (use actual sprite IDs) ──
+  const flameSprites = [
+    'flameParticle01', 'flameParticle02', 'flameParticle03',
+    'flameParticle04', 'flameParticle05', 'flameParticle06',
+    'flameParticle07', 'flameParticle08', 'flameParticle09',
+    'flameParticle10', 'flameParticle11', 'flameParticle12'
+  ];
+
+  for(let i = 0; i < 4; i++){
+    const dist = rand(20, range * 0.75);
+    const offA = angle + rand(-coneHalf, coneHalf);
+    const spriteId = flameSprites[randi(0, flameSprites.length - 1)];
+    const size = rand(16, 32);
+    drawSpriteCentered(ctx, spriteId,
+      Math.cos(offA) * dist,
+      Math.sin(offA) * dist,
+      size, size, {
+        rotation: rand(0, Math.PI * 2),
+        alpha: rand(0.15, 0.45),
+        glowColor: '#ff8844',
+        glowBlur: 6
+      }
+    );
+  }
+
+  // ── Cone Outline ──
+  const pulse = 0.6 + 0.4 * Math.sin(g.time * 12);
+  ctx.strokeStyle = `rgba(255, 160, 60, ${0.15 + 0.1 * pulse})`;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.arc(0, 0, range, angle - coneHalf, angle + coneHalf);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ── Heat Ripple ──
+  for(let i = 1; i <= 3; i++){
+    const r = (range / 3) * i;
+    const alpha = 0.06 + 0.04 * Math.sin(g.time * 8 + i * 1.5);
+    ctx.strokeStyle = `rgba(255, 200, 100, ${alpha})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, angle - coneHalf * 0.8, angle + coneHalf * 0.8);
+    ctx.stroke();
+  }
+
+  // ── Sparks ──
+  if(Math.random() < 0.6){
+    const dist = rand(10, range);
+    const offAngle = angle + rand(-coneHalf, coneHalf);
+    addParticle(g,
+      Math.cos(offAngle) * dist,
+      Math.sin(offAngle) * dist,
+      Math.cos(offAngle + rand(-0.2, 0.2)) * rand(20, 80),
+      Math.sin(offAngle + rand(-0.2, 0.2)) * rand(20, 80),
+      rand(0,1) > 0.5 ? '#ff8844' : '#ffcc66',
+      rand(0.06, 0.15),
+      rand(1.5, 3.5),
+      'spark'
+    );
+  }
+
   ctx.restore();
 }
 

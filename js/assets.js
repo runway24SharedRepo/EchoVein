@@ -19,6 +19,19 @@ const SPRITES = {
   sifterDrone: 'assets/sprites/sifter_drone.png',
   wardenDrone: 'assets/sprites/warden_drone.png',
   lavaRock: 'assets/sprites/lava_rock.png',
+    // Thermal Lance flame particles
+  flameParticle01: 'assets/sprites/vfx/flame_particle_01.png',
+  flameParticle02: 'assets/sprites/vfx/flame_particle_02.png',
+  flameParticle03: 'assets/sprites/vfx/flame_particle_03.png',
+  flameParticle04: 'assets/sprites/vfx/flame_particle_04.png',
+  flameParticle05: 'assets/sprites/vfx/flame_particle_05.png',
+  flameParticle06: 'assets/sprites/vfx/flame_particle_06.png',
+  flameParticle07: 'assets/sprites/vfx/flame_particle_07.png',
+  flameParticle08: 'assets/sprites/vfx/flame_particle_08.png',
+  flameParticle09: 'assets/sprites/vfx/flame_particle_09.png',
+  flameParticle10: 'assets/sprites/vfx/flame_particle_10.png',
+  flameParticle11: 'assets/sprites/vfx/flame_particle_11.png',
+  flameParticle12: 'assets/sprites/vfx/flame_particle_12.png',
 
   // New sprite pack resources.
   ferriteBark: 'assets/sprites/ferrite_bark.png',
