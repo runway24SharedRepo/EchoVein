@@ -63,6 +63,7 @@ function render(g){
   drawLavaDebugZones(g,cam);
   drawTraps(g);
   drawExtractionCraft(g);
+  drawExtractionPath(g);
   drawPickups(g);
   drawTargetLocks(g);
   drawMissiles(g);
@@ -619,6 +620,99 @@ function drawExtractionCraft(g){
   ctx.font='900 13px Segoe UI, Arial';
   ctx.textAlign='center';
   ctx.fillText('EXTRACTION',0,-60);
+  ctx.restore();
+}
+
+/*
+ * drawExtractionPath — glowing dashed path from player to extraction craft.
+ * Checks line-of-sight per segment; falls back to a "go around" indicator
+ * when terrain blocks the direct line.
+ */
+function drawExtractionPath(g){
+  if(!g.extraction || !g.player) return;
+  const p = g.player;
+  const ex = g.extraction;
+  const pulse = 0.6 + 0.4 * Math.sin(g.time * 6);
+  const color = `rgba(255,204,77,${0.55 * pulse})`;
+  const glowColor = `rgba(255,204,77,${0.25 * pulse})`;
+
+  // Step along the line from player to extraction in ~TILE-sized steps
+  const dx = ex.x - p.x;
+  const dy = ex.y - p.y;
+  const dist = Math.hypot(dx, dy);
+  if(dist < 20) return;
+
+  const steps = Math.max(2, Math.ceil(dist / (TILE * 0.7)));
+  let blocked = false;
+  let lastClearX = p.x, lastClearY = p.y;
+
+  // Sample points along the line to check for solid tiles
+  for(let i = 1; i <= steps; i++){
+    const t = i / steps;
+    const sx = p.x + dx * t;
+    const sy = p.y + dy * t;
+    const [tx, ty] = worldToTile(sx, sy);
+    if(isSolid(tileAt(g, tx, ty))){
+      blocked = true;
+      break;
+    }
+    lastClearX = sx;
+    lastClearY = sy;
+  }
+
+  ctx.save();
+
+  if(!blocked){
+    // ── Direct clear path — draw pulsing dotted line ──────────────
+    ctx.shadowColor = '#ffcc4d';
+    ctx.shadowBlur = 14 * pulse;
+    ctx.setLineDash([6, 10]);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(ex.x, ex.y);
+    ctx.stroke();
+
+    // Second pass: wider fainter glow line
+    ctx.shadowBlur = 28;
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = glowColor;
+    ctx.setLineDash([6, 10]);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(ex.x, ex.y);
+    ctx.stroke();
+
+  } else {
+    // ── Blocked path — draw to last clear point, then "go around" ─
+    ctx.shadowColor = '#ff8844';
+    ctx.shadowBlur = 8;
+    ctx.setLineDash([4, 10]);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = `rgba(255,136,68,${0.6 * pulse})`;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(lastClearX, lastClearY);
+    ctx.stroke();
+
+    // Dashed continuation hint
+    ctx.setLineDash([2, 14]);
+    ctx.strokeStyle = `rgba(255,136,68,${0.3 * pulse})`;
+    ctx.beginPath();
+    ctx.moveTo(lastClearX, lastClearY);
+    ctx.lineTo(lastClearX + (ex.x - lastClearX) * 0.3, lastClearY + (ex.y - lastClearY) * 0.3);
+    ctx.stroke();
+
+    // "Go around" indicator at the blocked point
+    ctx.shadowBlur = 12;
+    ctx.setLineDash([]);
+    ctx.fillStyle = `rgba(255,200,100,${0.5 + 0.5 * pulse})`;
+    ctx.font = 'bold 18px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚠', lastClearX, lastClearY - 12);
+  }
+
   ctx.restore();
 }
 

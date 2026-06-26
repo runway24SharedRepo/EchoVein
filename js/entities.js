@@ -225,8 +225,8 @@ const BOSS_TYPES = {
     uniqueDrop: 'tyrantCore',
     phases: [
       { hpThreshold: 1.0, attacks: ['swipe', 'charge'], speedMul: 1.0, damageMul: 1.0 },
-      { hpThreshold: 0.66, attacks: ['swipe', 'charge', 'slam'], speedMul: 1.2, damageMul: 1.15 },
-      { hpThreshold: 0.33, attacks: ['swipe', 'charge', 'slam', 'rageRoar'], speedMul: 1.5, damageMul: 1.3, enrage: true }
+      { hpThreshold: 0.66, attacks: ['swipe', 'charge', 'slam', 'multiRush'], speedMul: 1.2, damageMul: 1.15 },
+      { hpThreshold: 0.33, attacks: ['swipe', 'charge', 'slam', 'multiRush', 'rageRoar'], speedMul: 1.5, damageMul: 1.3, enrage: true }
     ]
   },
   hexShardColossus: {
@@ -246,8 +246,8 @@ const BOSS_TYPES = {
     uniqueDrop: 'hexCrystalFragment',
     phases: [
       { hpThreshold: 1.0, attacks: ['crystalSpread', 'spawnHexShard'], speedMul: 1.0, damageMul: 1.0 },
-      { hpThreshold: 0.66, attacks: ['crystalSpread', 'spawnHexShard', 'crystalRain'], speedMul: 1.15, damageMul: 1.15 },
-      { hpThreshold: 0.33, attacks: ['crystalSpread', 'spawnHexShard', 'crystalRain'], speedMul: 1.3, damageMul: 1.3, enrage: true }
+      { hpThreshold: 0.66, attacks: ['crystalSpread', 'spawnHexShard', 'crystalRain', 'crystalWall'], speedMul: 1.15, damageMul: 1.15 },
+      { hpThreshold: 0.33, attacks: ['crystalSpread', 'spawnHexShard', 'crystalRain', 'crystalWall'], speedMul: 1.3, damageMul: 1.3, enrage: true }
     ]
   },
   moltenMaw: {
@@ -267,8 +267,8 @@ const BOSS_TYPES = {
     uniqueDrop: 'moltenEmber',
     phases: [
       { hpThreshold: 1.0, attacks: ['burrowErupt'], speedMul: 1.0, damageMul: 1.0 },
-      { hpThreshold: 0.66, attacks: ['burrowErupt', 'fireTrail', 'fireballSpew'], speedMul: 1.2, damageMul: 1.15 },
-      { hpThreshold: 0.33, attacks: ['burrowErupt', 'fireTrail', 'fireballSpew'], speedMul: 1.4, damageMul: 1.3, enrage: true }
+      { hpThreshold: 0.66, attacks: ['burrowErupt', 'fireTrail', 'fireballSpew', 'lavaPoolBurst'], speedMul: 1.2, damageMul: 1.15 },
+      { hpThreshold: 0.33, attacks: ['burrowErupt', 'fireTrail', 'fireballSpew', 'lavaPoolBurst'], speedMul: 1.4, damageMul: 1.3, enrage: true }
     ]
   }
 };

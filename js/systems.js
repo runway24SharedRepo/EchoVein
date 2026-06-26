@@ -1707,6 +1707,9 @@ function spawnRunBoss(g){
   boss.isBurrowed = false;     // Molten Maw state
   boss.burrowTarget = null;    // Molten Maw burrow destination
   boss.fireTrailTimer = 0;     // Molten Maw fire trail timer
+  boss.chargeCount = 0;        // remaining multiRush charges
+  boss.chargeDelay = 0;        // delay between multiRush charges
+  boss.telegraphTimer = 0;     // pre-attack telegraph countdown
   g.enemies.push(boss);
   log(g,`${bossDef.icon} Boss: ${bossDef.name} incoming. Clear it to call extraction.`);
   sfx('bossRoar',1.0);
@@ -1732,10 +1735,15 @@ function executeBossAttack(g, boss, attackName, dt){
 
   // ── HOLLOW TYRANT ATTACKS ─────────────────────────────────────────
   if(attackName === 'swipe'){
-    // Slow melee arc in front of boss. Telegraphed with red indicator.
+    // Slow melee arc in front of boss. Telegraphed with red zone.
     const angle = Math.atan2(p.y - boss.y, p.x - boss.x);
     const arcHalf = 0.6; // ~70 degree arc
     const range = boss.r + 80;
+    // Telegraph: red expanding arc indicator (0.2s before hit)
+    const telegraphAngle = angle + boss.bossPhase * 0.15; // wider telegraph in later phases
+    const flashPulse = Math.sin(g.time * 30) * 0.3 + 0.7;
+    addRing(g, boss.x + Math.cos(telegraphAngle) * 30, boss.y + Math.sin(telegraphAngle) * 30,
+      `rgba(255,0,0,${0.4 * flashPulse})`, 0.15, 20, 55, 5);
     // Check enemies hit in arc
     if(dist2(boss.x,boss.y,p.x,p.y) < range*range){
       const aToP = Math.atan2(p.y - boss.y, p.x - boss.x);
@@ -1764,6 +1772,9 @@ function executeBossAttack(g, boss, attackName, dt){
 
   if(attackName === 'slam'){
     // Slams ground, creates expanding shockwave ring
+    // Telegraph: ground rumble indicator
+    const telegraphPulse = Math.sin(g.time * 24) * 0.3 + 0.7;
+    addRing(g, boss.x, boss.y, `rgba(255,50,50,${0.3 * telegraphPulse})`, 0.2, boss.r, boss.r + 60 + 20 * telegraphPulse, 5);
     shake = Math.max(shake, 10);
     addRing(g, boss.x, boss.y, 'rgba(255,80,80,0.6)', 0.6, 20, boss.r + 120, 6);
     // Damage in expanding ring
@@ -1981,6 +1992,7 @@ function updateBoss(g, boss, dt){
 
   const bossDef = BOSS_TYPES[boss.bossType];
   if(!bossDef) return;
+  const diff = g.missionDifficulty || missionDifficulty(1);
 
   // ── Boss Name Display Timer ────────────────────────────────────────
   // Decrement each frame; fade begins in the last 1.5 seconds.
@@ -1993,17 +2005,43 @@ function updateBoss(g, boss, dt){
   else if(hpPct <= 0.66) targetPhase = 1;
 
   if(targetPhase !== boss.bossPhase){
-    // Phase transition!
+    // Phase transition! — dramatic effect with knockback, reposition, and particles
     boss.bossPhase = targetPhase;
     g.bossPhase = targetPhase;
-    g.bossPhaseTimer = 1.5;
-    shake = Math.max(shake, 8);
-    const phaseText = targetPhase === 2 ? 'ENRAGE!' : `PHASE ${targetPhase + 1}`;
-    if(typeof floating === 'function') floating(g, boss.x, boss.y - 60, `${bossDef.icon} ${phaseText}`, bossDef.color);
+    g.bossPhaseTimer = 2.0;
+    shake = Math.max(shake, 18);
+    const phaseText = targetPhase === 2 ? '⚠ ENRAGE!' : `⚡ PHASE ${targetPhase + 1}`;
+    if(typeof floating === 'function') floating(g, boss.x, boss.y - 60, `${bossDef.icon} ${phaseText}`, '#ff4444');
     if(typeof log === 'function') log(g, `${bossDef.name} ${phaseText}`);
     sfx('bossPhase', 1.0);
-    // Particle burst for phase transition
-    spawnVfxComposition(g, 'eliteDeathBurst', boss.x, boss.y, {radius:60, color:bossDef.color});
+    // Large particle burst for phase transition
+    spawnVfxComposition(g, 'bossShockwave', boss.x, boss.y, {radius:100, color:bossDef.color});
+    addRing(g, boss.x, boss.y, `rgba(255,60,60,0.5)`, 0.8, 10, 300, 8);
+    // Knockback player if close to boss
+    const p = g.player;
+    if(p){
+      const dx = p.x - boss.x, dy = p.y - boss.y, d = Math.hypot(dx, dy) || 1;
+      if(d < 200){
+        p.x += (dx / d) * 80;
+        p.y += (dy / d) * 80;
+        p.x = clamp(p.x, TILE, WORLD_W - TILE);
+        p.y = clamp(p.y, TILE, WORLD_H - TILE);
+      }
+    }
+    // Brief stun / reset for boss
+    boss.attackCd = 1.0;
+    boss.chargeTimer = 0;
+    boss.lastAttack = '';
+    // Re-apply phase stat multipliers
+    const newPhaseCfg = bossDef.phases[targetPhase] || bossDef.phases[0];
+    boss.speed = bossDef.speed * newPhaseCfg.speedMul;
+    boss.damage = Math.round(bossDef.damage * diff.bossDamageMultiplier * newPhaseCfg.damageMul);
+    // Spawn ambient particles around the boss
+    for(let k = 0; k < 30; k++){
+      const a = Math.random() * Math.PI * 2;
+      const sp = rand(30, 150);
+      addParticle(g, boss.x, boss.y, Math.cos(a)*sp, Math.sin(a)*sp, bossDef.color, rand(0.3, 0.8), rand(2, 6), k % 3 === 0 ? 'ring' : 'spark');
+    }
   }
 
   // ── Weak Point Timer ──────────────────────────────────────────────
@@ -2042,8 +2080,18 @@ function updateBoss(g, boss, dt){
     }
   }
 
+  // ── Telegraph Timer ───────────────────────────────────────────────
+  // Show a warning effect before the next attack fires.
+  // Only when attackCd is in the last 0.35s before firing.
+  if(boss.attackCd > 0 && boss.attackCd <= 0.4 && !boss.telegraphTimer){
+    // Flash a warning glow
+    const pulse = 0.3 + 0.7 * Math.sin(g.time * 28);
+    addRing(g, boss.x, boss.y, `rgba(255,50,50,${0.2 * pulse})`, 0.15, boss.r + 5, boss.r + 25 + 10 * pulse, 3);
+  }
+
   // ── Attack Execution ──────────────────────────────────────────────
   // Phase-scaled cooldowns
+  // If no transition occurred, use the current phase; otherwise we already have a phaseCfg from the transition.
   const phaseCfg = bossDef.phases[boss.bossPhase] || bossDef.phases[0];
   boss.attackCd = boss.attackCd || 0;
   boss.attackCd -= dt * phaseCfg.speedMul;
@@ -2054,17 +2102,20 @@ function updateBoss(g, boss, dt){
     const pool = available.length ? available : phaseCfg.attacks;
     const attack = pool[randi(0, pool.length - 1)];
 
-    // Set cooldown based on attack type (1-3 seconds baseline)
-    let cdBase = 2.5;
-    if(attack === 'charge') cdBase = 4.0;
-    else if(attack === 'slam') cdBase = 4.5;
-    else if(attack === 'rageRoar') cdBase = 5.0;
-    else if(attack === 'spawnHexShard') cdBase = 4.0;
-    else if(attack === 'crystalRain') cdBase = 4.5;
-    else if(attack === 'burrowErupt') cdBase = 3.5;
-    else if(attack === 'fireballSpew') cdBase = 3.0;
+    // Set cooldown based on attack type (more frequent — 1.5-3s baseline)
+    let cdBase = 1.8;
+    if(attack === 'charge') cdBase = 2.8;
+    else if(attack === 'slam') cdBase = 3.5;
+    else if(attack === 'rageRoar') cdBase = 4.5;
+    else if(attack === 'multiRush') cdBase = 5.0;
+    else if(attack === 'spawnHexShard') cdBase = 3.5;
+    else if(attack === 'crystalRain') cdBase = 4.0;
+    else if(attack === 'crystalWall') cdBase = 4.0;
+    else if(attack === 'burrowErupt') cdBase = 3.0;
+    else if(attack === 'fireballSpew') cdBase = 2.2;
+    else if(attack === 'lavaPoolBurst') cdBase = 4.5;
 
-    boss.attackCd = cdBase + Math.random() * 1.0;
+    boss.attackCd = cdBase + Math.random() * 0.8;
     executeBossAttack(g, boss, attack, dt);
   }
 
