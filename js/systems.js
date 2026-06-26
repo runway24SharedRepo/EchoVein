@@ -217,6 +217,13 @@ function updatePerformanceDebugPanel(g){
 function update(g,dt){
   if(g.state !== 'playing' || paused || awaitingUpgrade) return;
   g.time += dt;
+    // ── Boss Name Display Timer (runs independently of boss life) ──
+  if(g.bossNameDisplay && g.bossNameDisplay.timer > 0){
+    g.bossNameDisplay.timer -= dt;
+    if(g.bossNameDisplay.timer <= 1.5 && !g.bossNameDisplay.fadeOut){
+      g.bossNameDisplay.fadeOut = true;
+    }
+  }
   updatePerformanceBudgets(g,dt);
   updateHollowPressure(g,dt);
   updateChargingWaveScheduler(g,dt);
@@ -1720,6 +1727,7 @@ function spawnRunBoss(g){
 function executeBossAttack(g, boss, attackName, dt){
   const p = g.player;
   if(!p) return;
+  const bossDef = BOSS_TYPES[boss.bossType] || BOSS_TYPES.hollowTyrant;
   const diff = g.missionDifficulty || missionDifficulty(1);
 
   // ── HOLLOW TYRANT ATTACKS ─────────────────────────────────────────
@@ -1933,6 +1941,32 @@ function executeBossAttack(g, boss, attackName, dt){
   }
 }
 
+/*
+ * damagePlayer — centralised player damage helper.
+ * Applies damage respecting armour, iframes, and triggers VFX/audio.
+ * Designed to replace inline damage patterns throughout boss attacks.
+ */
+function damagePlayer(g, amount, source='enemyContact'){
+  const p = g.player;
+  if(!p) return;
+  // Respect iframes
+  if(p.iframes > 0) return;
+  // Apply armour multiplier and round
+  const damage = Math.max(1, Math.round(amount * (p.armourMul || 1)));
+  p.hp -= damage;
+  // Set iframes
+  p.iframes = 0.65;
+  // Track damage taken
+  if(typeof recordRunDamageTaken === 'function') recordRunDamageTaken(g, damage, source);
+  // Visual feedback
+  flashDamage();
+  shake = Math.max(shake, 8);
+  floating(g, p.x, p.y - 25, `-${damage}`, '#ff5b5b');
+  sfx('hit', 1.0);
+  // Check death
+  if(p.hp <= 0) gameOver(g);
+}
+
 function addBossCrystalRainIndicator(g, x, y, duration){
   g.bossCrystalRainIndicators = g.bossCrystalRainIndicators || [];
   g.bossCrystalRainIndicators.push({x, y, timer: duration, maxTimer: duration});
@@ -1950,12 +1984,7 @@ function updateBoss(g, boss, dt){
 
   // ── Boss Name Display Timer ────────────────────────────────────────
   // Decrement each frame; fade begins in the last 1.5 seconds.
-  if(g.bossNameDisplay && g.bossNameDisplay.timer > 0){
-    g.bossNameDisplay.timer -= dt;
-    if(g.bossNameDisplay.timer <= 1.5 && !g.bossNameDisplay.fadeOut){
-      g.bossNameDisplay.fadeOut = true;
-    }
-  }
+
 
   // ── Phase Transition Check ────────────────────────────────────────
   const hpPct = boss.hp / boss.maxHp;
@@ -2925,7 +2954,7 @@ function updateWeapons(g,dt){
         if(d<210+w.level*18){
           const aa=Math.atan2(enemy.y-p.y,enemy.x-p.x);
           let da=Math.atan2(Math.sin(aa-a),Math.cos(aa-a));
-          if(Math.abs(da)<0.45+w.level*0.04) damageEnemy(g,enemy,(5+w.level*1.6),'#ff7b2f');
+          if(Math.abs(da)<0.45+w.level*0.04) damageEnemy(g,enemy,(0+w.level*0.1),'#ff7b2f');
         }
       }
       for(let k=0;k<3;k++) addParticle(g,p.x,p.y,Math.cos(a+rand(-0.45,0.45))*rand(160,260),Math.sin(a+rand(-0.45,0.45))*rand(160,260),'#ff9f43',rand(0.18,0.32),rand(5,12));
@@ -2987,7 +3016,7 @@ function fireManualWeapon(g,w){
       if(d<210+w.level*18){
         const aa=Math.atan2(enemy.y-p.y,enemy.x-p.x);
         let da=Math.atan2(Math.sin(aa-a),Math.cos(aa-a));
-        if(Math.abs(da)<0.45+w.level*0.04) damageEnemy(g,enemy,(5+w.level*1.6),manualColor);
+        if(Math.abs(da)<0.45+w.level*0.04) damageEnemy(g,enemy,(0+w.level*0.1),manualColor);
       }
     }
     for(let k=0;k<3;k++) addParticle(g,p.x,p.y,Math.cos(a+rand(-0.35,0.35))*rand(170,270),Math.sin(a+rand(-0.35,0.35))*rand(170,270),manualColor,rand(0.16,0.28),rand(5,12));
@@ -3333,6 +3362,13 @@ function updateEnemies(g,dt){
   for(const e of g.enemies){
     e.hitFlash=Math.max(0,e.hitFlash-dt);
     e.slow=Math.max(0,e.slow-dt);
+    // Phase 2.3 — degrade sirenBoost (supportBuffer buff) on all enemies
+    if(e.sirenBoost>0){
+      e.sirenBoost=Math.max(0,e.sirenBoost-dt);
+      if(e.sirenBoost<=0){ e.sirenSpeedMul=1; e.sirenDamageMul=1; }
+    }
+    // Phase 2.3 — blink invulnerability timer
+    if(e.blinkInvuln>0) e.blinkInvuln=Math.max(0,e.blinkInvuln-dt);
     // Phase 2.2: boss-specific update
     if(e.role === 'boss' && e.hp > 0 && g.bossType){
       updateBoss(g, e, dt);
@@ -3358,7 +3394,7 @@ function updateEnemies(g,dt){
     const perfState=g.performance?.state || PERF_STATES.HEALTHY;
     const farPathSlow=(perfState===PERF_STATES.WARNING && !closeToPlayer && e.type!=='elite' && e.type!=='boss') ? 1.8 :
       (perfState===PERF_STATES.CRITICAL && !closeToPlayer && e.type!=='elite' && e.type!=='boss') ? 3.2 : 1.0;
-    const hasLos=lineOfSightClear(g,e.x,e.y,p.x,p.y);
+    const hasLos=e.behavior==='flyingChase' ? true : lineOfSightClear(g,e.x,e.y,p.x,p.y);
     const needsPath=!hasLos && (
       !e.path.length ||
       e.pathIndex>=e.path.length ||
@@ -3417,6 +3453,13 @@ function updateEnemies(g,dt){
       e.offtrackDistance=0;
       e.pathFollowMode=hasLos?'direct-los':'fallback';
     }
+    // Phase 2.3 — zigzagChase: apply sinusoidal lateral offset to movement
+    if(e._zigzagOffset !== undefined){
+      const perpX=-baseUy, perpY=baseUx;
+      ux += perpX * e._zigzagOffset;
+      uy += perpY * e._zigzagOffset;
+      const zl=Math.max(0.001,len(ux,uy)); ux/=zl; uy/=zl;
+    }
     const centreBias=getTunnelCentrelineBias(g,e,baseUx,baseUy);
     if(centreBias.strength>0){
       const biasStrength=(!hasLos && e.path.length) ? centreBias.strength*0.55 : centreBias.strength;
@@ -3435,11 +3478,15 @@ function updateEnemies(g,dt){
       e.pathTimer=0;
     }
     const slow=(e.slow>0?0.55:1)*pathSpeedMul;
-    if(!g.debug?.freezeEnemies) moveCircle(g,e,ux*e.speed*slow*dt,uy*e.speed*slow*dt);
+    // Phase 2.3 — skip moveCircle for behaviours that handle their own movement (flyingChase, terrainCharger, charger)
+    if(!e._customMoveHandled && !g.debug?.freezeEnemies) moveCircle(g,e,ux*e.speed*slow*dt,uy*e.speed*slow*dt);
+
+    // Phase 2.3 — apply sirenBoost damage buff to enemy contact damage
+    const contactDamageMul = (e.sirenBoost>0 && e.sirenDamageMul) ? e.sirenDamageMul : 1;
     const touch = p.r+e.r;
     if(dist2(p.x,p.y,e.x,e.y)<touch*touch){
-      if(p.iframes<=0){
-        const damage=Math.max(1,Math.round(e.damage*(p.armourMul || 1)));
+      if(p.iframes<=0 && e.blinkInvuln<=0){
+        const damage=Math.max(1,Math.round(e.damage*contactDamageMul*(p.armourMul || 1)));
         p.hp-=damage; if(typeof recordRunDamageTaken==='function') recordRunDamageTaken(g,damage,'enemyContact'); p.iframes=0.65; flashDamage(); shake=Math.max(shake,8);
         floating(g,p.x,p.y-25,`-${damage}`,'#ff5b5b'); sfx('hit', 1.0);
         if(p.hp<=0) gameOver(g);
@@ -3477,47 +3524,356 @@ function updateSpecialEnemyBehaviour(g,e,dt){
   const cfg=ENEMY_TYPES[e.type] || {};
   const behavior=cfg.behavior || e.behavior || 'meleeChase';
   const p=g.player;
+  e._customMoveHandled = false;
 
-  // Lightweight behaviours for the new sprite roster. They deliberately reuse
-  // the existing movement/collision/ranged systems so sprite integration does
-  // not replace or destabilise core gameplay logic.
-  if(behavior==='spawner'){
-    e.spawnCd = (e.spawnCd ?? rand(3.0,5.5)) - dt;
-    if(e.spawnCd<=0 && g.enemies.length < (g.enemyBudget?.currentMaxEnemies || 120)){
-      e.spawnCd=rand(5.0,8.0);
-      const spawnType=Math.random()<0.55?'needleWisp':'clawlingRunner';
-      for(let i=0;i<2;i++){
-        const a=rand(0,Math.PI*2), d=rand(e.r+18,e.r+42);
-        g.enemies.push(new Enemy(clamp(e.x+Math.cos(a)*d,TILE*2,WORLD_W-TILE*2), clamp(e.y+Math.sin(a)*d,TILE*2,WORLD_H-TILE*2), spawnType));
-      }
-      addRing(g,e.x,e.y,'rgba(115,255,138,0.45)',0.28,e.r,e.r+34,3);
+  /* ── 1. flyingChase ───────────────────────────────────────────────────────
+   * Fly over obstacles with smooth arc movement and vertical oscillation.
+   * Ignores terrain collision — moves directly toward player.
+   * Clears path so the main loop uses direct LOS movement, then overrides
+   * the moveCircle call by handling movement here with no collision check.
+   */
+  if(behavior==='flyingChase'){
+    // Clear path data so main loop skips A* and uses direct LOS branch
+    e.path=[]; e.rawPath=[]; e.smoothPath=[]; e.noPathTimer=0;
+    const dx=p.x-e.x, dy=p.y-e.y, d=Math.hypot(dx,dy);
+    if(d>1){
+      const slowMul=e.slow>0?0.55:1;
+      // Flying enemies are slightly slower than ground counterparts
+      const flyingSpeedMul=0.78;
+      const sirenMul=(e.sirenBoost>0 && e.sirenSpeedMul) ? e.sirenSpeedMul : 1;
+      const speed=e.speed*flyingSpeedMul*sirenMul*slowMul*dt;
+      const nx=e.x+(dx/d)*speed;
+      const ny=e.y+(dy/d)*speed;
+      // Clamp to world bounds but skip tile collision entirely
+      const r=e.collisionR || e.r || 12;
+      e.x=clamp(nx,r+TILE,WORLD_W-r-TILE);
+      e.y=clamp(ny,r+TILE,WORLD_H-r-TILE);
     }
-  } else if(behavior==='blinkChase'){
-    e.blinkCd = (e.blinkCd ?? rand(4,7)) - dt;
-    if(e.blinkCd<=0 && dist2(e.x,e.y,p.x,p.y)>180*180){
+    // Vertical oscillation for visual floating
+    e.flyingOscillation = (e.flyingOscillation||0) + dt*4.2;
+    // Shadow / glow indicator: small ring pulse beneath
+    if(shouldEmitVfx(g,false) && Math.random()<0.12){
+      addRing(g,e.x,e.y+6,'rgba(121,128,255,0.12)',0.18,e.r*0.35,e.r*0.55,1);
+    }
+    e._customMoveHandled = true;
+    return;
+  }
+
+  /* ── 2. zigzagChase ───────────────────────────────────────────────────────
+   * Erratic sinusoidal lateral oscillation toward the player.
+   * Amplitude increases with distance; phase resets periodically.
+   * Collides with walls normally — only the direction is modulated.
+   */
+  if(behavior==='zigzagChase'){
+    e.zigzagPhase = (e.zigzagPhase||0) + dt * (6.5 + Math.random()*0.8);
+    // Amplitude scales with distance to player (more erratic when far)
+    const dist=Math.hypot(p.x-e.x,p.y-e.y);
+    const amplitude=clamp(dist*0.008,0.15,0.55);
+    // Store offset on enemy so the main loop can apply it to movement direction
+    e._zigzagOffset = Math.sin(e.zigzagPhase) * amplitude;
+    e._zigzagPhaseReset = (e._zigzagPhaseReset||0)+dt;
+    // Reset phase periodically for unpredictable movement (~every 2-3 seconds)
+    if(e._zigzagPhaseReset>rand(2.0,3.5)){
+      e.zigzagPhase = Math.random()*Math.PI*2;
+      e._zigzagPhaseReset=0;
+    }
+    // Sinusoidal trail particles
+    if(shouldEmitVfx(g,false) && Math.random()<0.18){
+      addParticle(g,e.x+rand(-4,4),e.y+rand(-4,4),rand(-8,8),rand(-20,-5),'#e8e0c8',rand(0.12,0.20),rand(1,3),'spark');
+    }
+    return;
+  }
+
+  /* ── 3. blinkChase ────────────────────────────────────────────────────────
+   * Teleport toward player when far away with cooldown and visual VFX.
+   * Brief invulnerability during the teleport.
+   */
+  if(behavior==='blinkChase'){
+    e.blinkInvuln = Math.max(0,(e.blinkInvuln||0)-dt);
+    e.blinkCd = Math.max(0,(e.blinkCd||0)-dt);
+    const dist=Math.hypot(p.x-e.x,p.y-e.y);
+    if(e.blinkCd<=0 && dist>180){
+      // Trigger blink — teleport 100-150px closer
       e.blinkCd=rand(4.5,7.5);
-      const a=Math.atan2(p.y-e.y,p.x-e.x)+rand(-0.75,0.75);
-      const d=rand(90,145);
-      const nx=clamp(e.x+Math.cos(a)*d,TILE*2,WORLD_W-TILE*2);
-      const ny=clamp(e.y+Math.sin(a)*d,TILE*2,WORLD_H-TILE*2);
+      const angle=Math.atan2(p.y-e.y,p.x-e.x)+rand(-0.55,0.55);
+      const teleportDist=rand(100,150);
+      const nx=clamp(e.x+Math.cos(angle)*teleportDist,TILE*2,WORLD_W-TILE*2);
+      const ny=clamp(e.y+Math.sin(angle)*teleportDist,TILE*2,WORLD_H-TILE*2);
       const [tx,ty]=worldToTile(nx,ny);
-      if(!isSolid(tileAt(g,tx,ty))){ addRing(g,e.x,e.y,'rgba(180,107,255,0.32)',0.22,4,28,2); e.x=nx; e.y=ny; addRing(g,e.x,e.y,'rgba(180,107,255,0.50)',0.22,4,32,2); }
+      if(!isSolid(tileAt(g,tx,ty))){
+        // VFX: flash/particle burst at start position
+        addRing(g,e.x,e.y,'rgba(180,107,255,0.50)',0.25,4,34,3);
+        for(let k=0;k<12;k++){
+          const a=rand(0,Math.PI*2), sp=rand(60,180);
+          addParticle(g,e.x,e.y,Math.cos(a)*sp,Math.sin(a)*sp,'#b46bff',rand(0.15,0.35),rand(2,5),k%3===0?'ring':'spark');
+        }
+        // Teleport
+        e.x=nx; e.y=ny;
+        e.blinkInvuln=0.15;
+        // VFX: flash/particle burst at destination
+        addRing(g,e.x,e.y,'rgba(180,107,255,0.60)',0.30,4,38,4);
+        for(let k=0;k<8;k++){
+          addParticle(g,e.x,e.y,rand(-80,80),rand(-80,80),'#b46bff',rand(0.18,0.40),rand(2,4),'spark');
+        }
+        // Clear path so enemy gets new A* route after teleport
+        e.path=[]; e.pathTimer=0;
+        sfx('shoot',0.35);
+      }
     }
-  } else if(behavior==='supportBuffer'){
-    e.buffPulse=(e.buffPulse||0)+dt;
-    if(e.buffPulse>0.65){
+    return;
+  }
+
+  /* ── 4. terrainCharger ────────────────────────────────────────────────────
+   * Charge in straight line toward player, breaking mineable tiles in path.
+   * Stuns briefly after hitting a wall or reaching the player.
+   * Has three states: cooldown → charging → stunned.
+   */
+  if(behavior==='terrainCharger'){
+    const dist=Math.hypot(p.x-e.x,p.y-e.y);
+    if(e.chargeState==='cooldown'){
+      e.chargeTimer = (e.chargeTimer||0)+dt;
+      // Wait 2-3 seconds then charge
+      if(e.chargeTimer>=rand(2.0,3.0) && dist<650){
+        e.chargeState='charging';
+        e.chargeTimer=0;
+        // Store charge direction at release
+        e.chargeDir = {x:(p.x-e.x)/Math.max(1,dist), y:(p.y-e.y)/Math.max(1,dist)};
+        // Visual: brief wind-up glow
+        addRing(g,e.x,e.y,'rgba(255,204,77,0.45)',0.25,e.r,e.r+16,3);
+        // Clear path so charge isn't interrupted by pathfollowing
+        e.path=[]; e.pathTimer=999;
+      }
+    } else if(e.chargeState==='charging'){
+      // Move in stored direction at boosted speed
+      const sirenMul=(e.sirenBoost>0 && e.sirenSpeedMul) ? e.sirenSpeedMul : 1;
+      const chargeSpeed = e.speed * 2.4 * sirenMul;
+      const nx = e.x + e.chargeDir.x * chargeSpeed * dt;
+      const ny = e.y + e.chargeDir.y * chargeSpeed * dt;
+      const r=e.collisionR || e.r || 12;
+      // Break mineable tiles in path
+      destroyTileByEnemyCharge(g,e,e.chargeDir.x,e.chargeDir.y,dt);
+      // Check wall collision: test if new position is inside solid
+      const [tx,ty]=worldToTile(nx,ny);
+      if(isSolid(tileAt(g,tx,ty)) || !inMap(tx,ty) || nx<r+TILE || nx>WORLD_W-r-TILE || ny<r+TILE || ny>WORLD_H-r-TILE){
+        // Hit a wall — stun
+        e.chargeState='stunned';
+        e.chargeTimer=0;
+        shake=Math.max(shake,6);
+        addRing(g,e.x,e.y,'rgba(255,204,77,0.60)',0.28,e.r*0.8,e.r+22,4);
+        for(let k=0;k<8;k++) addParticle(g,e.x,e.y,rand(-100,100),rand(-100,100),'#ffcc4d',rand(0.15,0.30),rand(2,5),'spark');
+        sfx('explosion',0.65);
+        e.pathTimer=0;
+      } else {
+        e.x=nx; e.y=ny;
+      }
+      // Charge particles
+      if(shouldEmitVfx(g,false) && Math.random()<0.55){
+        addParticle(g,e.x-e.chargeDir.x*e.r+rand(-4,4),e.y-e.chargeDir.y*e.r+rand(-4,4),
+          -e.chargeDir.x*rand(100,240)+rand(-30,30),-e.chargeDir.y*rand(100,240)+rand(-30,30),
+          '#ffcc4d',rand(0.12,0.25),rand(2,4),'spark');
+      }
+    } else if(e.chargeState==='stunned'){
+      e.chargeTimer = (e.chargeTimer||0)+dt;
+      if(e.chargeTimer>=0.8){
+        e.chargeState='cooldown';
+        e.chargeTimer=0;
+      }
+    }
+    e._customMoveHandled = true;
+    return;
+  }
+
+  /* ── 5. supportBuffer ─────────────────────────────────────────────────────
+   * Emit a buff pulse every 0.65s that boosts ally speed (+18%) and damage
+   * (+10%) in a 210px radius for 1.5 seconds. Does not buff bosses or other
+   * supportBuffer enemies.
+   */
+  if(behavior==='supportBuffer'){
+    e.buffPulse = (e.buffPulse||0) + dt;
+    if(e.buffPulse>=0.65){
       e.buffPulse=0;
       for(const other of g.enemies){
-        if(other!==e && other.role!=='boss' && dist2(e.x,e.y,other.x,other.y)<210*210){
-          other.sirenBoost=0.8;
-          other.speed=Math.min((ENEMY_TYPES[other.type]?.speed || other.speed)*1.18, other.speed*1.04+12);
+        if(other===e) continue;
+        if(other.role==='boss') continue;
+        if((ENEMY_TYPES[other.type]?.behavior || other.behavior)==='supportBuffer') continue;
+        if(dist2(e.x,e.y,other.x,other.y)>210*210) continue;
+        // Apply buff: +18% speed, +10% damage for 1.5 seconds
+        other.sirenBoost = 1.5;
+        // Store buffed stats on the enemy for the main loop to use
+        other.sirenSpeedMul = 1.18;
+        other.sirenDamageMul = 1.10;
+      }
+      // Visual: ring/particle burst on pulse
+      if(shouldEmitVfx(g,false)){
+        addRing(g,e.x,e.y,'rgba(66,214,255,0.35)',0.32,e.r,e.r+50,4);
+        for(let k=0;k<6;k++){
+          const a=rand(0,Math.PI*2);
+          addParticle(g,e.x+Math.cos(a)*e.r,e.y+Math.sin(a)*e.r,
+            Math.cos(a)*rand(40,100),Math.sin(a)*rand(40,100),
+            '#42d6ff',rand(0.18,0.35),rand(2,4),'ring');
         }
       }
-      if(shouldEmitVfx(g,false)) addRing(g,e.x,e.y,'rgba(66,214,255,0.28)',0.30,e.r,e.r+46,2);
     }
-  } else if(behavior==='zigzagChase'){
-    e.phase += dt*7;
+    return;
   }
+
+  /* ── 6. charger (ironMaw) ─────────────────────────────────────────────────
+   * Build up speed over 1-2s (visual charge-up), then release in a straight
+   * line toward player's position at time of release.
+   * Stun briefly after collision. Red glow during wind-up.
+   * States: cooldown → windup → charging → stunned.
+   */
+  if(behavior==='charger'){
+    if(e.chargeState==='cooldown'){
+      e.chargeTimer = (e.chargeTimer||0)+dt;
+      const cooldownPeriod=rand(2.5,4.0);
+      if(e.chargeTimer>=cooldownPeriod){
+        e.chargeState='windup';
+        e.chargeTimer=0;
+        e.chargeWindupTime=rand(1.0,2.0);
+      }
+    } else if(e.chargeState==='windup'){
+      e.chargeTimer = (e.chargeTimer||0)+dt;
+      // Visual: red glow / particles during charge-up, intensifying
+      if(shouldEmitVfx(g,false) && Math.random()<0.5){
+        addParticle(g,e.x+rand(-e.r,e.r),e.y+rand(-e.r,e.r),rand(-20,20),rand(-30,-10),
+          e.chargeTimer/e.chargeWindupTime>0.5?'#ff4444':'#ff8844',rand(0.12,0.22),rand(2,4),'spark');
+      }
+      if(e.chargeTimer>=e.chargeWindupTime){
+        // Release the charge!
+        e.chargeState='charging';
+        e.chargeTimer=0;
+        const dist=Math.hypot(p.x-e.x,p.y-e.y)||1;
+        e.chargeDir = {x:(p.x-e.x)/dist, y:(p.y-e.y)/dist};
+        // Clear path so charge isn't interrupted
+        e.path=[]; e.pathTimer=999;
+        // Charge burst VFX
+        addRing(g,e.x,e.y,'rgba(255,68,68,0.55)',0.20,e.r,e.r+20,5);
+        sfx('explosion',0.50);
+        shake=Math.max(shake,3);
+      }
+    } else if(e.chargeState==='charging'){
+      // Move in stored direction at high speed
+      const sirenMul=(e.sirenBoost>0 && e.sirenSpeedMul) ? e.sirenSpeedMul : 1;
+      const chargeSpeed = e.speed * 3.8 * sirenMul;
+      const nx = e.x + e.chargeDir.x * chargeSpeed * dt;
+      const ny = e.y + e.chargeDir.y * chargeSpeed * dt;
+      const r=e.collisionR || e.r || 12;
+      // Check for wall collision
+      const [tx,ty]=worldToTile(nx,ny);
+      if(isSolid(tileAt(g,tx,ty)) || !inMap(tx,ty) || nx<r+TILE || nx>WORLD_W-r-TILE || ny<r+TILE || ny>WORLD_H-r-TILE){
+        // Stun on collision
+        e.chargeState='stunned';
+        e.chargeTimer=0;
+        shake=Math.max(shake,8);
+        addRing(g,e.x,e.y,'rgba(255,68,68,0.65)',0.30,e.r*0.9,e.r+28,4);
+        for(let k=0;k<10;k++){
+          const a=rand(0,Math.PI*2), sp=rand(80,200);
+          addParticle(g,e.x,e.y,Math.cos(a)*sp,Math.sin(a)*sp,'#ff4444',rand(0.15,0.35),rand(2,5),'spark');
+        }
+        sfx('explosion',0.70);
+        e.pathTimer=0;
+      } else {
+        e.x=nx; e.y=ny;
+      }
+      // Red trail particles during charge
+      if(shouldEmitVfx(g,false) && Math.random()<0.45){
+        addParticle(g,e.x-e.chargeDir.x*e.r*0.6+rand(-3,3),e.y-e.chargeDir.y*e.r*0.6+rand(-3,3),
+          -e.chargeDir.x*rand(80,200)+rand(-20,20),-e.chargeDir.y*rand(80,200)+rand(-20,20),
+          '#ff4444',rand(0.12,0.22),rand(2,4),'spark');
+      }
+    } else if(e.chargeState==='stunned'){
+      e.chargeTimer = (e.chargeTimer||0)+dt;
+      if(e.chargeTimer>=1.0){
+        e.chargeState='cooldown';
+        e.chargeTimer=0;
+      }
+    }
+    e._customMoveHandled = true;
+    return;
+  }
+
+  /* ── 7. spawner (sporeMother) ─────────────────────────────────────────────
+   * Periodically spawn 1-2 minion enemies (needleWisp or clawlingRunner).
+   * Max active minions: 6. Visual ring burst on spawn.
+   */
+  if(behavior==='spawner'){
+    e.spawnCd = Math.max(0,(e.spawnCd||0)-dt);
+    // Count active minions near the spawner
+    let minionCount=0;
+    for(const other of g.enemies){
+      if(other!==e && (other.type==='needleWisp' || other.type==='clawlingRunner') && other.hp>0
+         && dist2(e.x,e.y,other.x,other.y)<340*340){
+        minionCount++;
+      }
+    }
+    if(e.spawnCd<=0 && minionCount<6 && g.enemies.length < (g.enemyBudget?.currentMaxEnemies || 120)){
+      e.spawnCd=rand(5.0,8.0);
+      const count=randi(1,2);
+      for(let i=0;i<count;i++){
+        const spawnType=Math.random()<0.5?'needleWisp':'clawlingRunner';
+        const a=rand(0,Math.PI*2);
+        const d=rand(e.r+18,e.r+42);
+        const sx=clamp(e.x+Math.cos(a)*d,TILE*2,WORLD_W-TILE*2);
+        const sy=clamp(e.y+Math.sin(a)*d,TILE*2,WORLD_H-TILE*2);
+        const [stx,sty]=worldToTile(sx,sy);
+        if(!isSolid(tileAt(g,stx,sty))){
+          g.enemies.push(new Enemy(sx,sy,spawnType));
+        }
+      }
+      // Visual: ring burst on spawn
+      addRing(g,e.x,e.y,'rgba(115,255,138,0.50)',0.30,e.r,e.r+38,4);
+      for(let k=0;k<6;k++){
+        const a=rand(0,Math.PI*2);
+        addParticle(g,e.x+Math.cos(a)*e.r,e.y+Math.sin(a)*e.r,
+          Math.cos(a)*rand(30,80),Math.sin(a)*rand(30,80),
+          '#73ff8a',rand(0.15,0.30),rand(2,4),'ring');
+      }
+    }
+    return;
+  }
+}
+
+
+/* ── TerrainCharger helper ──────────────────────────────────────────────────
+ * Break mineable tiles in the charge path. Scans ahead of the enemy and
+ * destroys rock/resource tiles during the charge. Mirrors the charging wave
+ * breaker pattern but specifically for the fractureBeetle terrainCharger.
+ */
+function destroyTileByEnemyCharge(g,e,dirX,dirY,dt){
+  const lookAhead=Math.max(TILE*0.5,e.r+e.speed*dt*1.4);
+  // Sample three points across the enemy's width so wide chargers clear a path
+  const offsets=[0, -e.r*0.55, e.r*0.55];
+  const right={x:-dirY,y:dirX};
+  for(const side of offsets){
+    const sx=e.x+dirX*lookAhead+right.x*side;
+    const sy=e.y+dirY*lookAhead+right.y*side;
+    const [tx,ty]=worldToTile(sx,sy);
+    if(destroySingleTileByEnemyCharge(g,tx,ty,e)) continue;
+  }
+}
+
+function destroySingleTileByEnemyCharge(g,tx,ty,e){
+  if(!inMap(tx,ty)) return false;
+  const i=tileIdx(tx,ty);
+  const t=g.tiles[i];
+  if(t===TILE_EMPTY || t===TILE_HARD || t===TILE_LAVA_ROCK) return false;
+  if(!isMineableForPlayer(t)) return false;
+  const wasOre=t===TILE_GOLD || t===TILE_NITRA || t===TILE_CRYSTAL || t===TILE_FERRITE_BARK || t===TILE_LUMINA_SPORES || t===TILE_AETHER_QUARTZ || t===TILE_CRYSALITH || t===TILE_EMBERGLASS;
+  g.tiles[i]=TILE_EMPTY; g.tileHp[i]=0; g.navigationVersion++;
+  // Notify nearby enemies that paths may have changed
+  for(const enemy of g.enemies){
+    if(dist2(enemy.x,enemy.y,tileToWorldCenterX(tx),tileToWorldCenterY(ty))<520*520) enemy.pathTimer=0;
+  }
+  if(g.runStats){
+    g.runStats.blocksBrokenByEnemies=(g.runStats.blocksBrokenByEnemies||0)+1;
+    if(wasOre) g.runStats.oresDestroyedByEnemies=(g.runStats.oresDestroyedByEnemies||0)+1;
+  }
+  const x=tileToWorldCenterX(tx), y=tileToWorldCenterY(ty);
+  for(let k=0;k<8;k++) addParticle(g,x,y,rand(-120,120),rand(-120,120),wasOre?'#ff9f43':'#8f6a4a',rand(0.18,0.42),rand(2,5),'spark');
+  if(wasOre) floating(g,x,y-TILE*0.18,'Ore destroyed','#ffcc4d');
+  shake=Math.max(shake,2);
+  return true;
 }
 
 
@@ -3669,7 +4025,7 @@ function hexShardExplode(g,e,r){
 }
 
 function smallEnemyProjectileConfig(g,e){
-  const cfgType=ENEMY_TYPES[e.type] || {};
+  const cfgType = ENEMY_TYPES[e.type] || {};
   if((cfgType.role || e.role)==='elite' || (cfgType.role || e.role)==='boss') return null;
   if(e.type==='exploder' || cfgType.behavior==='proximityExploder') return null;
   if(g.debug && g.debug.enemyBulletsEnabled===false) return null;
@@ -3678,11 +4034,13 @@ function smallEnemyProjectileConfig(g,e){
   const mission=g.missionIndex || 1;
   const earlyFactor = g.time<60 ? 0.55 : g.time<150 ? 0.82 : 1.0;
   const typeMul = e.type==='swarmer' ? 0.78 : e.type==='guard' ? 1.15 : 1.0;
+  // Per-enemy cooldown multiplier for individual tuning
+  const cdMul = cfgType.cooldownMul || 1;  // ← fixed here
   return {
-    cooldown:(7.2/(typeMul*earlyFactor))/(1+stage*0.13+runLevel*0.05+(mission-1)*0.025+(g.hollowPressure||0)*0.10),
-    speed:(205 + stage*9 + runLevel*6) * (e.type==='swarmer' ? 0.92 : 1) * (1+(g.hollowPressure||0)*0.04),
-    damage:Math.round(clamp(3 + stage*0.75 + (mission-1)*0.45 + (e.type==='guard'?2:0) + (g.hollowPressure||0)*0.6,3,11)),
-    fireChance:clamp(0.18 + stage*0.045 + g.level*0.012 + (g.hollowPressure||0)*0.035,0.18,0.72),
+    cooldown:(4.0/(typeMul*earlyFactor*cdMul))/(1+stage*0.10+runLevel*0.1+(mission-1)*0.02+(g.hollowPressure||0)*0.08),
+    speed:(220 + stage*10 + runLevel*7) * (e.type==='swarmer' ? 0.92 : 1) * (1+(g.hollowPressure||0)*0.04),
+    damage:Math.round(clamp(5 + stage*0.85 + (mission-1)*0.50 + (e.type==='guard'?3:0) + (g.hollowPressure||0)*0.7,5,14)),
+    fireChance:clamp(0.35 + stage*0.050 + g.level*0.015 + (g.hollowPressure||0)*0.040,0.35,0.88),
     color:'#ff2f2f',
     radius:e.type==='guard'?4.5:3.5
   };

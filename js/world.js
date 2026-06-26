@@ -429,16 +429,17 @@ function spawnBurst(g,count,type){
  * The result is stored in g.bossType so it persists for the entire run.
  */
 function selectBossForMission(g){
+  // Boss type is determined once per run and stored in g.bossType by
+  // spawnRunBoss(). If already set, return the existing value so it persists.
+  if(g.bossType && g.bossType in BOSS_TYPES) return g.bossType;
   const missionIndex = g.missionIndex || 1;
   if(missionIndex <= 1){
     // Mission 1: always Hollow Tyrant
     return 'hollowTyrant';
   }
-  // Mission 2+: random from all 3
+  // Mission 2+: true random selection from all available bosses
   const bossKeys = Object.keys(BOSS_TYPES);
-  const seed = (missionIndex * 73856093 ^ Math.floor(g.time || 0) * 19349663) >>> 0;
-  // Use a simple pseudo-random based on mission + run index for consistency
-  const idx = ((missionIndex * 7 + (g.runIndex || 1) * 13) % bossKeys.length + bossKeys.length) % bossKeys.length;
+  const idx = Math.floor(Math.random() * bossKeys.length);
   return bossKeys[idx];
 }
 

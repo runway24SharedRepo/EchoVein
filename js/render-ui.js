@@ -326,7 +326,7 @@ function drawEnemies(g){
     // Enemy sprites are purely visual. If any sprite is missing, the existing
     // procedural fallback below still renders the enemy safely. New enemy-pack
     // enemies all flow through cfg.spriteId so future sprite swaps are data-only.
-    const spriteId = cfg.spriteId || e.spriteId;
+    const spriteId = e.spriteId || cfg.spriteId;
     if(spriteId){
       const role = cfg.role || e.role || 'normal';
       const baseScale = role==='boss' ? 3.25 : role==='elite' ? 3.15 : 3.05;

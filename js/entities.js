@@ -113,6 +113,18 @@ class Enemy {
     this.rangedCd=rand(1.2,3.0);
     this.smallShotCd=rand(2.8,6.0);
     this.burstShots=0;
+    // Phase 2.3 — Behaviour-specific state fields. Harmless for enemies that do not use them.
+    this.blinkCd = rand(4,7);              // blinkChase cooldown
+    this.blinkInvuln = 0;                  // brief invulnerability after blink
+    this.chargeTimer = 0;                  // charger/terrainCharger state timer
+    this.chargeState = 'cooldown';         // 'cooldown' | 'windup' | 'charging' | 'stunned'
+    this.chargeWindupTime = 0;             // accumulated wind-up duration
+    this.spawnCd = rand(5,8);              // spawner interval
+    this.buffPulse = 0;                    // supportBuffer pulse accumulator
+    this.sirenBoost = 0;                   // speed/damage buff from echoSiren (duration remaining)
+    this.zigzagPhase = Math.random() * Math.PI * 2;  // zigzagChase oscillation phase
+    this.flyingOscillation = 0;            // flyingChase vertical bob offset
+    this._customMoveHandled = false;       // internal flag: set true when behaviour handles its own movement
     // Hex Shard state machine fields. They are harmless for other enemies.
     this.state = type==='hexShard' ? 'chase' : 'chase';
     this.boomerangCd = type==='hexShard' ? rand(1.3,2.5) : 0;
@@ -130,7 +142,7 @@ const ENEMY_TYPES = {
   guard: { displayName:'Shellback', r: 18, hp: 68, speed: 66, damage: 22, xp: 12, color:'#ffb84d', spriteId:'eliteShellbackEnemy', behavior:'meleeChase', role:'elite' },
   exploder: { displayName:'Blisterpod', r: 15, hp: 34, speed: 115, damage: 30, xp: 8, color:'#ff5b5b', behavior:'proximityExploder' },
   hexShard: { displayName:'Hex Shard', r: 16, hp: 54, speed: 98, damage: 14, xp: 14, color:'#ff7a38', spriteId:'hexShardEnemy', warningSpriteId:'hexShardWarningGlow', projectileSpriteId:'hexBoomerangProjectile', behavior:'hexBoomerangDetonator' },
-  elite: { displayName:'Elite Shellback', r: 28, hp: 260, speed: 70, damage: 36, xp: 45, color:'#b46bff', spriteId:'eliteShellbackEnemy', behavior:'eliteShooter', role:'elite' },
+  elite: { displayName:'Hollowborn Elite', r: 28, hp: 260, speed: 70, damage: 36, xp: 45, color:'#b46bff', spriteId:'obsidianTitan', behavior:'eliteShooter', role:'elite' },
   boss: { displayName:'Hollow Tyrant', r: 42, hp: 980, speed: 58, damage: 48, xp: 120, color:'#ff4fd8', spriteId:'hollowTyrantBoss', behavior:'bossShooter', role:'boss' },
 
   // New sprite-pack enemy roster.
@@ -139,19 +151,19 @@ const ENEMY_TYPES = {
   shellbackGuard: { displayName:'Shellback Guard', spriteId:'shellbackGuard', r:20, hp:92, speed:58, damage:18, xp:14, color:'#ffb84d', behavior:'meleeChase', role:'elite' },
   blisterPod: { displayName:'Blister Pod', spriteId:'blisterPod', r:16, hp:36, speed:108, damage:28, xp:8, color:'#ff5b5b', behavior:'proximityExploder' },
   hexShardThrower: { displayName:'Hex Shard Thrower', spriteId:'hexShardThrower', warningSpriteId:'hexShardWarningGlow', projectileSpriteId:'hexBoomerangProjectile', r:17, hp:62, speed:102, damage:15, xp:16, color:'#ff7a38', behavior:'hexBoomerangDetonator' },
-  sporeMother: { displayName:'Spore Mother', spriteId:'sporeMother', r:23, hp:130, speed:50, damage:10, xp:28, color:'#73ff8a', behavior:'spawner', role:'elite' },
+  sporeMother: { displayName:'Spore Mother', spriteId:'sporeMother', r:23, hp:130, speed:60, damage:10, xp:28, color:'#73ff8a', behavior:'spawner', role:'elite' },
   emberCrawler: { displayName:'Ember Crawler', spriteId:'emberCrawler', r:13, hp:28, speed:138, damage:9, xp:5, color:'#ff7a38', behavior:'meleeChase' },
   crystalLancer: { displayName:'Crystal Lancer', spriteId:'crystalLancer', r:15, hp:52, speed:72, damage:11, xp:12, color:'#73d8ff', behavior:'rangedShooter' },
   voidMite: { displayName:'Void Mite', spriteId:'voidMite', r:9, hp:16, speed:132, damage:8, xp:4, color:'#b46bff', behavior:'blinkChase' },
   acidTick: { displayName:'Acid Tick', spriteId:'acidTick', r:10, hp:18, speed:124, damage:7, xp:4, color:'#98ff55', behavior:'meleeChase' },
-  ironMaw: { displayName:'Iron Maw', spriteId:'ironMaw', r:24, hp:170, speed:62, damage:28, xp:26, color:'#b9c2c9', behavior:'charger', role:'elite' },
+  ironMaw: { displayName:'Iron Maw', spriteId:'ironMaw', r:24, hp:170, speed:80, damage:28, xp:26, color:'#b9c2c9', behavior:'charger', role:'elite' },
   stormOrb: { displayName:'Storm Orb', spriteId:'stormOrb', r:15, hp:48, speed:82, damage:9, xp:13, color:'#7df9ff', behavior:'rangedShooter' },
   riftStalker: { displayName:'Rift Stalker', spriteId:'riftStalker', r:14, hp:44, speed:122, damage:16, xp:15, color:'#bd7cff', behavior:'meleeChase' },
-  boneSkitter: { displayName:'Bone Skitter', spriteId:'boneSkitter', r:11, hp:20, speed:168, damage:7, xp:5, color:'#e8e0c8', behavior:'zigzagChase' },
+  boneSkitter: { displayName:'Bone Skitter', spriteId:'boneSkitter', r:11, hp:20, speed:193, damage:7, xp:5, color:'#e8e0c8', behavior:'zigzagChase' },
   magmaBurrower: { displayName:'Magma Burrower', spriteId:'magmaBurrower', r:18, hp:70, speed:92, damage:18, xp:18, color:'#ff7038', behavior:'meleeChase', role:'elite' },
-  echoSiren: { displayName:'Echo Siren', spriteId:'echoSiren', r:18, hp:74, speed:68, damage:8, xp:20, color:'#42d6ff', behavior:'supportBuffer', role:'elite' },
-  fractureBeetle: { displayName:'Fracture Beetle', spriteId:'fractureBeetle', r:20, hp:96, speed:92, damage:20, xp:22, color:'#ffcc4d', behavior:'terrainCharger', role:'elite' },
-  gloomBat: { displayName:'Gloom Bat', spriteId:'gloomBat', r:11, hp:17, speed:172, damage:7, xp:5, color:'#7980ff', behavior:'flyingChase' },
+  echoSiren: { displayName:'Echo Siren', spriteId:'echoSiren', r:18, hp:74, speed:78, damage:8, xp:20, color:'#42d6ff', behavior:'supportBuffer', role:'elite' },
+  fractureBeetle: { displayName:'Fracture Beetle', spriteId:'fractureBeetle', r:20, hp:96, speed:110, damage:20, xp:22, color:'#ffcc4d', behavior:'terrainCharger', role:'elite' },
+  gloomBat: { displayName:'Gloom Bat', spriteId:'gloomBat', r:11, hp:17, speed:215, damage:7, xp:5, color:'#7980ff', behavior:'flyingChase' },
   obsidianTitan: { displayName:'Obsidian Titan', spriteId:'obsidianTitan', r:34, hp:520, speed:48, damage:42, xp:80, color:'#ff7a38', behavior:'miniBoss', role:'boss' },
   hollowTyrantVariant: { displayName:'Hollow Tyrant Variant', spriteId:'hollowTyrantVariant', r:44, hp:1100, speed:54, damage:52, xp:130, color:'#ff4fd8', behavior:'bossShooter', role:'boss' },
   charging_exploder: { displayName:'Rift Charger', spriteId:'emberCrawler', r:12, hp:26, speed:250, damage:0, xp:2, color:'#ff7038', behavior:'chargingExploder', rotationStyle:'fastSpin' }
