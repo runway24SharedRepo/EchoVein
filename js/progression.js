@@ -211,7 +211,13 @@ const MISSION_TYPES = [
         targetAmount:target, currentAmount:0, completed:false }];
     },
     track:(g,dt)=>{},
-    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='hunt_kills'); return o ? o.completed : false; }
+    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='hunt_kills'); return o ? o.completed : false; },
+    bonusObjectives:[
+      { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
+      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
+      { id:'bonus_speed_run', desc:'Complete in under 5 minutes', reward:{ aetherQuartz:1 }, check:g=>g.time < 300 },
+      { id:'bonus_echo_collector', desc:'Collect 50 Echo Shards', reward:{ echo:50 }, check:g=>g.objectiveEchoCollected >= 50 }
+    ]
   },
   {
     id:'survey',
@@ -249,7 +255,13 @@ const MISSION_TYPES = [
         }
       }
     },
-    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='survey_tiles'); return o ? o.completed : false; }
+    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='survey_tiles'); return o ? o.completed : false; },
+    bonusObjectives:[
+      { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
+      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
+      { id:'bonus_speed_run', desc:'Complete in under 5 minutes', reward:{ aetherQuartz:1 }, check:g=>g.time < 300 },
+      { id:'bonus_echo_collector', desc:'Collect 50 Echo Shards', reward:{ echo:50 }, check:g=>g.objectiveEchoCollected >= 50 }
+    ]
   },
   {
     id:'harvest',
@@ -275,7 +287,13 @@ const MISSION_TYPES = [
       ];
     },
     track:(g,dt)=>{},
-    isComplete:g=>g.objectives.filter(o=>o.type==='harvest').every(o=>o.completed)
+    isComplete:g=>g.objectives.filter(o=>o.type==='harvest').every(o=>o.completed),
+    bonusObjectives:[
+      { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
+      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
+      { id:'bonus_speed_run', desc:'Complete in under 5 minutes', reward:{ aetherQuartz:1 }, check:g=>g.time < 300 },
+      { id:'bonus_echo_collector', desc:'Collect 50 Echo Shards', reward:{ echo:50 }, check:g=>g.objectiveEchoCollected >= 50 }
+    ]
   },
   {
     id:'holdout',
@@ -303,7 +321,13 @@ const MISSION_TYPES = [
         if(g.runStats) g.runStats.objectivesCompleted=(g.runStats.objectivesCompleted||0)+1;
       }
     },
-    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='holdout_timer'); return o ? o.completed : false; }
+    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='holdout_timer'); return o ? o.completed : false; },
+    bonusObjectives:[
+      { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
+      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
+      { id:'bonus_speed_run', desc:'Complete in under 5 minutes', reward:{ aetherQuartz:1 }, check:g=>g.time < 300 },
+      { id:'bonus_echo_collector', desc:'Collect 50 Echo Shards', reward:{ echo:50 }, check:g=>g.objectiveEchoCollected >= 50 }
+    ]
   }
 ];
 
@@ -311,16 +335,16 @@ const MISSION_TYPES = [
 let selectedMissionType = MISSION_TYPES[0];
 
 const PERMANENT_UPGRADES = [
-  { id:'maxHealth', category:'Player Core', name:'Reinforced Suit', desc:'+5% max HP per level.', next:'Another +5% max HP.', ore:'ferronRoot', max:20 },
-  { id:'armour', category:'Player Core', name:'Impact Weave', desc:'Reduces contact damage by 2% per level.', next:'Another -2% contact damage.', ore:'ferronRoot', max:15 },
-  { id:'moveSpeed', category:'Player Core', name:'Vector Servos', desc:'+2.5% movement speed per level.', next:'Another +2.5% movement speed.', ore:'lumicite', max:15 },
-  { id:'miningSpeed', category:'Mining', name:'Bore Calibration', desc:'+4% mining speed per level.', next:'Another +4% mining speed.', ore:'echoQuartz', max:15 },
-  { id:'weaponDamage', category:'Weapons', name:'Weapon Harmonics', desc:'+3% weapon damage per level.', next:'Another +3% weapon damage.', ore:'umbralAlloy', max:20 },
-  { id:'fireRate', category:'Weapons', name:'Trigger Relays', desc:'+2% fire rate per level.', next:'Another +2% fire rate.', ore:'voltarite', max:15 },
-  { id:'pickupRadius', category:'Utility', name:'Resonance Net', desc:'+5% pickup radius per level.', next:'Another +5% pickup range.', ore:'echoQuartz', max:12 },
-  { id:'droneEfficiency', category:'Drones', name:'Drone Uplinks', desc:'+4% drone damage and speed per level.', next:'Another +4% drone efficiency.', ore:'umbralAlloy', max:12 },
-  { id:'trapEffectiveness', category:'Character-Specific', name:'Trap Matrices', desc:'+5% trap damage and radius per level.', next:'Another +5% trap output.', ore:'pyroclastCore', max:12 },
-  { id:'arcDamage', category:'Weapons', name:'Arc Capacitors', desc:'+5% electric/arc damage per level.', next:'Another +5% arc damage.', ore:'voltarite', max:12 },
+  { id:'maxHealth', category:'Player Core', name:'Reinforced Suit', desc:'+5% max HP per level.', next:'Another +5% max HP.', ore:'ferronRoot', max:25 },
+  { id:'armour', category:'Player Core', name:'Impact Weave', desc:'Reduces contact damage by 2% per level.', next:'Another -2% contact damage.', ore:'ferronRoot', max:20 },
+  { id:'moveSpeed', category:'Player Core', name:'Vector Servos', desc:'+2.5% movement speed per level.', next:'Another +2.5% movement speed.', ore:'lumicite', max:20 },
+  { id:'miningSpeed', category:'Mining', name:'Bore Calibration', desc:'+4% mining speed per level.', next:'Another +4% mining speed.', ore:'echoQuartz', max:20 },
+  { id:'weaponDamage', category:'Weapons', name:'Weapon Harmonics', desc:'+3% weapon damage per level.', next:'Another +3% weapon damage.', ore:'umbralAlloy', max:25 },
+  { id:'fireRate', category:'Weapons', name:'Trigger Relays', desc:'+2% fire rate per level.', next:'Another +2% fire rate.', ore:'voltarite', max:20 },
+  { id:'pickupRadius', category:'Utility', name:'Resonance Net', desc:'+5% pickup radius per level.', next:'Another +5% pickup range.', ore:'echoQuartz', max:15 },
+  { id:'droneEfficiency', category:'Drones', name:'Drone Uplinks', desc:'+4% drone damage and speed per level.', next:'Another +4% drone efficiency.', ore:'umbralAlloy', max:15 },
+  { id:'trapEffectiveness', category:'Character-Specific', name:'Trap Matrices', desc:'+5% trap damage and radius per level.', next:'Another +5% trap output.', ore:'pyroclastCore', max:15 },
+  { id:'arcDamage', category:'Weapons', name:'Arc Capacitors', desc:'+5% electric/arc damage per level.', next:'Another +5% arc damage.', ore:'voltarite', max:15 },
 ];
 
 /*
@@ -519,6 +543,7 @@ function normalizeProfile(profile){
     permanentUpgrades:{...base.permanentUpgrades,...(profile?.permanentUpgrades || {})},
     milestones:{...base.milestones,...(profile?.milestones || {})},
     unlockedSynergies:profile?.unlockedSynergies || [],
+    permanentBonuses:profile?.permanentBonuses || {},
     statistics:{...base.statistics,...(profile?.statistics || {})}
   };
   // Merge classRuns sub-object safely.
@@ -596,11 +621,44 @@ function missionDifficulty(missionIndex){
   };
 }
 
+/*
+ * Resource Conversion — Phase 1.4
+ *
+ * Allows players to convert abundant resources into scarce ones, providing
+ * a resource sink for excess materials. Conversion rates are defined in the
+ * rates lookup table. Supports Gild → Voltarite, Voltarite → Aether Quartz,
+ * Ferrite Bark → Aether Quartz, and Gild → permanent HP bonus.
+ */
+function convertResources(fromType, toType, amount){
+  if(!saveProfile) return false;
+  const rates = {
+    gild_to_voltarite: { from:'gildShards', to:'voltarite', rate:50 },
+    voltarite_to_rare: { from:'voltarite', to:'aetherQuartz', rate:5 },
+    ferrite_to_aether: { from:'ferriteBark', to:'aetherQuartz', rate:10 },
+    gild_to_hp: { from:'gildShards', to:'maxHp', rate:100 }
+  };
+  const key = `${fromType}_to_${toType}`;
+  const rule = rates[key];
+  if(!rule) return false;
+  const cost = rule.rate * amount;
+  if((saveProfile.resources[rule.from] || 0) < cost) return false;
+  saveProfile.resources[rule.from] -= cost;
+  if(rule.to === 'maxHp'){
+    // Apply permanent HP bonus (once per mission)
+    saveProfile.permanentBonuses = saveProfile.permanentBonuses || {};
+    saveProfile.permanentBonuses.maxHpBonus = (saveProfile.permanentBonuses.maxHpBonus || 0) + amount;
+  } else {
+    saveProfile.resources[rule.to] = (saveProfile.resources[rule.to] || 0) + amount;
+  }
+  saveGame();
+  return true;
+}
+
 function permanentUpgradeCost(up){
   const level=saveProfile.permanentUpgrades[up.id] || 0;
   return {
-    gildShards:Math.floor(45 + level*28 + level*level*6),
-    [up.ore]:Math.floor(2 + level*1.35)
+    gildShards:Math.floor(50 + level*28 + level*level*4),
+    [up.ore]:Math.floor(2 + level*0.85)
   };
 }
 
@@ -645,6 +703,12 @@ function applyPermanentUpgrades(g){
   const traps=1+(up.trapEffectiveness || 0)*0.05;
   p.trapDamageMul*=traps; p.trapRadiusMul*=traps;
   p.arcDamageMul=1+(up.arcDamage || 0)*0.05;
+  // Phase 1.4: Apply permanent HP bonus from resource conversion.
+  const hpBonus = (saveProfile.permanentBonuses?.maxHpBonus || 0);
+  if(hpBonus > 0){
+    p.maxHp = Math.round(p.maxHp + hpBonus);
+    p.hp = p.maxHp;
+  }
 }
 
 /*
@@ -917,7 +981,7 @@ function bankRunRewards(g){
   }
   const resources=saveProfile.resources;
   const runRes=g.resources || {};
-  resources.gildShards += Math.floor(((runRes.gild || g.gold || 0) + 35 + saveProfile.runIndex*10)*rewardMul*missionMul);
+  resources.gildShards += Math.floor(((runRes.gild || g.gold || 0) + 20 + saveProfile.runIndex*8)*rewardMul*missionMul);
   resources.voltarite += Math.floor(((runRes.voltarite || g.nitra || 0) + 4)*rewardMul*missionMul);
   resources.echoQuartz += Math.max(1, Math.floor((runRes.echo || g.objectiveEchoCollected || 0)/35*missionMul));
   for(const id of ['ferriteBark','luminaSpores','aetherQuartz','crysalith','emberglass']){
@@ -932,6 +996,22 @@ function completeRun(g){
   if(!saveProfile || g.runResolved) return;
   g.runResolved=true;
   bankRunRewards(g);
+  // Phase 1.4: Check bonus objectives after banking rewards.
+  const missionTypeObj = g.missionType ? MISSION_TYPES.find(m => m.id === g.missionType) : null;
+  if(missionTypeObj && missionTypeObj.bonusObjectives){
+    for(const bonus of missionTypeObj.bonusObjectives){
+      if(bonus.check(g)){
+        for(const [resId, amt] of Object.entries(bonus.reward)){
+          // Map resource shorthand IDs to saveProfile resource keys
+          const resMap = { gild:'gildShards', voltarite:'voltarite', echo:'echoQuartz', aetherQuartz:'aetherQuartz' };
+          const key = resMap[resId] || resId;
+          saveProfile.resources[key] = (saveProfile.resources[key] || 0) + amt;
+        }
+        // Log bonus completion
+        if(g.log && Array.isArray(g.log)) g.log.unshift(`✅ Bonus: ${bonus.desc} – rewarded!`);
+      }
+    }
+  }
   saveProfile.statistics.totalRunsCompleted++;
   // totalEnemiesKilled is already tracked in real-time by killEnemy(), so we
   // do not re-add g.kills here to avoid double-counting.
@@ -1468,6 +1548,52 @@ function showUpgradesMenu(){
     wrapper.appendChild(section);
   }
   ui.menuContent.appendChild(wrapper);
+
+  // ── Resource Conversion Section (Phase 1.4) ──
+  const conversionSection = document.createElement('section');
+  conversionSection.className = 'upgradeCategorySection';
+  conversionSection.innerHTML = '<h3>💱 Resource Conversion</h3><p style="color:#aaa;margin:0 0 8px 0;font-size:13px;">Convert abundant resources into rarer ones or permanent bonuses.</p>';
+
+  const conversionRules = [
+    { from:'gildShards', to:'voltarite', fromLabel:'Gild Shards', toLabel:'Voltarite', key:'gild_to_voltarite', rate:50, hpBonus:false },
+    { from:'voltarite', to:'aetherQuartz', fromLabel:'Voltarite', toLabel:'Aether Quartz', key:'voltarite_to_rare', rate:5, hpBonus:false },
+    { from:'ferriteBark', to:'aetherQuartz', fromLabel:'Ferrite Bark', toLabel:'Aether Quartz', key:'ferrite_to_aether', rate:10, hpBonus:false },
+    { from:'gildShards', to:'maxHp', fromLabel:'Gild Shards', toLabel:'+1 Max HP (permanent)', key:'gild_to_hp', rate:100, hpBonus:true }
+  ];
+
+  for(const rule of conversionRules){
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #333;';
+
+    const label = document.createElement('span');
+    label.style.cssText = 'flex:1;color:#ccc;font-size:13px;';
+    label.textContent = `${rule.rate} ${rule.fromLabel} → 1 ${rule.toLabel}`;
+
+    const haveAmt = saveProfile.resources[rule.from] || 0;
+    const info = document.createElement('span');
+    info.style.cssText = 'color:#888;font-size:12px;';
+    info.textContent = `Own: ${haveAmt}`;
+
+    const btn = document.createElement('button');
+    btn.className = 'buyBtn';
+    const canConvert = haveAmt >= rule.rate;
+    btn.textContent = canConvert ? 'Convert' : 'Need more';
+    btn.disabled = !canConvert;
+    btn.title = canConvert ? `Convert ${rule.rate} ${rule.fromLabel} to 1 ${rule.toLabel}` : `You need ${rule.rate} ${rule.fromLabel} to convert.`;
+    btn.onclick = () => {
+      if(!canConvert) return;
+      if(convertResources(rule.key.split('_to_')[0], rule.key.split('_to_')[1], 1)){
+        showUpgradesMenu();
+      }
+    };
+
+    row.appendChild(label);
+    row.appendChild(info);
+    row.appendChild(btn);
+    conversionSection.appendChild(row);
+  }
+
+  ui.menuContent.appendChild(conversionSection);
   addMenuButton('Back',showMainMenu);
 }
 
@@ -1495,3 +1621,4 @@ window.SYNERGIES=SYNERGIES;
 window.checkSynergies=checkSynergies;
 window.applySynergyRewards=applySynergyRewards;
 window.showSynergiesMenu=showSynergiesMenu;
+window.convertResources=convertResources;

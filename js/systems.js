@@ -650,7 +650,7 @@ function resourceIdForTile(t){
 
 function resourceAmountForTile(t){
   if(t===TILE_GOLD) return randi(2,5);
-  if(t===TILE_NITRA) return randi(1,3);
+  if(t===TILE_NITRA) return randi(2,4);
   if(t===TILE_AETHER_QUARTZ) return randi(1,2);
   if(t===TILE_LUMINA_SPORES) return randi(2,4);
   if(t===TILE_FERRITE_BARK) return randi(3,6);
@@ -4388,7 +4388,7 @@ function killEnemy(g,e){
     sfx('explosion',1.2);
     addRing(g,e.x,e.y,'rgba(255,79,216,0.9)',0.42,e.r,e.r+95,8);
   }
-  if(Math.random()<0.06) dropPickup(g,e.x+rand(-8,8),e.y+rand(-8,8),'voltarite',1);
+  if(Math.random()<0.12) dropPickup(g,e.x+rand(-8,8),e.y+rand(-8,8),'voltarite', randi(1,2));
   if(Math.random()<0.025) dropPickup(g,e.x+rand(-12,12),e.y+rand(-12,12),MISSION_RESOURCE_IDS[randi(2,MISSION_RESOURCE_IDS.length-1)],1);
   for(let k=0;k<10;k++) addParticle(g,e.x,e.y,rand(-100,100),rand(-100,100),e.color,rand(0.22,0.55),rand(2,6));
   if(g.player.vampire>0){

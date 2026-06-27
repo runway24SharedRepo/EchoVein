@@ -77,7 +77,7 @@ const MISSION_RESOURCE_IDS = ['gild','voltarite','ferriteBark','luminaSpores','a
 
 const RESOURCE_TILE_TYPES = [
   { tile:TILE_GOLD, resourceId:'gild', weight:0.35, minCluster:3, maxCluster:9, hp:32 },
-  { tile:TILE_NITRA, resourceId:'voltarite', weight:0.20, minCluster:2, maxCluster:6, hp:32 },
+  { tile:TILE_NITRA, resourceId:'voltarite', weight:0.28, minCluster:2, maxCluster:6, hp:32 },
   { tile:TILE_CRYSTAL, resourceId:'echo', weight:0.14, minCluster:2, maxCluster:5, hp:45 },
   { tile:TILE_FERRITE_BARK, resourceId:'ferriteBark', weight:0.12, minCluster:3, maxCluster:7, hp:34 },
   { tile:TILE_LUMINA_SPORES, resourceId:'luminaSpores', weight:0.08, minCluster:2, maxCluster:5, hp:26 },
