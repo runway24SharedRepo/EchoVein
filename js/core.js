@@ -256,7 +256,7 @@ const UPGRADE_POOL = [
   { icon:'🌩️', spriteId:'arcConnectionIcon', name:'Storm Lattice', desc:'Adds chain lightning between nearby enemies.', apply:g=>addOrLevelWeapon(g,'arc') },
   { icon:'☄️', name:'Bore Rail', desc:'Adds a heavy piercing rail shot.', apply:g=>addOrLevelWeapon(g,'rail') },
   { icon:'❤️', name:'Field Reclaimer', desc:'Every 18 kills restore 8 HP.', apply:g=>g.player.vampire+=8 },
-  { icon:'📦', name:'Supply Cache', desc:'Spend 15 Voltarite to gain full repair now, otherwise +20 max HP.', apply:g=>{ if(g.nitra>=15){g.nitra-=15; g.player.hp=g.player.maxHp;} else {g.player.maxHp+=20; g.player.hp+=20;} } },
+  { icon:'📦', name:'Supply Cache', desc:'Spend 15 Voltarite to repair to full HP.', available: g => g.nitra >= 15, apply: g => { g.nitra -= 15; g.player.hp = g.player.maxHp; } },
   { icon:'🪤', spriteId:'pathfinderTrap', name:'Trap Payload', desc:'+30% trap damage and radius.', available: g => g.player.canUseTraps, apply: g => { g.player.trapDamageMul*=1.30; g.player.trapRadiusMul*=1.15; g.player.canUseTraps=true; } },
   { icon:'💣', name:'Explosive Ammo', desc:'Bullets gain small area damage.', apply:g=>g.player.splash+=10 },
 ];
