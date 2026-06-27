@@ -224,9 +224,9 @@ const BOSS_TYPES = {
     staggerDuration: 0.5,
     uniqueDrop: 'tyrantCore',
     phases: [
-      { hpThreshold: 1.0, attacks: ['swipe', 'charge'], speedMul: 1.0, damageMul: 1.0 },
-      { hpThreshold: 0.66, attacks: ['swipe', 'charge', 'slam', 'multiRush'], speedMul: 1.2, damageMul: 1.15 },
-      { hpThreshold: 0.33, attacks: ['swipe', 'charge', 'slam', 'multiRush', 'rageRoar'], speedMul: 1.5, damageMul: 1.3, enrage: true }
+      { hpThreshold: 1.0, attacks: ['swipe', 'charge', 'electricArc'], speedMul: 1.0, damageMul: 1.0 },
+      { hpThreshold: 0.66, attacks: ['swipe', 'charge', 'slam', 'multiRush', 'electricArc', 'spreadShot'], speedMul: 1.2, damageMul: 1.15 },
+      { hpThreshold: 0.33, attacks: ['swipe', 'charge', 'slam', 'multiRush', 'rageRoar', 'electricArc', 'spreadShot'], speedMul: 1.5, damageMul: 1.3, enrage: true }
     ]
   },
   hexShardColossus: {
@@ -245,9 +245,9 @@ const BOSS_TYPES = {
     staggerDuration: 0.5,
     uniqueDrop: 'hexCrystalFragment',
     phases: [
-      { hpThreshold: 1.0, attacks: ['crystalSpread', 'spawnHexShard'], speedMul: 1.0, damageMul: 1.0 },
-      { hpThreshold: 0.66, attacks: ['crystalSpread', 'spawnHexShard', 'crystalRain', 'crystalWall'], speedMul: 1.15, damageMul: 1.15 },
-      { hpThreshold: 0.33, attacks: ['crystalSpread', 'spawnHexShard', 'crystalRain', 'crystalWall'], speedMul: 1.3, damageMul: 1.3, enrage: true }
+      { hpThreshold: 1.0, attacks: ['crystalSpread', 'spawnHexShard', 'spreadShot'], speedMul: 1.0, damageMul: 1.0 },
+      { hpThreshold: 0.66, attacks: ['crystalSpread', 'spawnHexShard', 'crystalRain', 'crystalWall', 'spreadShot'], speedMul: 1.15, damageMul: 1.15 },
+      { hpThreshold: 0.33, attacks: ['crystalSpread', 'spawnHexShard', 'crystalRain', 'crystalWall', 'spreadShot'], speedMul: 1.3, damageMul: 1.3, enrage: true }
     ]
   },
   moltenMaw: {
@@ -266,9 +266,9 @@ const BOSS_TYPES = {
     staggerDuration: 0.5,
     uniqueDrop: 'moltenEmber',
     phases: [
-      { hpThreshold: 1.0, attacks: ['burrowErupt'], speedMul: 1.0, damageMul: 1.0 },
-      { hpThreshold: 0.66, attacks: ['burrowErupt', 'fireTrail', 'fireballSpew', 'lavaPoolBurst'], speedMul: 1.2, damageMul: 1.15 },
-      { hpThreshold: 0.33, attacks: ['burrowErupt', 'fireTrail', 'fireballSpew', 'lavaPoolBurst'], speedMul: 1.4, damageMul: 1.3, enrage: true }
+      { hpThreshold: 1.0, attacks: ['burrowErupt', 'spreadShot'], speedMul: 1.0, damageMul: 1.0 },
+      { hpThreshold: 0.66, attacks: ['burrowErupt', 'fireTrail', 'fireballSpew', 'lavaPoolBurst', 'spreadShot'], speedMul: 1.2, damageMul: 1.15 },
+      { hpThreshold: 0.33, attacks: ['burrowErupt', 'fireTrail', 'fireballSpew', 'lavaPoolBurst', 'spreadShot'], speedMul: 1.4, damageMul: 1.3, enrage: true }
     ]
   }
 };

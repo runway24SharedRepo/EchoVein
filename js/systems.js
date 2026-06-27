@@ -1950,6 +1950,60 @@ function executeBossAttack(g, boss, attackName, dt){
     sfx('shoot', 0.7);
     boss.lastAttack = 'fireballSpew';
   }
+
+  // ── NEW: SPREAD SHOT (universal) ──────────────────────────────────────
+if(attackName === 'spreadShot'){
+  const numShots = 5 + boss.bossPhase * 2;
+  const angle = Math.atan2(p.y - boss.y, p.x - boss.x);
+  const spread = 0.4;
+  const speed = 120 + boss.bossPhase * 20;
+  for(let i = 0; i < numShots; i++){
+    const a = angle - spread/2 + (i/(numShots-1)) * spread;
+    g.enemyBullets.push({
+      x: boss.x + Math.cos(a)*(boss.r+10),
+      y: boss.y + Math.sin(a)*(boss.r+10),
+      vx: Math.cos(a) * speed,
+      vy: Math.sin(a) * speed,
+      r: 8,
+      damage: Math.round(boss.damage * 0.6),
+      color: '#ffaa44',
+      life: 2.0,
+      destructive: false,
+      small: false,
+      bossAttack: true,
+      spriteId: 'bossFireball'  // uses existing fireball sprite if available
+    });
+  }
+  sfx('shoot', 0.7);
+  boss.lastAttack = 'spreadShot';
+}
+
+// ── NEW: ELECTRIC ARC (Hollow Tyrant only) ───────────────────────────
+if(attackName === 'electricArc'){
+  const numBolts = 3 + boss.bossPhase;
+  const angle = Math.atan2(p.y - boss.y, p.x - boss.x);
+  const spread = 0.5;
+  for(let i = 0; i < numBolts; i++){
+    const a = angle - spread/2 + (i/(numBolts-1)) * spread;
+    const speed = 180 + boss.bossPhase * 30;
+    g.enemyBullets.push({
+      x: boss.x + Math.cos(a)*(boss.r+10),
+      y: boss.y + Math.sin(a)*(boss.r+10),
+      vx: Math.cos(a) * speed,
+      vy: Math.sin(a) * speed,
+      r: 6,
+      damage: Math.round(boss.damage * 0.7),
+      color: '#7df9ff',
+      life: 1.8,
+      destructive: false,
+      small: false,
+      bossAttack: true,
+      spriteId: 'bossShockwave'  // existing sprite
+    });
+  }
+  sfx('arc', 0.9);
+  boss.lastAttack = 'electricArc';
+}
 }
 
 /*
@@ -1988,40 +2042,53 @@ function addBossCrystalRainIndicator(g, x, y, duration){
  * Called from updateEnemies() for the active boss.
  */
 function updateBoss(g, boss, dt){
-  if(!boss || boss.hp <= 0) return;
+  if (!boss || boss.hp <= 0) return;
 
   const bossDef = BOSS_TYPES[boss.bossType];
-  if(!bossDef) return;
-  const diff = g.missionDifficulty || missionDifficulty(1);
 
+  if (!bossDef) return;
+  const diff = g.missionDifficulty || missionDifficulty(1);
+  const p = g.player;
   // ── Boss Name Display Timer ────────────────────────────────────────
   // Decrement each frame; fade begins in the last 1.5 seconds.
-
 
   // ── Phase Transition Check ────────────────────────────────────────
   const hpPct = boss.hp / boss.maxHp;
   let targetPhase = 0;
-  if(hpPct <= 0.33) targetPhase = 2;
-  else if(hpPct <= 0.66) targetPhase = 1;
+  if (hpPct <= 0.33) targetPhase = 2;
+  else if (hpPct <= 0.66) targetPhase = 1;
 
-  if(targetPhase !== boss.bossPhase){
+  if (targetPhase !== boss.bossPhase) {
     // Phase transition! — dramatic effect with knockback, reposition, and particles
     boss.bossPhase = targetPhase;
     g.bossPhase = targetPhase;
     g.bossPhaseTimer = 2.0;
     shake = Math.max(shake, 18);
-    const phaseText = targetPhase === 2 ? '⚠ ENRAGE!' : `⚡ PHASE ${targetPhase + 1}`;
-    if(typeof floating === 'function') floating(g, boss.x, boss.y - 60, `${bossDef.icon} ${phaseText}`, '#ff4444');
-    if(typeof log === 'function') log(g, `${bossDef.name} ${phaseText}`);
-    sfx('bossPhase', 1.0);
+    const phaseText =
+      targetPhase === 2 ? "⚠ ENRAGE!" : `⚡ PHASE ${targetPhase + 1}`;
+    if (typeof floating === "function")
+      floating(
+        g,
+        boss.x,
+        boss.y - 60,
+        `${bossDef.icon} ${phaseText}`,
+        "#ff4444",
+      );
+    if (typeof log === "function") log(g, `${bossDef.name} ${phaseText}`);
+    sfx("bossPhase", 1.0);
     // Large particle burst for phase transition
-    spawnVfxComposition(g, 'bossShockwave', boss.x, boss.y, {radius:100, color:bossDef.color});
+    spawnVfxComposition(g, "bossShockwave", boss.x, boss.y, {
+      radius: 100,
+      color: bossDef.color,
+    });
     addRing(g, boss.x, boss.y, `rgba(255,60,60,0.5)`, 0.8, 10, 300, 8);
     // Knockback player if close to boss
     const p = g.player;
-    if(p){
-      const dx = p.x - boss.x, dy = p.y - boss.y, d = Math.hypot(dx, dy) || 1;
-      if(d < 200){
+    if (p) {
+      const dx = p.x - boss.x,
+        dy = p.y - boss.y,
+        d = Math.hypot(dx, dy) || 1;
+      if (d < 200) {
         p.x += (dx / d) * 80;
         p.y += (dy / d) * 80;
         p.x = clamp(p.x, TILE, WORLD_W - TILE);
@@ -2031,62 +2098,84 @@ function updateBoss(g, boss, dt){
     // Brief stun / reset for boss
     boss.attackCd = 1.0;
     boss.chargeTimer = 0;
-    boss.lastAttack = '';
+    boss.lastAttack = "";
     // Re-apply phase stat multipliers
     const newPhaseCfg = bossDef.phases[targetPhase] || bossDef.phases[0];
     boss.speed = bossDef.speed * newPhaseCfg.speedMul;
-    boss.damage = Math.round(bossDef.damage * diff.bossDamageMultiplier * newPhaseCfg.damageMul);
+    boss.damage = Math.round(
+      bossDef.damage * diff.bossDamageMultiplier * newPhaseCfg.damageMul,
+    );
     // Spawn ambient particles around the boss
-    for(let k = 0; k < 30; k++){
+    for (let k = 0; k < 30; k++) {
       const a = Math.random() * Math.PI * 2;
       const sp = rand(30, 150);
-      addParticle(g, boss.x, boss.y, Math.cos(a)*sp, Math.sin(a)*sp, bossDef.color, rand(0.3, 0.8), rand(2, 6), k % 3 === 0 ? 'ring' : 'spark');
+      addParticle(
+        g,
+        boss.x,
+        boss.y,
+        Math.cos(a) * sp,
+        Math.sin(a) * sp,
+        bossDef.color,
+        rand(0.3, 0.8),
+        rand(2, 6),
+        k % 3 === 0 ? "ring" : "spark",
+      );
     }
   }
 
   // ── Weak Point Timer ──────────────────────────────────────────────
   const wp = g.bossWeakPoint;
-  if(!wp) return;
+  if (!wp) return;
 
   // Cooldown after stagger
-  if(wp.cooldown > 0){
+  if (wp.cooldown > 0) {
     wp.cooldown -= dt;
-    if(wp.cooldown <= 0){
+    if (wp.cooldown <= 0) {
       wp.timer = bossDef.weakPointCooldown;
     }
     return; // Don't update weak point during cooldown
   }
 
   // Weak point active countdown
-  if(wp.active){
+  if (wp.active) {
     wp.duration -= dt;
     // Update weak point position to follow boss
     wp.x = boss.x;
     wp.y = boss.y - boss.r * 0.3;
-    if(wp.duration <= 0){
+    if (wp.duration <= 0) {
       wp.active = false;
       wp.timer = bossDef.weakPointCooldown;
     }
   } else {
     wp.timer -= dt;
-    if(wp.timer <= 0){
+    if (wp.timer <= 0) {
       // Weak point appears!
       wp.active = true;
       wp.duration = bossDef.weakPointDuration;
       wp.x = boss.x;
       wp.y = boss.y - boss.r * 0.3;
-      if(typeof floating === 'function') floating(g, boss.x, boss.y - boss.r - 20, '⚡ WEAK POINT', '#42d6ff');
-      sfx('weakPointAppear', 1.0);
+      if (typeof floating === "function")
+        floating(g, boss.x, boss.y - boss.r - 20, "⚡ WEAK POINT", "#42d6ff");
+      sfx("weakPointAppear", 1.0);
     }
   }
 
   // ── Telegraph Timer ───────────────────────────────────────────────
   // Show a warning effect before the next attack fires.
   // Only when attackCd is in the last 0.35s before firing.
-  if(boss.attackCd > 0 && boss.attackCd <= 0.4 && !boss.telegraphTimer){
+  if (boss.attackCd > 0 && boss.attackCd <= 0.4 && !boss.telegraphTimer) {
     // Flash a warning glow
     const pulse = 0.3 + 0.7 * Math.sin(g.time * 28);
-    addRing(g, boss.x, boss.y, `rgba(255,50,50,${0.2 * pulse})`, 0.15, boss.r + 5, boss.r + 25 + 10 * pulse, 3);
+    addRing(
+      g,
+      boss.x,
+      boss.y,
+      `rgba(255,50,50,${0.2 * pulse})`,
+      0.15,
+      boss.r + 5,
+      boss.r + 25 + 10 * pulse,
+      3,
+    );
   }
 
   // ── Attack Execution ──────────────────────────────────────────────
@@ -2096,24 +2185,43 @@ function updateBoss(g, boss, dt){
   boss.attackCd = boss.attackCd || 0;
   boss.attackCd -= dt * phaseCfg.speedMul;
 
-  if(boss.attackCd <= 0 && !boss.isCharging){
+  if (boss.attackCd <= 0 && !boss.isCharging) {
     // Pick a random attack from this phase that isn't the last attack
-    const available = phaseCfg.attacks.filter(a => a !== boss.lastAttack);
+    // Pick a random attack from this phase that isn't the last attack
+    let available = phaseCfg.attacks.filter((a) => a !== boss.lastAttack);
+
+    // If player is far, prefer ranged attacks
+    const distToPlayer = Math.hypot(p.x - boss.x, p.y - boss.y);
+    if (distToPlayer > 300) {
+      const ranged = [
+        "electricArc",
+        "spreadShot",
+        "crystalSpread",
+        "fireballSpew",
+        "crystalRain",
+        "crystalWall",
+      ];
+      const rangedAvailable = available.filter((a) => ranged.includes(a));
+      if (rangedAvailable.length) available = rangedAvailable;
+    }
+
     const pool = available.length ? available : phaseCfg.attacks;
     const attack = pool[randi(0, pool.length - 1)];
 
     // Set cooldown based on attack type (more frequent — 1.5-3s baseline)
     let cdBase = 1.8;
-    if(attack === 'charge') cdBase = 2.8;
-    else if(attack === 'slam') cdBase = 3.5;
-    else if(attack === 'rageRoar') cdBase = 4.5;
-    else if(attack === 'multiRush') cdBase = 5.0;
-    else if(attack === 'spawnHexShard') cdBase = 3.5;
-    else if(attack === 'crystalRain') cdBase = 4.0;
-    else if(attack === 'crystalWall') cdBase = 4.0;
-    else if(attack === 'burrowErupt') cdBase = 3.0;
-    else if(attack === 'fireballSpew') cdBase = 2.2;
-    else if(attack === 'lavaPoolBurst') cdBase = 4.5;
+    if (attack === "charge") cdBase = 2.8;
+    else if (attack === "slam") cdBase = 3.5;
+    else if (attack === "rageRoar") cdBase = 4.5;
+    else if (attack === "multiRush") cdBase = 5.0;
+    else if (attack === "spawnHexShard") cdBase = 3.5;
+    else if (attack === "crystalRain") cdBase = 4.0;
+    else if (attack === "crystalWall") cdBase = 4.0;
+    else if (attack === "burrowErupt") cdBase = 3.0;
+    else if (attack === "fireballSpew") cdBase = 2.2;
+    // New attacks
+    else if (attack === "spreadShot") cdBase = 2.0;
+    else if (attack === "electricArc") cdBase = 2.5;
 
     boss.attackCd = cdBase + Math.random() * 0.8;
     executeBossAttack(g, boss, attack, dt);
@@ -2122,29 +2230,34 @@ function updateBoss(g, boss, dt){
   // ── General Boss Movement ─────────────────────────────────────────
   // Bosses need continuous chase/positioning movement toward the player.
   // This runs every frame (except during charge or burrow).
-  const p = g.player;
-  if(p && !boss.isBurrowed && (!boss.chargeTimer || boss.chargeTimer <= 0)){
+
+  if (p && !boss.isBurrowed && (!boss.chargeTimer || boss.chargeTimer <= 0)) {
     const dx = p.x - boss.x;
     const dy = p.y - boss.y;
     const dist = Math.hypot(dx, dy) || 1;
 
-    if(boss.bossType === 'hollowTyrant'){
+    if (boss.bossType === "hollowTyrant") {
       // Melee boss — charge toward player
       const chaseSpeed = boss.speed * (phaseCfg.speedMul || 1);
       const dirX = dx / dist;
       const dirY = dy / dist;
-      moveCircle(g, boss, dirX * chaseSpeed * dt * 0.6, dirY * chaseSpeed * dt * 0.6);
-    }
-    else if(boss.bossType === 'hexShardColossus'){
+      moveCircle(
+        g,
+        boss,
+        dirX * chaseSpeed * dt * 0.6,
+        dirY * chaseSpeed * dt * 0.6,
+      );
+    } else if (boss.bossType === "hexShardColossus") {
       // Ranged boss — maintain preferred distance (~350px)
       const preferredRange = 350;
-      let moveDirX = 0, moveDirY = 0;
+      let moveDirX = 0,
+        moveDirY = 0;
       const chaseSpeed = boss.speed * 0.8;
-      if(dist < preferredRange - 60){
+      if (dist < preferredRange - 60) {
         // Too close — back away
         moveDirX = -dx / dist;
         moveDirY = -dy / dist;
-      } else if(dist > preferredRange + 80){
+      } else if (dist > preferredRange + 80) {
         // Too far — move closer
         moveDirX = dx / dist;
         moveDirY = dy / dist;
@@ -2153,24 +2266,33 @@ function updateBoss(g, boss, dt){
         moveDirX = -dy / dist;
         moveDirY = dx / dist;
       }
-      moveCircle(g, boss, moveDirX * chaseSpeed * dt * 0.6, moveDirY * chaseSpeed * dt * 0.6);
-    }
-    else if(boss.bossType === 'moltenMaw'){
+      moveCircle(
+        g,
+        boss,
+        moveDirX * chaseSpeed * dt * 0.6,
+        moveDirY * chaseSpeed * dt * 0.6,
+      );
+    } else if (boss.bossType === "moltenMaw") {
       // Melee burrower — move toward player (when not burrowed)
       const chaseSpeed = boss.speed * 0.6;
       const dirX = dx / dist;
       const dirY = dy / dist;
-      moveCircle(g, boss, dirX * chaseSpeed * dt * 0.6, dirY * chaseSpeed * dt * 0.6);
+      moveCircle(
+        g,
+        boss,
+        dirX * chaseSpeed * dt * 0.6,
+        dirY * chaseSpeed * dt * 0.6,
+      );
     }
   }
 
   // ── Boss-specific continuous updates ──────────────────────────────
   // Molten Maw: burrow movement
-  if(boss.bossType === 'moltenMaw' && boss.isBurrowed && boss.burrowTarget){
+  if (boss.bossType === "moltenMaw" && boss.isBurrowed && boss.burrowTarget) {
     const dx = boss.burrowTarget.x - boss.x;
     const dy = boss.burrowTarget.y - boss.y;
     const d = Math.hypot(dx, dy);
-    if(d > 20){
+    if (d > 20) {
       const speed = boss.speed * 1.5;
       boss.x += (dx / d) * speed * dt;
       boss.y += (dy / d) * speed * dt;
@@ -2182,31 +2304,38 @@ function updateBoss(g, boss, dt){
   }
 
   // Molten Maw: fire trail while burrowed
-  if(boss.bossType === 'moltenMaw' && boss.isBurrowed && boss.bossPhase >= 1){
+  if (boss.bossType === "moltenMaw" && boss.isBurrowed && boss.bossPhase >= 1) {
     boss.fireTrailTimer = (boss.fireTrailTimer || 0) - dt;
-    if(boss.fireTrailTimer <= 0){
-      executeBossAttack(g, boss, 'fireTrail', dt);
+    if (boss.fireTrailTimer <= 0) {
+      executeBossAttack(g, boss, "fireTrail", dt);
       boss.fireTrailTimer = 0.3;
     }
   }
 
   // Charge movement for Hollow Tyrant (overrides general movement)
-  if(boss.bossType === 'hollowTyrant' && boss.chargeTimer !== undefined && boss.chargeTimer > 0){
+  if (
+    boss.bossType === "hollowTyrant" &&
+    boss.chargeTimer !== undefined &&
+    boss.chargeTimer > 0
+  ) {
     boss.chargeTimer -= dt;
     boss.x += (boss.vx || 0) * dt;
     boss.y += (boss.vy || 0) * dt;
     // Damage check while charging
-    if(p && dist2(boss.x,boss.y,p.x,p.y) < (boss.r + p.r + 8)*(boss.r + p.r + 8)){
-      damagePlayer(g, Math.round(boss.damage * 0.8), 'bossCharge');
+    if (
+      p &&
+      dist2(boss.x, boss.y, p.x, p.y) < (boss.r + p.r + 8) * (boss.r + p.r + 8)
+    ) {
+      damagePlayer(g, Math.round(boss.damage * 0.8), "bossCharge");
       boss.chargeTimer = 0; // End charge on hit
     }
     // Slow down
-    if(boss.vx) boss.vx *= 0.95;
-    if(boss.vy) boss.vy *= 0.95;
+    if (boss.vx) boss.vx *= 0.95;
+    if (boss.vy) boss.vy *= 0.95;
   }
 
   // Phase 3 visual glow for enrage
-  if(boss.bossPhase >= 2 && phaseCfg.enrage){
+  if (boss.bossPhase >= 2 && phaseCfg.enrage) {
     const pulse = 0.5 + 0.5 * Math.sin(g.time * 8);
     boss.enrageGlow = pulse;
   } else {
@@ -2215,19 +2344,24 @@ function updateBoss(g, boss, dt){
 
   // ── Update crystal rain indicators ────────────────────────────────
   g.bossCrystalRain = g.bossCrystalRain || [];
-  for(let i = g.bossCrystalRain.length - 1; i >= 0; i--){
+  for (let i = g.bossCrystalRain.length - 1; i >= 0; i--) {
     const rain = g.bossCrystalRain[i];
     rain.timer -= dt;
-    if(rain.timer <= 0){
+    if (rain.timer <= 0) {
       // Fire the crystal shard
       g.enemyBullets.push({
-        x: rain.x, y: rain.y - 60,
-        vx: 0, vy: rain.speed,
-        r: 10, damage: rain.damage,
-        color: '#b46bff', life: 1.5,
-        destructive: false, small: true,
+        x: rain.x,
+        y: rain.y - 60,
+        vx: 0,
+        vy: rain.speed,
+        r: 10,
+        damage: rain.damage,
+        color: "#b46bff",
+        life: 1.5,
+        destructive: false,
+        small: true,
         bossAttack: true,
-        spriteId: 'bossCrystalShard'
+        spriteId: "bossCrystalShard",
       });
       g.bossCrystalRain.splice(i, 1);
     }
@@ -2235,9 +2369,9 @@ function updateBoss(g, boss, dt){
 
   // Clean up indicators
   g.bossCrystalRainIndicators = g.bossCrystalRainIndicators || [];
-  for(let i = g.bossCrystalRainIndicators.length - 1; i >= 0; i--){
+  for (let i = g.bossCrystalRainIndicators.length - 1; i >= 0; i--) {
     g.bossCrystalRainIndicators[i].timer -= dt;
-    if(g.bossCrystalRainIndicators[i].timer <= 0){
+    if (g.bossCrystalRainIndicators[i].timer <= 0) {
       g.bossCrystalRainIndicators.splice(i, 1);
     }
   }
