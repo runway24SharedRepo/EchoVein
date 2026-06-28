@@ -12,6 +12,8 @@
 - Enemies: 20+ enemy types with visual variants, A* pathfinding
 - Missions: 4 types (Hunt, Survey, Harvest, Holdout)
 - Milestones: 30 achievements across 5 categories
+- Synergies: 8 upgrade combos with permanent unlocks
+- Bosses: 3 unique bosses with phase transitions and weak points
 
 ## ✅ Completed Phases
 
@@ -19,7 +21,7 @@
 - ✅ **1.1 Milestones & Achievements** — 30 milestones, locked/unlocked, progress tracking, persistence
 - ✅ **1.2 Mission Variety** — Hunt, Survey, Harvest, Holdout with selection UI and tracking
 - ✅ **1.3 Permanent Upgrade Expansion** — 10 upgrade categories with tiered costs
-- ⏳ **1.4 Resource Economy Rebalance** — Planned
+- ✅ **1.4 Resource Economy Rebalance** — Gild income reduced, Voltarite availability increased, upgrade costs reworked, resource conversion system added, bonus objectives implemented
 - ⏳ **1.5 Operator XP & Prestige** — Planned
 - ⏳ **1.6 Run History / Hall of Records** — Planned
 
@@ -37,23 +39,59 @@
 - Boss selection logic (Mission 1 = Tyrant, Mission 2+ = random)
 - Audio: bossRoar, bossPhase, bossDefeat, weakPointAppear, weakPointHit
 
+### Phase 2.3 — Enemy Behaviours ✅
+- 7 new enemy behaviours implemented:
+  - **flyingChase** (gloomBat) — Ignores terrain collision, moves directly toward player
+  - **zigzagChase** (boneSkitter) — Sinusoidal lateral oscillation, phase resets periodically
+  - **blinkChase** (voidMite) — Teleports closer when far away, brief invulnerability
+  - **terrainCharger** (fractureBeetle) — Charges through mineable terrain, breaks tiles
+  - **supportBuffer** (echoSiren) — Buffs nearby allies (+18% speed, +10% damage)
+  - **charger** (ironMaw) — Wind-up charge attack with cooldown, red glow telegraph
+  - **spawner** (sporeMother) — Spawns minions periodically, max active limit
+
+### Phase 2.4 — Boss Fight Improvements ✅
+- Reduced attack cooldowns (30–40% faster)
+- Attack telegraphs (swipe, slam, charge visual warnings)
+- New attacks added:
+  - **multiRush** (Hollow Tyrant P2+) — 3 rapid charges
+  - **crystalWall** (Hex Shard Colossus P2+) — Creates damaging crystal pillars
+  - **lavaPoolBurst** (Molten Maw P2+) — Creates damaging lava pools in a ring
+- Dramatic phase transitions (knockback, stun, particle burst, double shockwave)
+- Universal telegraph pulse (red glow when attack is imminent)
+
+### Phase 2.5 — Extraction Path ✅
+- Glowing yellow dotted line from player to extraction craft
+- Dynamic line-of-sight sampling with pulsing animation
+- "Blocked" indicator when path is obstructed
+
+### Phase 2.6 — Upgrade Pool Guards ✅
+- Upgrades now only appear if the prerequisite skill is owned:
+  - Drone upgrades require `Warden Drone Bay`
+  - Sifter upgrades require `Sifter Drone`
+  - Trap upgrades require `Trap Kit`
+  - `Supply Cache` only appears with 15+ Voltarite
+- Visual feedback for stackable upgrades (e.g., Field Reclaimer shows current HP value)
+
 ## 🎯 Next Tasks (Planned)
-- ⏳ Phase 1.4 — Resource Economy Rebalance
 - ⏳ Phase 1.5 — Operator XP & Prestige
 - ⏳ Phase 1.6 — Run History / Hall of Records
-- ⏳ Phase 2.3+ — TBD
+- ⏳ Phase 2.7+ — TBD (Thermal Lance VFX, additional content)
+
+## Boss Details
+
+**Hollow Tyrant (Melee/Tank):**
 - Phase 1: Slow melee swipe, charge attack
 - Phase 2: Faster swipe, ground slam (shockwave)
-- Phase 3 (Enrage): All attacks 30% faster, rage roar (multiple shockwaves)
+- Phase 3 (Enrage): All attacks 30% faster, rage roar (multiple shockwaves), multiRush
 
 **Hex Shard Colossus (Ranged/Artillery):**
 - Phase 1: 3-crystal spread, spawns 1 Hex Shard
-- Phase 2: 5-crystal spread, spawns 2 Hex Shards, Crystal Rain
+- Phase 2: 5-crystal spread, spawns 2 Hex Shards, Crystal Rain, Crystal Wall
 - Phase 3 (Enrage): 7-crystal spread, spawns 3 Hex Shards, faster Crystal Rain
 
 **Molten Maw (Burrower/Fire):**
 - Phase 1: Burrow → erupt, leaves lava pool
-- Phase 2: Faster burrow, fire trail, 3 fireballs
+- Phase 2: Faster burrow, fire trail, 3 fireballs, Lava Pool Burst
 - Phase 3 (Enrage): Even faster, longer fire trail, tracking fireballs
 
 ### Boss Rewards
@@ -69,20 +107,22 @@
 ### Key Files to Modify
 | File | Changes |
 |---|---|
-| `entities.js` | Add BOSS_TYPES data, boss constructors, weak point logic |
-| `systems.js` | Add updateBoss() function, phase transitions, attack timers, weak point tracking |
-| `render-ui.js` | Add boss health bar (top of screen), boss name display, phase indicator, weak point highlight |
-| `core.js` | Add bossType, bossPhase, bossWeakPoint to game state |
-| `world.js` | Add boss selection logic (random with Mission 1 guarantee) |
-| `audio.js` | Add boss-specific sounds (roar, phase change, defeat, weak point hit) |
-| `assets.js` | Add sprites for each boss and their attacks |
-| `style.css` | Add boss health bar styling, phase indicators |
+| `entities.js` | BOSS_TYPES data, boss constructors, weak point logic |
+| `systems.js` | updateBoss() function, phase transitions, attack timers, weak point tracking |
+| `render-ui.js` | Boss health bar, name display, phase indicator, weak point highlight, extraction path |
+| `core.js` | bossType, bossPhase, bossWeakPoint, upgrade pool |
+| `world.js` | Boss selection logic |
+| `audio.js` | Boss sounds (roar, phase change, defeat, weak point) |
+| `assets.js` | Boss sprites and their attacks |
+| `style.css` | Boss health bar styling, phase indicators |
+| `progression.js` | Resource economy, bonus objectives, conversion system |
 
 ## Code Patterns
 - Use existing enemy system in entities.js
 - UI rendering uses render-ui.js
 - Event system in systems.js
 - Boss state stored in `g.bossType`, `g.bossPhase`, `g.bossWeakPoint`
+- Synergy checks in `checkSynergies(g)` after each upgrade pickup
 
 ## File References
 - Main entry: index.html

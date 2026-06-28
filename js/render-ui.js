@@ -19,7 +19,13 @@ function updateUI(g){
   const accChip = `<div class="chip"><span>Weapon Accuracy</span><b>${Math.round((g.player.accuracy ?? 0.35)*100)}%</b></div>`;
   const cursorChip = (g.player.mouseTargeting || g.controllerCursor?.active) ? `<div class="chip"><span>Targeting Cursor</span><b>${manualAimActive(g)?'MANUAL':'AUTO'}</b></div>` : '';
   const arc = g.arcConnection;
-  const arcChip = arc?.unlocked ? `<div class="chip"><span>Arc Connection</span><b>${arc.selectedEnemies.length}/${arcConnectionMaxTargets(g)}</b></div>` : '';
+  const arcChip = arc?.unlocked
+    ? `<div class="chip"><span>Arc Connection</span><b>${arc.selectedEnemies.length}/${arcConnectionMaxTargets(g)}</b></div>`
+    : "";
+  // ── NEW ── Vampire stack value chip
+  const vampireChip = (g.player.vampire > 0)
+  ? `<div class="chip"><span>❤️ Field Reclaimer</span><b>${g.player.vampire} HP (${g.player.vampCounter}/18 kills)</b></div>`
+  : '';
   ui.weaponList.innerHTML=g.weapons.map(w=>{
     const spriteId=WEAPON_DATA[w.id]?.spriteId;
     const icon=spriteId ? `<img class="weaponIcon" src="${SPRITES[spriteId]}" alt="">` : '';
