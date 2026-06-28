@@ -1614,7 +1614,7 @@ function drawBossHealthBar(g){
   const barW = 380;
   const barH = 28;
   const x = (innerWidth - barW) / 2;
-  const y = 12;
+  const y = 56;
 
   ctx.save();
 

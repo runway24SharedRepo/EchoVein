@@ -1556,7 +1556,7 @@ function showMainMenu(){
   addMenuButton('Play',showMissionSelect);
   addMenuButton('Upgrades',showUpgradesMenu);
   addMenuButton('Synergies',showSynergiesMenu);
-  addMenuButton('Gears',()=>showPlaceholderMenu('Gears','Gears feature coming later.'));
+  //addMenuButton('Gears',()=>showPlaceholderMenu('Gears','Gears feature coming later.'));
   addMenuButton('Milestones',showMilestonesMenu);
   addMenuButton('Hall of Records',showHallOfRecords);
   addMenuButton('Settings',showSettingsMenu);

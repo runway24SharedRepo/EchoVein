@@ -284,6 +284,10 @@
   }
   button:hover { border-color: rgba(66,214,255,0.75); }
 
+  #menuButtons {
+  margin-top: 18px;
+}
+
   .damageFlash {
     position: fixed;
     inset: 0;
@@ -1293,4 +1297,22 @@ input.controllerSelected {
 .clearHistoryBtn:hover {
   background: linear-gradient(180deg, rgba(255,91,91,0.30), rgba(255,91,91,0.15));
   border-color: var(--red);
+}
+
+/* Fix operator name overlap with icon in main menu progression cards */
+.operatorProgHeader {
+  gap: 20px !important;  /* increases space between all items */
+}
+
+.operatorProgIcon {
+  margin-right: 4px !important;
+}
+
+.operatorProgName {
+  padding-left: 20px !important;
+}
+
+/* Push operator XP bar down so it doesn't overlap with sprites */
+.operatorProgBarWrap {
+  margin-top: 20px !important;
 }
