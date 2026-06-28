@@ -1493,3 +1493,23 @@ input.controllerSelected {
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Game Splash Screen ──────────────────────────────────────────── */
+.gameSplash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background-color: #07090d;          /* fallback dark */
+  background-image: var(--splash-bg); /* set via JS */
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
+  transition: opacity 0.8s ease-out;
+  opacity: 1;
+  pointer-events: auto;
+  box-shadow: 0 0 80px 20px rgba(93, 255, 154, 0.5); /* green glow */
+}
+.gameSplash.hidden {
+  opacity: 0;
+  pointer-events: none;
+}

@@ -96,19 +96,78 @@ if(!CanvasRenderingContext2D.prototype.roundRect){
  * Whichever comes last triggers the fade-out. A 5-second hard timeout prevents
  * the splash from hanging indefinitely if sprite loading stalls.
  */
-function createSplashScreen(){
+// main.js
+
+let gameSplashElement = null;
+let studioSplashElement = null;
+
+/* ── Game Splash ──────────────────────────────────────────────────── */
+function createGameSplash() {
+  const existing = document.querySelector('.gameSplash');
+  if (existing) return existing;
+
+  const div = document.createElement('div');
+  div.className = 'gameSplash';
+
+  const img = document.createElement('img');
+  img.src = SPRITES.gameSplash;
+  img.alt = 'Echo Vein';
+  // Make the image fill the container while preserving aspect ratio
+  img.style.cssText = `
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  `;
+
+  // Fallback if image fails to load
+  img.onerror = function() {
+    this.style.display = 'none';
+    const fallback = document.createElement('div');
+    fallback.textContent = 'Echo Vein';
+    fallback.style.cssText = `
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      font-weight: 900;
+      color: #fff;
+      width: 100%;
+      height: 100%;
+      background: #07090d;
+    `;
+    div.appendChild(fallback);
+  };
+
+  div.appendChild(img);
+  document.body.appendChild(div);
+  gameSplashElement = div;
+  return div;
+}
+
+function hideGameSplash() {
+  if (!gameSplashElement) return;
+  gameSplashElement.classList.add('hidden');
+  // remove after transition
+  setTimeout(() => {
+    if (gameSplashElement && gameSplashElement.parentNode) {
+      gameSplashElement.parentNode.removeChild(gameSplashElement);
+    }
+  }, 900);
+}
+
+/* ── Studio Splash ────────────────────────────────────────────────── */
+function createStudioSplash() {
   const existing = document.querySelector('.splashScreen');
-  if(existing) return existing;
+  if (existing) return existing;
 
   const div = document.createElement('div');
   div.className = 'splashScreen';
 
-  // Logo image — use the 512px sprite displayed at 256x256 for crisp HiDPI rendering
   const img = document.createElement('img');
   img.className = 'splashLogo';
   img.src = SPRITES.kingPengLogo512 || SPRITES.kingPengLogo256 || '';
   img.alt = 'King Peng Studio';
-  // Fallback: if no sprite path is registered, show a text fallback
   img.onerror = function(){
     this.style.display = 'none';
     const fallback = document.createElement('div');
@@ -118,7 +177,6 @@ function createSplashScreen(){
   };
   div.appendChild(img);
 
-  // "Loading..." text with animated dots via JS interval
   const loading = document.createElement('div');
   loading.className = 'splashLoading';
   loading.textContent = 'Loading';
@@ -126,37 +184,43 @@ function createSplashScreen(){
     const dots = loading.textContent.match(/\./g) || [];
     loading.textContent = 'Loading' + (dots.length >= 3 ? '' : '.'.repeat(dots.length + 1));
   }, 420);
-  // Store the interval so it can be cleared on hide
   div._loadingInterval = spinInterval;
   div.appendChild(loading);
 
-  // Studio credit
   const credit = document.createElement('div');
   credit.className = 'splashStudio';
   credit.textContent = 'King Peng Studio';
   div.appendChild(credit);
 
   document.body.appendChild(div);
+  studioSplashElement = div;
   return div;
 }
 
-function hideSplashScreen(){
-  const splash = document.querySelector('.splashScreen');
-  if(!splash) return;
-  // Clear the loading dots interval
-  if(splash._loadingInterval) clearInterval(splash._loadingInterval);
+function hideStudioSplash() {
+  const splash = studioSplashElement || document.querySelector('.splashScreen');
+  if (!splash) return;
+  if (splash._loadingInterval) clearInterval(splash._loadingInterval);
   splash.classList.add('hidden');
-  // Remove from DOM after the 0.8s fade-out transition completes
   setTimeout(() => {
-    if(splash.parentNode) splash.parentNode.removeChild(splash);
+    if (splash.parentNode) splash.parentNode.removeChild(splash);
   }, 900);
 }
 
-// ── Startup Sequence ────────────────────────────────────────────────────
-// Show splash immediately, then wait for sprites + minimum time.
-const splashScreen = createSplashScreen();
-const SPLASH_MIN_MS = 3000;   // minimum splash display time
-const SPLASH_MAX_MS = 5000;   // hard timeout
+/* ── Startup Sequence ────────────────────────────────────────────── */
+
+// Show game splash immediately
+createGameSplash();
+
+// After 3 seconds, switch to studio splash
+setTimeout(() => {
+  hideGameSplash();
+  createStudioSplash();
+}, 3000);
+
+// Wait for sprites + minimum studio display time (2s)
+const SPLASH_STUDIO_MIN_MS = 2000;   // studio splash visible at least 2s
+const SPLASH_STUDIO_MAX_MS = 5000;   // hard timeout
 
 const readyPromise = typeof spritePreloadPromise !== 'undefined' && spritePreloadPromise
   ? spritePreloadPromise
@@ -164,25 +228,27 @@ const readyPromise = typeof spritePreloadPromise !== 'undefined' && spritePreloa
 
 Promise.all([
   readyPromise,
-  new Promise(resolve => setTimeout(resolve, SPLASH_MIN_MS))
+  new Promise(resolve => setTimeout(resolve, SPLASH_STUDIO_MIN_MS))
 ]).then(() => {
-  hideSplashScreen();
+  hideStudioSplash();
   // Give the fade transition time before showing the menu
   setTimeout(() => {
-    if(typeof startupFlow === 'function') startupFlow();
+    if (typeof startupFlow === 'function') startupFlow();
   }, 200);
 });
 
-// Hard timeout — force-hide splash after 5 seconds even if sprites haven't loaded
+// Hard timeout – force-hide studio splash after 5s if stuck
 setTimeout(() => {
   const splash = document.querySelector('.splashScreen');
-  if(splash && !splash.classList.contains('hidden')){
-    hideSplashScreen();
+  if (splash && !splash.classList.contains('hidden')) {
+    hideStudioSplash();
     setTimeout(() => {
-      if(typeof startupFlow === 'function') startupFlow();
+      if (typeof startupFlow === 'function') startupFlow();
     }, 200);
   }
-}, SPLASH_MAX_MS);
+}, SPLASH_STUDIO_MAX_MS);
 
 // Keep the existing input bindings
 bindStartCardInput();
+
+
