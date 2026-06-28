@@ -1560,6 +1560,7 @@ function showMainMenu(){
   addMenuButton('Milestones',showMilestonesMenu);
   addMenuButton('Hall of Records',showHallOfRecords);
   addMenuButton('Settings',showSettingsMenu);
+  addMenuButton('How to Play', showHelpMenu);
   addMenuButton('Credits',showCreditsMenu);
 }
 
@@ -1895,7 +1896,7 @@ function showSynergiesMenu(){
 function showCreditsMenu(){
   appState='CREDITS_MENU';
   setMenu('Credits','Designed by Alessandro and Dylan from King Peng Studio');
-  ui.menuContent.innerHTML='<p>Game Design: Alessandro and Dylan<br>Studio: King Peng Studio<br>Prototype Development: AI-assisted HTML/JavaScript prototype</p>';
+  ui.menuContent.innerHTML='<p>Game Design: Alessandro and Dylan<br>Studio: King Peng Studio<br>Prototype Development:HTML/JavaScript prototype - June 2026</p>';
   addMenuButton('Back',showMainMenu);
 }
 
@@ -2037,6 +2038,111 @@ function startupFlow(){
     saveGame();
     showMainMenu();
   }
+}
+
+/*
+ * How to Play / Help Menu
+ */
+function showHelpMenu() {
+  appState = 'HELP_MENU';
+  setMenu('How to Play', 'Everything you need to know to survive the Echo Vein.');
+
+  const container = document.createElement('div');
+  container.className = 'helpContent';
+
+  // Goal
+  const goal = document.createElement('section');
+  goal.className = 'helpSection';
+  goal.innerHTML = `
+    <h3>🎯 Your Goal</h3>
+    <p>Descend into the procedurally generated caves of the Echo Vein. Mine valuable resources (<strong>Gild Shards</strong>, <strong>Voltarite</strong>, <strong>Echo Shards</strong>, and rare ores), fight off the Hollowborn, complete your mission objectives, defeat the Sector Boss, and <strong>reach the extraction craft</strong> to bank your haul.</p>
+    <p>Every run makes you stronger through permanent upgrades, operator prestige, and milestone rewards.</p>
+  `;
+  container.appendChild(goal);
+
+  // Operators
+  const ops = document.createElement('section');
+  ops.className = 'helpSection';
+  ops.innerHTML = `<h3>🛡️ Operators</h3><div class="helpGrid">`;
+  for (const cls of CLASSES) {
+    const iconHtml = cls.spriteId ? spriteIconHtml(cls.spriteId, cls.icon) : cls.icon;
+    ops.innerHTML += `
+      <div class="helpOperatorCard">
+        <div class="helpOpIcon">${iconHtml}</div>
+        <div class="helpOpInfo">
+          <h4>${cls.name}</h4>
+          <p>${cls.desc}</p>
+          <span class="tag">${cls.tag}</span>
+        </div>
+      </div>
+    `;
+  }
+  ops.innerHTML += `</div>`;
+  container.appendChild(ops);
+
+  // Controls
+  const controls = document.createElement('section');
+  controls.className = 'helpSection';
+  controls.innerHTML = `
+    <h3>🎮 Controls</h3>
+    <div class="controlGrid">
+      <div class="controlGroup">
+        <h4>Keyboard & Mouse</h4>
+        <div class="controlItem"><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> / <kbd>Arrows</kbd> — Move</div>
+        <div class="controlItem"><kbd>Space</kbd> / <kbd>Y</kbd> — Dash</div>
+        <div class="controlItem"><kbd>E</kbd> — Place Trap (Pathfinder)</div>
+        <div class="controlItem"><kbd>LMB</kbd> / <kbd>X</kbd> — Primary Fire</div>
+        <div class="controlItem"><kbd>RMB</kbd> / <kbd>B</kbd> — Arc Connection / Secondary</div>
+        <div class="controlItem"><kbd>P</kbd> — Pause</div>
+        <div class="controlItem"><kbd>R</kbd> — Restart Run</div>
+        <div class="controlItem"><kbd>M</kbd> — Mute Sound</div>
+      </div>
+      <div class="controlGroup">
+        <h4>🎮 Gamepad</h4>
+        <div class="controlItem"><strong>Left Stick</strong> — Move</div>
+        <div class="controlItem"><strong>Right Stick</strong> — Aim Cursor</div>
+        <div class="controlItem"><strong>A</strong> — Trap (Pathfinder)</div>
+        <div class="controlItem"><strong>X</strong> — Primary Fire</div>
+        <div class="controlItem"><strong>B</strong> — Arc / Secondary</div>
+        <div class="controlItem"><strong>Y</strong> — Dash</div>
+        <div class="controlItem"><strong>D-Pad / Left Stick</strong> — Menu Navigation</div>
+      </div>
+    </div>
+  `;
+  container.appendChild(controls);
+
+  // Mechanics
+  const mechanics = document.createElement('section');
+  mechanics.className = 'helpSection';
+  mechanics.innerHTML = `
+    <h3>⚙️ Core Mechanics</h3>
+    <div class="mechanicsGrid">
+      <div class="mechCard">
+        <span class="mechIcon">⛏️</span>
+        <h4>Mining & Heat</h4>
+        <p>Mine tiles by walking into them. Your tool generates <strong>Heat</strong> – let it cool or overheat and lose efficiency. Upgrade your tool to mine faster.</p>
+      </div>
+      <div class="mechCard">
+        <span class="mechIcon">💎</span>
+        <h4>Resources</h4>
+        <p>Collect <strong>Gild</strong>, <strong>Voltarite</strong>, <strong>Echo</strong>, and rare ores. Spend them on permanent upgrades or convert them in the main menu.</p>
+      </div>
+      <div class="mechCard">
+        <span class="mechIcon">⭐</span>
+        <h4>Operator Prestige</h4>
+        <p>Reach <strong>Level 20</strong> with an operator to Prestige. Reset to Level 1 and earn <strong>permanent stacking bonuses</strong> (HP, damage, speed, mining, heat capacity).</p>
+      </div>
+      <div class="mechCard">
+        <span class="mechIcon">🚀</span>
+        <h4>Extraction</h4>
+        <p>Complete your mission objectives, defeat the boss, then reach the extraction craft before the timer runs out. <strong>Success = banked resources</strong>.</p>
+      </div>
+    </div>
+  `;
+  container.appendChild(mechanics);
+
+  ui.menuContent.appendChild(container);
+  addMenuButton('Back', showMainMenu);
 }
 
 window.showMainMenu=showMainMenu;
