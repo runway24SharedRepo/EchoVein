@@ -14,7 +14,7 @@ function createRunStats(){
     resourcesCollected:{}, blocksMined:0, distanceTravelled:0, damageDealt:0, damageTaken:0,
     shotsFired:0, shotsHit:0, dashesUsed:0, trapsPlaced:0, dronesDeployed:0, dronesPeak:0,
     missilesFired:0, boomerangsFired:0, arcDetonations:0, lavaDamageTaken:0, borecasterBombsThrown:0, borecasterBombsExploded:0,
-    objectivesCompleted:0, causeOfEnd:null, endTitle:null, samples:[], lastX:null, lastY:null,
+    objectivesCompleted:0, operatorXPGained:0, causeOfEnd:null, endTitle:null, samples:[], lastX:null, lastY:null,
     maxEnemiesAlive:0, criticalHealthTime:0, miningTime:0,
     chargingWavesSpawned:0, chargingWaveEnemiesSpawned:0, chargingWaveEnemiesKilled:0, chargingWaveEnemiesExploded:0,
     damageTakenFromChargingWaves:0, blocksBrokenByChargingWaves:0, oresDestroyedByChargingWaves:0
@@ -95,7 +95,7 @@ function runStatsSummaryHtml(g){
   const resRows=Object.keys(res).sort().map(id=>`<div><span>${MINERALS[id]?.displayName||id}</span><b>${Math.floor(res[id]||0)}</b></div>`).join('') || '<div><span>No resources collected</span><b>0</b></div>';
   const cards=[
     ['Duration',formatDuration(s.durationSec)], ['Kills',s.enemiesKilled||0], ['Elites',s.elitesKilled||0], ['Bosses',s.bossesKilled||0],
-    ['Level',s.playerLevelMax||g.level||1], ['Resources',totalRunResources(s)], ['Damage dealt',Math.round(s.damageDealt||0)], ['Damage taken',Math.round(s.damageTaken||0)],
+    ['Level',s.playerLevelMax||g.level||1], ['Op XP',s.operatorXPGained||0], ['Resources',totalRunResources(s)], ['Damage dealt',Math.round(s.damageDealt||0)], ['Damage taken',Math.round(s.damageTaken||0)],
     ['Accuracy',`${runAccuracy(s).toFixed(1)}%`], ['Blocks mined',s.blocksMined||0], ['Dashes',s.dashesUsed||0], ['Traps',s.trapsPlaced||0],
     ...((s.borecasterBombsThrown||0)>0 ? [
       ['Seismic bombs thrown',s.borecasterBombsThrown||0], ['Seismic bombs exploded',s.borecasterBombsExploded||0]

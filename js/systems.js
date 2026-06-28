@@ -615,6 +615,8 @@ function mineTile(g,p,tx,ty,dt){
         if(resourceId==='echo') saveProfile.statistics.totalEchoMined = (saveProfile.statistics.totalEchoMined||0) + amount;
         saveProfile.statistics.totalResourcesCollected = (saveProfile.statistics.totalResourcesCollected||0) + amount;
       }
+      // Phase 1.5: grant operator XP on mining (1 * mineMul).
+      if(typeof gainOperatorXP === 'function') gainOperatorXP(g, 1 * g.player.mineMul);
       // Phase 1.1: check mining-based milestones.
       if(typeof checkMilestoneOnMine === 'function') checkMilestoneOnMine(g);
       // Phase 1.2: update Harvest mission objectives.
@@ -4358,6 +4360,8 @@ function killEnemy(g,e){
     if(roleStat==='boss' || e.type==='boss' || e.type==='hollowTyrantVariant') g.runStats.bossesKilled=(g.runStats.bossesKilled||0)+1;
   }
   g.kills++; sfx('kill', 0.55); dropPickup(g,e.x,e.y,'xp',e.xp);
+  // Phase 1.5: grant operator XP on kill (50% of enemy XP).
+  if(typeof gainOperatorXP === 'function') gainOperatorXP(g, Math.round(e.xp * 0.5));
   // Track kills persistently so kill-count milestones can fire mid-run.
   saveProfile.statistics.totalEnemiesKilled = (saveProfile.statistics.totalEnemiesKilled||0) + 1;
   // Phase 1.2: update Hunt mission objective.
@@ -4664,6 +4668,8 @@ function updatePickups(g,dt){
 
 function gainXp(g,v){
   g.xp+=v;
+  // Phase 1.5: grant operator XP (30% of gained XP).
+  if(typeof gainOperatorXP === 'function') gainOperatorXP(g, Math.round(v * 0.3));
   while(g.xp>=g.xpNeed){
     g.xp-=g.xpNeed; g.level++; g.xpNeed=Math.floor(g.xpNeed*1.22+12);
     // Phase 1.1: check level-based milestones.

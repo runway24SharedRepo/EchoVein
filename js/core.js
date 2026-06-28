@@ -72,6 +72,13 @@ const OBSTACLE_TYPES = {
   }
 };
 
+const OPERATOR_MAX_LEVEL = 20;
+const PRESTIGE_BONUSES = {
+  bulwark:   { hpBonus: 5, damageBonus: 0.02 },
+  pathfinder: { speedBonus: 0.03, dashCooldown: -0.2 },
+  borecaster: { miningSpeedBonus: 0.04, heatCapacityBonus: 10 }
+};
+
 const RUN_RESOURCE_IDS = ['gild','voltarite','echo','ferriteBark','luminaSpores','aetherQuartz','crysalith','emberglass'];
 const MISSION_RESOURCE_IDS = ['gild','voltarite','ferriteBark','luminaSpores','aetherQuartz','crysalith','emberglass'];
 
@@ -431,7 +438,9 @@ function activeAimWorld(g){
 function triggerDash(g, source='input'){
   if(!g || g.state!=='playing' || awaitingUpgrade) return false;
   const p=g.player;
-  const cd = p.classId==='pathfinder'?1.4:2.4;
+  const baseCd = p.classId==='pathfinder'?1.4:2.4;
+  const reduction = p.dashCdReduction || 0;
+  const cd = Math.max(0.5, baseCd + reduction);
   if(p.dashCd>0) return false;
   p.dashCd=cd;
   p.dashT=0.15;

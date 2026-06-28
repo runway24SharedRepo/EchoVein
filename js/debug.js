@@ -52,6 +52,65 @@ function debugUnlockWeapon(id){
   updateGameAfterDebug();
 }
 
+// ── Operator XP & Prestige Debug ──────────────────────────────
+
+function debugSetOperatorXP(classId, amount) {
+  if (!saveProfile) return;
+  const data = saveProfile.operatorData?.[classId];
+  if (!data) { debugLog(`Operator "${classId}" not found.`); return; }
+  data.xp = Math.max(0, amount);
+  // Clamp XP so it doesn't exceed the XP needed for the next level (avoids visual bugs)
+  while (data.xp >= data.xpToNext && data.level < OPERATOR_MAX_LEVEL) {
+    data.xp -= data.xpToNext;
+    data.level++;
+    data.xpToNext = Math.floor(data.xpToNext * 1.25 + 30);
+  }
+  saveGame();
+  debugLog(`Set ${classId} XP to ${amount} (level ${data.level}).`);
+  showMainMenu(); // refresh UI
+}
+
+function debugAddOperatorXP(classId, amount) {
+  if (!saveProfile) return;
+  const data = saveProfile.operatorData?.[classId];
+  if (!data) { debugLog(`Operator "${classId}" not found.`); return; }
+  data.xp += amount;
+  let leveled = false;
+  while (data.xp >= data.xpToNext && data.level < OPERATOR_MAX_LEVEL) {
+    data.xp -= data.xpToNext;
+    data.level++;
+    data.xpToNext = Math.floor(data.xpToNext * 1.25 + 30);
+    leveled = true;
+  }
+  saveGame();
+  debugLog(`Added ${amount} XP to ${classId}. Now level ${data.level}, XP ${data.xp}/${data.xpToNext}`);
+  if (leveled) debugLog(`🎉 ${classId} leveled up!`);
+  showMainMenu();
+}
+
+function debugForcePrestige(classId) {
+  if (!saveProfile) return;
+  const data = saveProfile.operatorData?.[classId];
+  if (!data) { debugLog(`Operator "${classId}" not found.`); return; }
+  // Allow prestige even if level < 20 (for testing the UI and bonus application)
+  data.prestige++;
+  data.level = 1;
+  data.xp = 0;
+  data.xpToNext = 100;
+  const bonus = PRESTIGE_BONUSES[classId];
+  if (bonus) {
+    if (bonus.hpBonus) saveProfile.permanentBonuses.hpBonus = (saveProfile.permanentBonuses.hpBonus || 0) + bonus.hpBonus;
+    if (bonus.damageBonus) saveProfile.permanentBonuses.bulwarkDamageBonus = (saveProfile.permanentBonuses.bulwarkDamageBonus || 0) + bonus.damageBonus;
+    if (bonus.speedBonus) saveProfile.permanentBonuses.pathfinderSpeedBonus = (saveProfile.permanentBonuses.pathfinderSpeedBonus || 0) + bonus.speedBonus;
+    if (bonus.dashCooldown) saveProfile.permanentBonuses.pathfinderDashCooldown = (saveProfile.permanentBonuses.pathfinderDashCooldown || 0) + bonus.dashCooldown;
+    if (bonus.miningSpeedBonus) saveProfile.permanentBonuses.borecasterMiningSpeedBonus = (saveProfile.permanentBonuses.borecasterMiningSpeedBonus || 0) + bonus.miningSpeedBonus;
+    if (bonus.heatCapacityBonus) saveProfile.permanentBonuses.borecasterHeatCapacityBonus = (saveProfile.permanentBonuses.borecasterHeatCapacityBonus || 0) + bonus.heatCapacityBonus;
+  }
+  saveGame();
+  debugLog(`✨ Force-prestiged ${classId}. Now Prestige ${data.prestige}`);
+  showMainMenu();
+}
+
 function debugSpawnEnemies(type,count){
   if(!requireGame()) return;
   for(let i=0;i<count;i++){
@@ -987,6 +1046,24 @@ function buildDebugPanel(){
     makeDebugButton('Add Voltarite',debugAddVoltarite),
     makeDebugButton('Reset cooldowns',debugResetCooldowns)
   ]);
+
+  addDebugSection(panel, 'Operator XP Testing', [
+  makeDebugButton('Bulwark: Set XP 500', () => debugSetOperatorXP('bulwark', 500)),
+  makeDebugButton('Bulwark: Set XP 2000', () => debugSetOperatorXP('bulwark', 2000)),
+  makeDebugButton('Bulwark: Add XP 100', () => debugAddOperatorXP('bulwark', 100)),
+  makeDebugButton('Bulwark: Force Prestige', () => debugForcePrestige('bulwark')),
+  
+  makeDebugButton('Pathfinder: Set XP 500', () => debugSetOperatorXP('pathfinder', 500)),
+  makeDebugButton('Pathfinder: Set XP 2000', () => debugSetOperatorXP('pathfinder', 2000)),
+  makeDebugButton('Pathfinder: Add XP 100', () => debugAddOperatorXP('pathfinder', 100)),
+  makeDebugButton('Pathfinder: Force Prestige', () => debugForcePrestige('pathfinder')),
+  
+  makeDebugButton('Borecaster: Set XP 500', () => debugSetOperatorXP('borecaster', 500)),
+  makeDebugButton('Borecaster: Set XP 2000', () => debugSetOperatorXP('borecaster', 2000)),
+  makeDebugButton('Borecaster: Add XP 100', () => debugAddOperatorXP('borecaster', 100)),
+  makeDebugButton('Borecaster: Force Prestige', () => debugForcePrestige('borecaster')),
+]);
+
   const logTitle = document.createElement('section');
   logTitle.className = 'debugSection';
   logTitle.innerHTML = '<h3>Debug Log</h3><pre class="debugLog" id="debugActionLog"></pre>';

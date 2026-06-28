@@ -22,7 +22,7 @@
 - ✅ **1.2 Mission Variety** — Hunt, Survey, Harvest, Holdout with selection UI and tracking
 - ✅ **1.3 Permanent Upgrade Expansion** — 10 upgrade categories with tiered costs
 - ✅ **1.4 Resource Economy Rebalance** — Gild income reduced, Voltarite availability increased, upgrade costs reworked, resource conversion system added, bonus objectives implemented
-- ⏳ **1.5 Operator XP & Prestige** — Planned
+- ✅ **1.5 Operator XP & Prestige** — Persistent class‑specific XP, level cap (20), stacking prestige bonuses (HP/damage/speed/mining/heat) per class, UI in main menu and in‑game HUD, milestones for operator levels and prestige, debug tools for rapid testing
 - ⏳ **1.6 Run History / Hall of Records** — Planned
 
 ### Phase 2.1 — Upgrade Synergies ✅
@@ -73,9 +73,8 @@
 - Visual feedback for stackable upgrades (e.g., Field Reclaimer shows current HP value)
 
 ## 🎯 Next Tasks (Planned)
-- ⏳ Phase 1.5 — Operator XP & Prestige
 - ⏳ Phase 1.6 — Run History / Hall of Records
-- ⏳ Phase 2.7+ — TBD (Thermal Lance VFX, additional content)
+- ⏳ Phase 2.7 — Thermal Lance VFX polish (sprite integration), additional content (new enemies/weapons) as desired
 
 ## Boss Details
 
@@ -104,18 +103,13 @@
 - **Milestone:** Counts toward BossKill1 milestone
 - **Run Progress:** Triggers extraction sequence
 
-### Key Files to Modify
+### Key Files to Modify (Phase 1.6)
 | File | Changes |
 |---|---|
-| `entities.js` | BOSS_TYPES data, boss constructors, weak point logic |
-| `systems.js` | updateBoss() function, phase transitions, attack timers, weak point tracking |
-| `render-ui.js` | Boss health bar, name display, phase indicator, weak point highlight, extraction path |
-| `core.js` | bossType, bossPhase, bossWeakPoint, upgrade pool |
-| `world.js` | Boss selection logic |
-| `audio.js` | Boss sounds (roar, phase change, defeat, weak point) |
-| `assets.js` | Boss sprites and their attacks |
-| `style.css` | Boss health bar styling, phase indicators |
-| `progression.js` | Resource economy, bonus objectives, conversion system |
+| `progression.js` | Add `runHistory` to profile, functions to store and retrieve run records, UI rendering for Hall of Records |
+| `render-ui.js` | (optional) small stats display on HUD |
+| `core.js` | (optional) expose best‑run stats |
+| `style.css` | Styling for the Hall of Records UI |
 
 ## Code Patterns
 - Use existing enemy system in entities.js

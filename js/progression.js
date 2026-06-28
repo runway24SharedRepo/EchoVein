@@ -166,7 +166,25 @@ const MILESTONES = [
   { id:'ClassBorecaster',   name:'Borecaster Veteran',   desc:'Complete 10 runs as Borecaster.',  reward:'+5% mining speed',    icon:'⛏️', group:'class',
     check:p=>((p.statistics.classRuns||{}).borecaster||0)>=10,
     apply:g=>{ g.player.mineMul*=1.05; },
-    progress:p=>({current:(p.statistics.classRuns||{}).borecaster||0, target:10}) }
+    progress:p=>({current:(p.statistics.classRuns||{}).borecaster||0, target:10}) },
+
+  // ── 🏆 OPERATOR XP & PRESTIGE ──────────────────────────────────────
+  { id:'OpLevel10',        name:'Operator Novice',     desc:'Reach operator level 10 with any class.', reward:'+3% damage',           icon:'⭐',  group:'class',
+    check:p=>{ const od=p.operatorData||{}; return Object.values(od).some(d=>d.level>=10); },
+    apply:g=>{ g.player.damageMul*=1.03; },
+    progress:p=>{ const od=p.operatorData||{}; const best=Math.max(...Object.values(od).map(d=>d.level),0); return {current:best, target:10}; } },
+  { id:'OpLevel20',        name:'Operator Master',     desc:'Reach operator level 20 with any class.', reward:'+5% damage',            icon:'🌟',  group:'class',
+    check:p=>{ const od=p.operatorData||{}; return Object.values(od).some(d=>d.level>=20); },
+    apply:g=>{ g.player.damageMul*=1.05; },
+    progress:p=>{ const od=p.operatorData||{}; const best=Math.max(...Object.values(od).map(d=>d.level),0); return {current:best, target:20}; } },
+  { id:'FirstPrestige',    name:'First Prestige',      desc:'Prestige any operator once.',            reward:'+5 max HP',            icon:'🏅',  group:'class',
+    check:p=>{ const od=p.operatorData||{}; return Object.values(od).some(d=>d.prestige>=1); },
+    apply:g=>{ const b=Math.round(g.player.maxHp*0.05); g.player.maxHp+=b; g.player.hp+=b; },
+    progress:p=>{ const od=p.operatorData||{}; const totalP=Object.values(od).reduce((s,d)=>s+d.prestige,0); return {current:totalP, target:1}; } },
+  { id:'MaxPrestige',      name:'True Veteran',        desc:'Prestige an operator 5 times.',          reward:'+8% damage, +5% HP',   icon:'👑',  group:'class',
+    check:p=>{ const od=p.operatorData||{}; return Object.values(od).some(d=>d.prestige>=5); },
+    apply:g=>{ g.player.damageMul*=1.08; const b=Math.round(g.player.maxHp*0.05); g.player.maxHp+=b; g.player.hp+=b; },
+    progress:p=>{ const od=p.operatorData||{}; const best=Math.max(...Object.values(od).map(d=>d.prestige),0); return {current:best, target:5}; } }
 ];
 
 function defaultMilestones(){
@@ -501,6 +519,14 @@ function defaultPermanentUpgrades(){
   return result;
 }
 
+function createDefaultOperatorData(){
+  return {
+    bulwark:   { level: 1, xp: 0, xpToNext: 100, prestige: 0 },
+    pathfinder: { level: 1, xp: 0, xpToNext: 100, prestige: 0 },
+    borecaster: { level: 1, xp: 0, xpToNext: 100, prestige: 0 }
+  };
+}
+
 function createDefaultProfile(){
   const stamp=new Date().toISOString();
   return {
@@ -513,6 +539,7 @@ function createDefaultProfile(){
     completedMissions:0,
     resources:defaultResources(),
     permanentUpgrades:defaultPermanentUpgrades(),
+    operatorData:createDefaultOperatorData(),
     milestones:defaultMilestones(),
     unlockedSynergies:[],
     statistics:{
@@ -541,6 +568,13 @@ function normalizeProfile(profile){
     ...profile,
     resources:{...base.resources,...(profile?.resources || {})},
     permanentUpgrades:{...base.permanentUpgrades,...(profile?.permanentUpgrades || {})},
+    operatorData:{
+      ...createDefaultOperatorData(),
+      ...(profile?.operatorData || {}),
+      bulwark:{...base.operatorData.bulwark, ...(profile?.operatorData?.bulwark || {})},
+      pathfinder:{...base.operatorData.pathfinder, ...(profile?.operatorData?.pathfinder || {})},
+      borecaster:{...base.operatorData.borecaster, ...(profile?.operatorData?.borecaster || {})}
+    },
     milestones:{...base.milestones,...(profile?.milestones || {})},
     unlockedSynergies:profile?.unlockedSynergies || [],
     permanentBonuses:profile?.permanentBonuses || {},
@@ -709,6 +743,27 @@ function applyPermanentUpgrades(g){
     p.maxHp = Math.round(p.maxHp + hpBonus);
     p.hp = p.maxHp;
   }
+  // Phase 1.5: Apply prestige bonuses.
+  const pb = saveProfile.permanentBonuses || {};
+  if(pb.hpBonus > 0){
+    p.maxHp = Math.round(p.maxHp + pb.hpBonus);
+    p.hp = p.maxHp;
+  }
+  if(pb.bulwarkDamageBonus){
+    p.damageMul *= (1 + pb.bulwarkDamageBonus);
+  }
+  if(pb.pathfinderSpeedBonus){
+    p.speedMul *= (1 + pb.pathfinderSpeedBonus);
+  }
+  if(pb.borecasterMiningSpeedBonus){
+    p.mineMul *= (1 + pb.borecasterMiningSpeedBonus);
+  }
+  if(pb.borecasterHeatCapacityBonus){
+    p.maxHeat += pb.borecasterHeatCapacityBonus;
+  }
+  if(pb.pathfinderDashCooldown){
+    p.dashCdReduction = (p.dashCdReduction || 0) + pb.pathfinderDashCooldown;
+  }
 }
 
 /*
@@ -739,6 +794,137 @@ function applySynergyRewards(g){
       s.apply(g);
     }
   }
+}
+
+/*
+ * Phase 1.5 — Operator XP & Prestige
+ *
+ * gainOperatorXP — Accumulate operator XP and handle level-up.
+ * Called from killEnemy(), mineTile(), and gainXp() hooks.
+ */
+function gainOperatorXP(g, amount){
+  if(!saveProfile || !g || !g.player) return;
+  const classId = g.player.classId;
+  const data = saveProfile.operatorData?.[classId];
+  if(!data) return;
+  const multiplier = g.player.operatorXPMultiplier || 1;
+  const adjusted = Math.round(amount * multiplier);
+  if(adjusted <= 0) return;
+  data.xp += adjusted;
+  if(g.runStats) g.runStats.operatorXPGained = (g.runStats.operatorXPGained || 0) + adjusted;
+  let leveledUp = false;
+  while(data.xp >= data.xpToNext && data.level < OPERATOR_MAX_LEVEL){
+    data.xp -= data.xpToNext;
+    data.level++;
+    data.xpToNext = Math.floor(data.xpToNext * 1.25 + 30);
+    leveledUp = true;
+    if(typeof log === 'function') log(g, `✦ ${g.selectedClass?.name || classId} reached operator level ${data.level}!`);
+    if(typeof sfx === 'function') sfx('level');
+    if(data.level % 5 === 0 && typeof log === 'function'){
+      log(g, `★ Milestone: Operator ${classId} reached level ${data.level}!`);
+    }
+    if(typeof checkMilestoneOnOperatorLevelUp === 'function') checkMilestoneOnOperatorLevelUp(g);
+  }
+  saveGame();
+  if(leveledUp) updateUI(g);
+}
+
+/*
+ * prestigeOperator — Prestige the current run's operator class.
+ * Called from the in-game menu or directly with a game context.
+ * Returns true if prestige was successful.
+ */
+function prestigeOperator(g){
+  if(!saveProfile || !g || !g.player) return false;
+  const classId = g.player.classId;
+  const data = saveProfile.operatorData?.[classId];
+  if(!data) return false;
+  if(data.level < OPERATOR_MAX_LEVEL) return false;
+  if(data.prestige >= 10) return false; // Prestige cap
+  data.prestige++;
+  data.level = 1;
+  data.xp = 0;
+  data.xpToNext = 100;
+  // Apply the corresponding prestige bonus
+  const bonus = PRESTIGE_BONUSES[classId];
+  if(bonus){
+    saveProfile.permanentBonuses = saveProfile.permanentBonuses || {};
+    if(bonus.hpBonus) saveProfile.permanentBonuses.hpBonus = (saveProfile.permanentBonuses.hpBonus || 0) + bonus.hpBonus;
+    if(bonus.damageBonus) saveProfile.permanentBonuses.bulwarkDamageBonus = (saveProfile.permanentBonuses.bulwarkDamageBonus || 0) + bonus.damageBonus;
+    if(bonus.speedBonus) saveProfile.permanentBonuses.pathfinderSpeedBonus = (saveProfile.permanentBonuses.pathfinderSpeedBonus || 0) + bonus.speedBonus;
+    if(bonus.dashCooldown) saveProfile.permanentBonuses.pathfinderDashCooldown = (saveProfile.permanentBonuses.pathfinderDashCooldown || 0) + bonus.dashCooldown;
+    if(bonus.miningSpeedBonus) saveProfile.permanentBonuses.borecasterMiningSpeedBonus = (saveProfile.permanentBonuses.borecasterMiningSpeedBonus || 0) + bonus.miningSpeedBonus;
+    if(bonus.heatCapacityBonus) saveProfile.permanentBonuses.borecasterHeatCapacityBonus = (saveProfile.permanentBonuses.borecasterHeatCapacityBonus || 0) + bonus.heatCapacityBonus;
+  }
+  if(typeof log === 'function') log(g, `✦ PRESTIGE! ${g.selectedClass?.name || classId} is now Prestige ${data.prestige}.`);
+  if(typeof sfx === 'function') sfx('level');
+  // Re-apply permanent upgrades so prestige bonuses take effect immediately
+  if(typeof applyPermanentUpgrades === 'function') applyPermanentUpgrades(g);
+  if(typeof checkMilestoneOnPrestige === 'function') checkMilestoneOnPrestige(g);
+  saveGame();
+  updateUI(g);
+  return true;
+}
+
+/*
+ * prestigeOperatorFromMenu — Prestige an operator from the main menu.
+ * No game context needed. After prestige, refreshes the main menu.
+ */
+function prestigeOperatorFromMenu(classId){
+  if(!saveProfile) return false;
+  const data = saveProfile.operatorData?.[classId];
+  if(!data) return false;
+  if(data.level < OPERATOR_MAX_LEVEL) return false;
+  if(data.prestige >= 10) return false;
+  data.prestige++;
+  data.level = 1;
+  data.xp = 0;
+  data.xpToNext = 100;
+  const bonus = PRESTIGE_BONUSES[classId];
+  if(bonus){
+    saveProfile.permanentBonuses = saveProfile.permanentBonuses || {};
+    if(bonus.hpBonus) saveProfile.permanentBonuses.hpBonus = (saveProfile.permanentBonuses.hpBonus || 0) + bonus.hpBonus;
+    if(bonus.damageBonus) saveProfile.permanentBonuses.bulwarkDamageBonus = (saveProfile.permanentBonuses.bulwarkDamageBonus || 0) + bonus.damageBonus;
+    if(bonus.speedBonus) saveProfile.permanentBonuses.pathfinderSpeedBonus = (saveProfile.permanentBonuses.pathfinderSpeedBonus || 0) + bonus.speedBonus;
+    if(bonus.dashCooldown) saveProfile.permanentBonuses.pathfinderDashCooldown = (saveProfile.permanentBonuses.pathfinderDashCooldown || 0) + bonus.dashCooldown;
+    if(bonus.miningSpeedBonus) saveProfile.permanentBonuses.borecasterMiningSpeedBonus = (saveProfile.permanentBonuses.borecasterMiningSpeedBonus || 0) + bonus.miningSpeedBonus;
+    if(bonus.heatCapacityBonus) saveProfile.permanentBonuses.borecasterHeatCapacityBonus = (saveProfile.permanentBonuses.borecasterHeatCapacityBonus || 0) + bonus.heatCapacityBonus;
+  }
+  if(typeof checkMilestoneOnPrestige === 'function') checkMilestoneOnPrestige(null);
+  saveGame();
+  showMainMenu();
+  return true;
+}
+
+/*
+ * renderOperatorProgression — Generates HTML for the operator stats panel
+ * in the main menu. Shows level, prestige, XP progress bar, and prestige button.
+ */
+function renderOperatorProgression(){
+  if(!saveProfile) return '';
+  const html = Object.entries(saveProfile.operatorData || {}).map(([classId, data]) => {
+    const cls = CLASSES.find(c => c.id === classId);
+    const clsName = cls?.name || classId;
+    const clsIcon = cls?.icon || classId.charAt(0).toUpperCase();
+    const xpPct = data.level >= OPERATOR_MAX_LEVEL ? 100 : Math.min(100, Math.floor((data.xp / data.xpToNext) * 100));
+    const canPrestige = data.level >= OPERATOR_MAX_LEVEL && data.prestige < 10;
+    const prestigeBtn = canPrestige
+      ? `<button class="prestigeBtn" onclick="prestigeOperatorFromMenu('${classId}')">PRESTIGE</button>`
+      : (data.prestige >= 10 ? '<span class="prestigeMaxed">MAX</span>' : '');
+    const iconHtml = cls?.spriteId ? spriteIconHtml(cls.spriteId, clsIcon) : clsIcon;
+    return `<div class="operatorProgCard">
+      <div class="operatorProgHeader">
+        <span class="operatorProgIcon">${iconHtml}</span>
+        <span class="operatorProgName">${clsName}</span>
+        <span class="operatorProgLevel">Lv.${data.level}/${OPERATOR_MAX_LEVEL}</span>
+        <span class="operatorProgPrestige">Prestige: ${data.prestige}</span>
+        ${prestigeBtn}
+      </div>
+      <div class="operatorProgBarWrap"><div class="operatorProgBar" style="width:${xpPct}%"></div></div>
+      <div class="operatorProgXP">${Math.floor(data.xp)} / ${data.xpToNext} XP</div>
+    </div>`;
+  }).join('');
+  return `<div class="operatorProgression"><h3>Operator Progression</h3>${html}</div>`;
 }
 
 /*
@@ -946,6 +1132,30 @@ function checkMilestoneOnUpgradeBought(g){
   }
 }
 
+/* Called from gainOperatorXP() after level-up — checks operator level milestones. */
+function checkMilestoneOnOperatorLevelUp(g){
+  if(!saveProfile) return;
+  const opIds=['OpLevel10','OpLevel20'];
+  for(const id of opIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+  }
+}
+
+/* Called from prestigeOperatorFromMenu() or prestigeOperator() — checks prestige milestones. */
+function checkMilestoneOnPrestige(g){
+  if(!saveProfile) return;
+  const prestigeIds=['FirstPrestige','MaxPrestige'];
+  for(const id of prestigeIds){
+    const m=MILESTONES.find(x=>x.id===id);
+    if(!m) continue;
+    const entry=saveProfile.milestones[id];
+    if(entry && !entry.unlocked && m.check(saveProfile)) awardMilestone(g,id);
+  }
+}
+
 function currentRunObjectives(){
   const diff=missionDifficulty(saveProfile.missionIndex);
   const run=saveProfile.runIndex;
@@ -1129,6 +1339,8 @@ function showMainMenu(){
   game=null;
   setMenu('Echo Vein', 'Prepare the next descent, spend permanent resources, or review your Hollowshift profile.');
   ui.menuMeta.innerHTML=`<div class="menuStats"><span>Mission <b>${saveProfile.missionIndex}</b></span><span>Run <b>${saveProfile.runIndex}/${RUNS_PER_MISSION}</b></span><span>Completed Missions <b>${saveProfile.completedMissions}</b></span></div><div class="resourceStrip">${renderResourceLine()}</div>`;
+  // Phase 1.5: Operator Progression section
+  ui.menuContent.innerHTML = renderOperatorProgression();
   addMenuButton('Play',showMissionSelect);
   addMenuButton('Upgrades',showUpgradesMenu);
   addMenuButton('Synergies',showSynergiesMenu);
@@ -1622,3 +1834,8 @@ window.checkSynergies=checkSynergies;
 window.applySynergyRewards=applySynergyRewards;
 window.showSynergiesMenu=showSynergiesMenu;
 window.convertResources=convertResources;
+window.gainOperatorXP=gainOperatorXP;
+window.prestigeOperator=prestigeOperator;
+window.prestigeOperatorFromMenu=prestigeOperatorFromMenu;
+window.checkMilestoneOnOperatorLevelUp=checkMilestoneOnOperatorLevelUp;
+window.checkMilestoneOnPrestige=checkMilestoneOnPrestige;

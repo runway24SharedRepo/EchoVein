@@ -1,10 +1,1043 @@
 repo: EchoVein
 
 File Structure:
+EchoVein/css/style.css
 EchoVein/js/core.js
+EchoVein/js/entities.js
 EchoVein/js/progression.js
+EchoVein/js/render-ui.js
 EchoVein/js/systems.js
-EchoVein/PROJECT_CONTEXT.md
+
+EchoVein/css/style.css:
+:root {
+    --bg: #07090d;
+    --panel: rgba(14, 18, 28, 0.88);
+    --panel2: rgba(30, 35, 48, 0.94);
+    --gold: #ffcc4d;
+    --cyan: #42d6ff;
+    --green: #5dff9a;
+    --red: #ff5b5b;
+    --orange: #ff9f43;
+    --purple: #b46bff;
+    --text: #eef3ff;
+    --muted: #95a2ba;
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: radial-gradient(circle at 50% 45%, #182033 0%, #07090d 68%);
+    color: var(--text);
+    font-family: Inter, Segoe UI, Roboto, Arial, sans-serif;
+    user-select: none;
+  }
+
+  /* ── Splash Screen ──────────────────────────────────────────────── */
+  .splashScreen {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    background: #07090d;
+    opacity: 1;
+    transition: opacity 0.8s ease-out;
+    pointer-events: auto;
+  }
+  .splashScreen.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .splashLogo {
+    width: 256px;
+    height: 256px;
+    image-rendering: auto;
+    animation: splashPulse 2.4s ease-in-out infinite;
+  }
+
+  .splashLoading {
+    color: var(--muted);
+    font-size: 15px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.28em;
+  }
+
+  .splashStudio {
+    color: rgba(255,255,255,0.18);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-top: -12px;
+  }
+
+  @keyframes splashPulse {
+    0%, 100% { opacity: 0.88; transform: scale(1); }
+    50%      { opacity: 1;    transform: scale(1.03); }
+  }
+
+  #game {
+    display: block;
+    width: 100vw;
+    height: 100vh;
+    cursor: crosshair;
+  }
+
+  .hud {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .topbar {
+    position: absolute;
+    left: 14px;
+    top: 14px;
+    display: grid;
+    gap: 8px;
+    min-width: 390px;
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 14px;
+    box-shadow: 0 10px 35px rgba(0,0,0,0.35);
+    backdrop-filter: blur(8px);
+  }
+
+  .stats {
+    padding: 10px 12px;
+    display: grid;
+    gap: 8px;
+  }
+
+  .line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .line strong { color: var(--text); font-weight: 800; }
+
+  .bars { display: grid; gap: 6px; }
+  .bar {
+    height: 15px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 999px;
+    overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.10);
+    position: relative;
+  }
+  .bar > div {
+    height: 100%;
+    width: 50%;
+    border-radius: 999px;
+    transition: width 0.12s linear;
+  }
+  .bar.health > div { background: linear-gradient(90deg, #ff3f5f, #ff8a5b); }
+  .bar.xp > div { background: linear-gradient(90deg, #3c80ff, #42d6ff); }
+  .bar.overheat > div { background: linear-gradient(90deg, #ffd15c, #ff5b5b); }
+  .bar .label {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-size: 10px;
+    font-weight: 900;
+    color: rgba(255,255,255,0.92);
+    text-shadow: 0 1px 2px #000;
+  }
+
+  .rightbar {
+    position: absolute;
+    right: 14px;
+    top: 14px;
+    width: 330px;
+    padding: 12px;
+    display: grid;
+    gap: 10px;
+    transition: opacity 0.25s ease;
+  }
+  .rightbar.faded {
+    opacity: 0.12;
+    pointer-events: none;
+  }
+
+  .title {
+    font-size: 18px;
+    font-weight: 950;
+    letter-spacing: 0.3px;
+    color: #fff;
+  }
+  .subtitle {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.35;
+  }
+
+  .weaponList, .logList { display: grid; gap: 6px; }
+  .chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 9px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .chip b { color: #fff; }
+  .chip.locked { border-color: rgba(255,75,75,0.8); background: rgba(255,75,75,0.12); color: #ff9999; }
+  .chip.unlocked { border-color: rgba(114,255,118,0.8); background: rgba(89,255,105,0.14); color: #d4ffd4; }
+
+  .bottomHelp {
+    position: absolute;
+    left: 50%;
+    bottom: 16px;
+    transform: translateX(-50%);
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .bottomHelp kbd {
+    color: #fff;
+    background: rgba(255,255,255,0.10);
+    border: 1px solid rgba(255,255,255,0.20);
+    border-bottom-color: rgba(0,0,0,0.55);
+    border-radius: 5px;
+    padding: 2px 5px;
+    font-size: 11px;
+    font-weight: 900;
+  }
+
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: auto;
+    background: radial-gradient(circle at 50% 50%, rgba(15,22,36,0.44), rgba(0,0,0,0.72));
+  }
+  .overlay.show { display: flex; }
+  .modal {
+    width: min(960px, calc(100vw - 32px));
+    max-height: calc(100vh - 42px);
+    overflow: auto;
+    padding: 18px;
+    background: var(--panel2);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 20px;
+    box-shadow: 0 18px 80px rgba(0,0,0,0.65);
+  }
+  .modal h1, .modal h2 { margin: 0 0 8px; }
+  .modal h1 { font-size: 30px; }
+  .modal p { color: var(--muted); line-height: 1.45; margin: 8px 0; }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .card {
+    border: 1px solid rgba(255,255,255,0.13);
+    border-radius: 16px;
+    background: rgba(255,255,255,0.06);
+    padding: 14px;
+    cursor: pointer;
+    transition: transform 0.1s ease, background 0.1s ease, border-color 0.1s ease;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    background: rgba(255,255,255,0.10);
+    border-color: rgba(66,214,255,0.65);
+  }
+  .card .icon { font-size: 32px; margin-bottom: 10px; }
+  .card h3 { margin: 0 0 7px; font-size: 17px; }
+  .card p { margin: 0; font-size: 13px; }
+  .card .tag {
+    display: inline-block;
+    margin-top: 10px;
+    font-size: 11px;
+    color: #08111a;
+    background: var(--cyan);
+    padding: 3px 7px;
+    border-radius: 999px;
+    font-weight: 900;
+  }
+
+  .buttonRow { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+  button {
+    pointer-events: auto;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: linear-gradient(180deg, rgba(66,214,255,0.18), rgba(66,214,255,0.08));
+    color: #fff;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  button:hover { border-color: rgba(66,214,255,0.75); }
+
+  .damageFlash {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: rgba(255,30,55,0.0);
+    transition: background 0.12s linear;
+  }
+  .damageFlash.on { background: rgba(255,30,55,0.22); }
+
+
+  .soundControls {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-right: 14px;
+    padding-right: 12px;
+    border-right: 1px solid rgba(255,255,255,0.12);
+  }
+  .soundControls button {
+    border: 1px solid rgba(255,255,255,0.18);
+    background: rgba(255,255,255,0.08);
+    color: var(--text);
+    border-radius: 10px;
+    padding: 5px 9px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .soundControls button:hover { background: rgba(255,255,255,0.16); }
+  .soundControls input { width: 90px; accent-color: var(--cyan); }
+
+  @media (max-width: 850px) {
+    .rightbar { display: none; }
+    .topbar { min-width: 310px; max-width: calc(100vw - 28px); }
+    .cards { grid-template-columns: 1fr; }
+    .bottomHelp { display: none; }
+  }
+
+
+  .debugBox {
+    position: fixed;
+    left: 12px;
+    bottom: 12px;
+    z-index: 50;
+    max-width: min(760px, calc(100vw - 24px));
+    max-height: 40vh;
+    overflow: auto;
+    white-space: pre-wrap;
+    user-select: text;
+    pointer-events: auto;
+    background: rgba(80, 0, 0, 0.94);
+    color: #fff;
+    border: 1px solid rgba(255, 120, 120, 0.9);
+    border-radius: 12px;
+    padding: 10px 12px;
+    font: 12px/1.35 Consolas, Monaco, monospace;
+    box-shadow: 0 12px 35px rgba(0,0,0,0.55);
+  }
+
+  .card:focus-visible {
+    outline: 3px solid var(--cyan);
+    outline-offset: 3px;
+  }
+
+
+  /* Permanent upgrade table / affordability states */
+  .upgradeTableWrap {
+    display: grid;
+    gap: 18px;
+    margin-top: 16px;
+  }
+  .upgradeCategorySection {
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 16px;
+    background: rgba(255,255,255,0.035);
+    overflow: hidden;
+  }
+  .upgradeCategorySection > h3 {
+    margin: 0;
+    padding: 11px 13px;
+    background: rgba(66,214,255,0.08);
+    border-bottom: 1px solid rgba(255,255,255,0.10);
+    color: #fff;
+  }
+  .upgradeTable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  .upgradeTable th,
+  .upgradeTable td {
+    padding: 9px 10px;
+    vertical-align: top;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+  .upgradeTable th {
+    text-align: left;
+    color: var(--cyan);
+    background: rgba(0,0,0,0.16);
+    font-size: 11px;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .upgradeTable tr.affordable { background: rgba(93,255,154,0.025); }
+  .upgradeTable tr.locked { background: rgba(255,255,255,0.018); }
+  .upgradeTable tr.maxed { opacity: 0.72; }
+  .upgradeTable td b { color: #fff; }
+  .upgradeTable td small {
+    display: block;
+    margin-top: 3px;
+    color: var(--muted);
+  }
+  .costLine {
+    display: block;
+    white-space: nowrap;
+  }
+  .costLine.ok { color: #a7f7c6; }
+  .costLine.missing { color: #ff8f8f; font-weight: 900; }
+  button:disabled,
+  button.disabled,
+  .buyBtn:disabled {
+    background: rgba(120,128,145,0.22) !important;
+    border-color: rgba(255,255,255,0.08) !important;
+    color: rgba(238,243,255,0.52) !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+  }
+  .buyBtn {
+    min-width: 122px;
+    padding: 8px 10px;
+  }
+
+
+  .settingsPanel {
+    display: grid;
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .settingsRow {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+    padding: 13px 14px;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    background: rgba(255,255,255,0.055);
+  }
+  .settingsRow span {
+    display: grid;
+    gap: 4px;
+  }
+  .settingsRow small,
+  .settingsValues {
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.35;
+  }
+  .settingsRow input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+    accent-color: var(--cyan);
+    cursor: pointer;
+  }
+  .settingsPresetRow {
+    align-items: flex-start;
+  }
+  .settingsPresetButtons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+  .settingsPresetButtons button {
+    padding: 7px 10px;
+    border-radius: 10px;
+  }
+  .settingsValues {
+    padding: 0 4px;
+  }
+
+.icon .spriteIcon {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
+  vertical-align: middle;
+  filter: drop-shadow(0 0 8px rgba(255,255,255,0.18));
+}
+.weaponIcon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  vertical-align: middle;
+  margin-right: 6px;
+}
+
+  .card.selected,
+  .card[aria-selected="true"] {
+    transform: translateY(-3px) scale(1.015);
+    background: rgba(66,214,255,0.16);
+    border-color: rgba(66,214,255,0.95);
+    box-shadow: 0 0 0 2px rgba(66,214,255,0.30), 0 18px 45px rgba(66,214,255,0.12);
+  }
+
+
+/* Controller focus/selection highlight used by main menu, class select, settings, and level-up cards. */
+.controllerSelected,
+button.controllerSelected,
+input.controllerSelected,
+.card.controllerSelected {
+  outline: 3px solid #64e8ff !important;
+  box-shadow: 0 0 0 2px rgba(100,232,255,0.24), 0 0 22px rgba(100,232,255,0.45) !important;
+  transform: translateY(-1px) scale(1.015);
+}
+input.controllerSelected {
+  transform: scale(1.18);
+}
+
+
+.objectiveRow { margin: 6px 0; padding: 7px 8px; border-radius: 10px; background: rgba(255,255,255,0.055); border: 1px solid rgba(255,255,255,0.08); }
+.objectiveRow.active { opacity: var(--pulse, 1); box-shadow: 0 0 calc(12px * var(--pulse, 1)) rgba(66,214,255,0.18); }
+.objectiveRow.priority { border-color: rgba(66,214,255,0.35); }
+.objectiveRow.done { background: rgba(93,255,154,0.10); border-color: rgba(93,255,154,0.28); }
+.objectiveTop { display:flex; justify-content:space-between; gap:10px; font-size:12px; color: var(--text); }
+.objectiveTop b { color: var(--cyan); }
+.objectiveRow.done .objectiveTop b { color: var(--green); }
+.objectiveBar { height: 7px; margin-top: 5px; border-radius:999px; background:rgba(255,255,255,0.08); overflow:hidden; border:1px solid rgba(255,255,255,0.08); }
+.objectiveBar i { display:block; height:100%; background:linear-gradient(90deg,var(--cyan),var(--green)); border-radius:999px; transition:width .18s linear; }
+.runStatsModal { width:min(980px, 94vw); max-height:92vh; overflow:auto; }
+.statCards { display:grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap:10px; margin:12px 0; }
+.statCard { padding:10px; border-radius:12px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.10); }
+.statCard span { display:block; color:var(--muted); font-size:12px; }
+.statCard b { display:block; font-size:20px; color:var(--text); margin-top:4px; }
+.resourceBreakdown { display:grid; grid-template-columns: repeat(auto-fit,minmax(160px,1fr)); gap:6px; }
+.resourceBreakdown div { display:flex; justify-content:space-between; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,0.045); }
+.chartTabs { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0; }
+.runStatsChart { width:100%; height:240px; border-radius:12px; border:1px solid rgba(255,255,255,0.12); background:rgba(0,0,0,0.28); }
+
+/* ==============================
+   Milestones Menu (Phase 1.1)
+   ============================== */
+.milestoneSection {
+  margin-top: 16px;
+}
+
+.milestoneSectionHeader {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--text);
+  padding: 8px 4px 6px;
+  border-bottom: 1px solid rgba(255,255,255,0.10);
+  margin-bottom: 10px;
+}
+
+.milestonesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.milestoneCard {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+
+.milestoneCard.unlocked {
+  border-color: rgba(93,255,154,0.45);
+  background: rgba(93,255,154,0.07);
+  box-shadow: 0 0 16px rgba(93,255,154,0.08);
+}
+
+.milestoneCard.locked {
+  border-color: rgba(255,255,255,0.08);
+  opacity: 0.82;
+}
+
+.milestoneIcon {
+  font-size: 28px;
+  line-height: 1;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+}
+
+.milestoneCard.unlocked .milestoneIcon {
+  background: rgba(93,255,154,0.14);
+  box-shadow: 0 0 14px rgba(93,255,154,0.18);
+}
+
+.milestoneCard.locked .milestoneIcon {
+  background: rgba(255,255,255,0.04);
+}
+
+.milestoneInfo {
+  display: grid;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.milestoneName {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.milestoneCard.locked .milestoneName {
+  color: var(--muted);
+}
+
+.milestoneDesc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.milestoneReward {
+  font-size: 13px;
+  color: var(--gold);
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.milestoneDate {
+  font-size: 11px;
+  color: var(--cyan);
+  margin-top: 2px;
+}
+
+.milestoneLockedLabel {
+  font-size: 12px;
+  color: #ff9999;
+  margin-top: 2px;
+}
+
+/* Progress bar for tracked milestones */
+.milestoneProgressWrap {
+  height: 8px;
+  margin-top: 6px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.milestoneProgressBar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--green));
+  border-radius: 999px;
+  transition: width 0.2s ease;
+  min-width: 2px;
+}
+
+.milestoneProgressBar.complete {
+  background: linear-gradient(90deg, var(--green), #a7f7c6);
+}
+
+.milestoneProgressLabel {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+  text-align: right;
+}
+
+.milestoneCard.unlocked .milestoneProgressLabel {
+  color: var(--green);
+}
+
+@media (max-width: 700px) {
+  .milestonesGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==============================
+   Mission Select (Phase 1.2)
+   ============================== */
+.missionSelectGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.missionSelectCard {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+}
+
+.missionSelectCard:hover,
+.missionSelectCard:focus-visible {
+  transform: translateY(-3px);
+  border-color: var(--cyan);
+  background: rgba(66,214,255,0.10);
+  box-shadow: 0 8px 30px rgba(66,214,255,0.10);
+}
+
+.missionSelectIcon {
+  font-size: 36px;
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.06);
+}
+
+.missionSelectInfo {
+  display: grid;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+}
+
+.missionSelectName {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.missionSelectDesc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.missionSelectReward {
+  font-size: 13px;
+  color: var(--gold);
+  font-weight: 700;
+  margin-top: 3px;
+}
+
+@media (max-width: 700px) {
+  .missionSelectGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==============================
+   Upgrade Synergies Menu (Phase 2.1)
+   ============================== */
+.synergyGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+  margin-top: 16px;
+}
+
+.synergyCard {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  transition: transform 0.12s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.synergyCard:hover {
+  transform: translateY(-2px);
+}
+
+.synergyUnlocked {
+  border-color: rgba(93,255,154,0.50);
+  background: rgba(93,255,154,0.07);
+  box-shadow: 0 0 20px rgba(93,255,154,0.10);
+}
+
+.synergyLocked {
+  border-color: rgba(255,255,255,0.07);
+  opacity: 0.78;
+}
+
+.synergyHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.synergyIcon {
+  font-size: 28px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  flex-shrink: 0;
+}
+
+.synergyUnlocked .synergyIcon {
+  background: rgba(93,255,154,0.14);
+  box-shadow: 0 0 14px rgba(93,255,154,0.18);
+}
+
+.synergyName {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text);
+  flex: 1;
+}
+
+.synergyLocked .synergyName {
+  color: var(--muted);
+}
+
+.synergyBadge {
+  font-size: 11px;
+  font-weight: 900;
+  color: #0a1a0a;
+  background: var(--green);
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.synergyDesc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.synergyBonus {
+  font-size: 13px;
+  color: var(--purple);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.synergyReqLabel {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-top: 4px;
+}
+
+.synergyReqList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.synergyReqItem {
+  font-size: 11px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  color: var(--muted);
+}
+
+.synergyReqOwned {
+  border-color: rgba(93,255,154,0.35);
+  color: var(--green);
+  background: rgba(93,255,154,0.08);
+}
+
+.synergyReqMissing {
+  border-color: rgba(255,75,75,0.40);
+  color: #ff8f8f;
+  background: rgba(255,75,75,0.08);
+}
+
+.synergyUnlocked .synergyReqItem {
+  border-color: rgba(93,255,154,0.25);
+  color: var(--green);
+  background: rgba(93,255,154,0.06);
+}
+
+@media (max-width: 700px) {
+  .synergyGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ==============================
+   Boss UI (Phase 2.2)
+   ============================== */
+.bossHealthBar {
+  position: fixed;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 380px;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.bossHealthBarBg {
+  background: rgba(0,0,0,0.72);
+  border-radius: 12px;
+  padding: 4px;
+  border: 2px solid rgba(255,255,255,0.25);
+  box-shadow: 0 0 20px rgba(0,0,0,0.5);
+}
+
+.bossHealthBarFill {
+  height: 22px;
+  border-radius: 8px;
+  transition: width 0.15s linear;
+}
+
+.bossHealthBarText {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 13px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+
+.bossNameDisplay {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 25;
+  pointer-events: none;
+  text-align: center;
+  animation: bossNameFadeIn 0.5s ease-out;
+}
+
+.bossNameText {
+  font-size: 42px;
+  font-weight: 900;
+  text-shadow: 0 0 20px currentColor, 0 0 40px currentColor;
+  letter-spacing: 0.02em;
+}
+
+.bossNameSubtitle {
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 10px rgba(0,0,0,0.8);
+  margin-top: 8px;
+}
+
+@keyframes bossNameFadeIn {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.85); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+.bossNameFadeOut {
+  animation: bossNameFadeOut 1s ease-in forwards;
+}
+
+@keyframes bossNameFadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.phaseIndicator {
+  position: absolute;
+  top: -2px;
+  width: 3px;
+  height: calc(100% + 4px);
+  background: rgba(255,255,255,0.85);
+  border-radius: 2px;
+}
+
+.phaseLabel {
+  position: absolute;
+  top: calc(100% + 4px);
+  font-size: 10px;
+  font-weight: 900;
+  color: rgba(255,255,255,0.8);
+  transform: translateX(-50%);
+}
+
+.weakPointHighlight {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  border: 3px solid rgba(66,214,255,0.7);
+  box-shadow: 0 0 20px rgba(66,214,255,0.5), inset 0 0 20px rgba(66,214,255,0.2);
+  animation: weakPointPulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes weakPointPulse {
+  from { transform: scale(1); opacity: 0.8; }
+  to { transform: scale(1.15); opacity: 1; }
+}
+
+.weakPointLabel {
+  position: absolute;
+  font-weight: 900;
+  font-size: 14px;
+  color: #42d6ff;
+  text-shadow: 0 0 14px #42d6ff;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: weakPointLabelPulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes weakPointLabelPulse {
+  from { opacity: 0.7; }
+  to { opacity: 1; }
+}
+
+.crystalRainIndicator {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 50%;
+  border: 2px solid rgba(180,107,255,0.5);
+  background: rgba(180,107,255,0.06);
+  animation: crystalRainPulse 0.4s ease-in-out infinite alternate;
+}
+
+@keyframes crystalRainPulse {
+  from { transform: scale(1); opacity: 0.6; }
+  to { transform: scale(1.1); opacity: 1; }
+}
+
+@media (max-width: 700px) {
+  .bossHealthBar {
+    width: min(340px, calc(100vw - 40px));
+  }
+}
+
 
 EchoVein/js/core.js:
 'use strict';
@@ -86,7 +1119,7 @@ const MISSION_RESOURCE_IDS = ['gild','voltarite','ferriteBark','luminaSpores','a
 
 const RESOURCE_TILE_TYPES = [
   { tile:TILE_GOLD, resourceId:'gild', weight:0.35, minCluster:3, maxCluster:9, hp:32 },
-  { tile:TILE_NITRA, resourceId:'voltarite', weight:0.20, minCluster:2, maxCluster:6, hp:32 },
+  { tile:TILE_NITRA, resourceId:'voltarite', weight:0.28, minCluster:2, maxCluster:6, hp:32 },
   { tile:TILE_CRYSTAL, resourceId:'echo', weight:0.14, minCluster:2, maxCluster:5, hp:45 },
   { tile:TILE_FERRITE_BARK, resourceId:'ferriteBark', weight:0.12, minCluster:3, maxCluster:7, hp:34 },
   { tile:TILE_LUMINA_SPORES, resourceId:'luminaSpores', weight:0.08, minCluster:2, maxCluster:5, hp:26 },
@@ -265,7 +1298,7 @@ const UPGRADE_POOL = [
   { icon:'🌩️', spriteId:'arcConnectionIcon', name:'Storm Lattice', desc:'Adds chain lightning between nearby enemies.', apply:g=>addOrLevelWeapon(g,'arc') },
   { icon:'☄️', name:'Bore Rail', desc:'Adds a heavy piercing rail shot.', apply:g=>addOrLevelWeapon(g,'rail') },
   { icon:'❤️', name:'Field Reclaimer', desc:'Every 18 kills restore 8 HP.', apply:g=>g.player.vampire+=8 },
-  { icon:'📦', name:'Supply Cache', desc:'Spend 15 Voltarite to gain full repair now, otherwise +20 max HP.', apply:g=>{ if(g.nitra>=15){g.nitra-=15; g.player.hp=g.player.maxHp;} else {g.player.maxHp+=20; g.player.hp+=20;} } },
+  { icon:'📦', name:'Supply Cache', desc:'Spend 15 Voltarite to repair to full HP.', available: g => g.nitra >= 15, apply: g => { g.nitra -= 15; g.player.hp = g.player.maxHp; } },
   { icon:'🪤', spriteId:'pathfinderTrap', name:'Trap Payload', desc:'+30% trap damage and radius.', available: g => g.player.canUseTraps, apply: g => { g.player.trapDamageMul*=1.30; g.player.trapRadiusMul*=1.15; g.player.canUseTraps=true; } },
   { icon:'💣', name:'Explosive Ammo', desc:'Bullets gain small area damage.', apply:g=>g.player.splash+=10 },
 ];
@@ -606,6 +1639,423 @@ window.addEventListener('resize', resizeCanvas);
 resizeCanvas();
 
 
+EchoVein/js/entities.js:
+'use strict';
+
+/* Player/enemy classes and game-state factory. */
+
+class Player {
+  constructor(cls){
+    this.x = WORLD_W/2; this.y = WORLD_H/2;
+    this.r = 15;
+    // Smaller collision radius than visual body makes mined tunnels and block corners feel less sticky.
+    this.collisionR = 12;
+    this.classId = cls.id;
+    this.hp = cls.hp; this.maxHp = cls.hp;
+    this.baseSpeed = cls.speed;
+    this.speedMul = 1;
+    this.damageMul = 1;
+    this.fireRateMul = 1;
+    // Weapon accuracy starts intentionally low so early bullets can miss.
+    // Accuracy upgrades improve this toward reliable fire without forcing hits.
+    this.accuracy = 0.35;
+    this.accuracyBonus = 0;
+    this.pickupMul = 1;
+    this.mineMul = cls.id === 'borecaster' ? 1.45 : 1;
+    this.coolMul = cls.id === 'borecaster' ? 1.2 : 1;
+    this.heatEfficiency = cls.id === 'borecaster' ? 0.75 : 1;
+    this.maxHeat = cls.id === 'borecaster' ? 130 : 100;
+    this.heat = 0;
+    this.extraProjectiles = 0;
+    this.splash = 0;
+    this.vampire = 0;
+    this.vampCounter = 0;
+    this.droneDamageMul = 1;
+    this.droneSpeedMul = 1;
+    this.droneOrbitMul = 1;
+    this.droneFireRateMul = 1;
+    this.sweeperRangeMul = 1;
+    this.sweeperSpeedMul = 1;
+    this.sweeperCollectMul = 1;
+    this.mouseTargeting = false;
+    this.canUseTraps = cls.id === 'pathfinder';
+    this.trapCd = 0;
+    this.trapMaxCd = cls.id === 'pathfinder' ? 2.6 : 4.5;
+    this.trapDamageMul = 1;
+    this.trapRadiusMul = 1;
+    this.iframes = 0;
+    this.lavaDamageCd = 0;
+    this.chargingWaveExplosionDamageCd = 0;
+    this.dashCd = 0;
+    this.dashT = 0;
+    this.lastDx = 1; this.lastDy = 0;
+    this.miningProgress = 0;
+    this.miningTile = -1;
+    // v2 mining contact model: short lock/stickiness keeps drilling stable
+    // when the collision solver slides around tile corners at low speed.
+    this.miningLock = null;       // { tx, ty, timer }
+    this.drillPressure = 0;       // rises while pressing into mineable terrain
+  }
+}
+
+class Enemy {
+  constructor(x,y,type='grunt'){
+    this.x=x; this.y=y;
+    this.type=type;
+    const cfg = ENEMY_TYPES[type] || ENEMY_TYPES.grunt;
+    this.type = ENEMY_TYPES[type] ? type : 'grunt';
+    const visualVariant = chooseEnemyVisualVariant(this.type, cfg);
+    this.displayName = cfg.displayName || this.type;
+    this.visualVariantId = visualVariant?.id || this.type;
+    this.visualDisplayName = visualVariant?.displayName || this.displayName;
+    this.behavior = cfg.behavior || 'meleeChase';
+    this.spriteId = visualVariant?.spriteId || cfg.spriteId || cfg.spriteKey || null;
+    this.rotationStyle = visualVariant?.rotationStyle || cfg.rotationStyle || enemyRotationStyleFor(cfg, this.type);
+    this.visualScaleMul = visualVariant?.scale || cfg.visualScale || 1;
+    this.role = cfg.role || 'normal';
+    this.r=cfg.r; this.hp=cfg.hp; this.maxHp=cfg.hp; this.speed=cfg.speed; this.damage=cfg.damage; this.xp=cfg.xp;
+    this.color=cfg.color;
+    this.hitFlash=0;
+    this.slow=0;
+    this.phase=Math.random()*Math.PI*2;
+    initialiseEnemyVisualMotion(this,cfg);
+    this.path=[];
+    this.rawPath=[];
+    this.smoothPath=[];
+    this.pathSamples=[];
+    this.pathIndex=0;
+    this.pathTimer=0;
+    this.pathVersion=-1;
+    this.pathingRadius=this.collisionR || Math.max(6,this.r*0.88);
+    this.cornerState=null;
+    this.currentLookaheadTarget=null;
+    this.closestPathPoint=null;
+    this.pathTangent=null;
+    this.offtrackVector=null;
+    this.desiredVelocity=null;
+    this.pathProgressDistance=0;
+    this.lastPathProgressDistance=0;
+    this.closestSegmentIndex=0;
+    this.offtrackDistance=0;
+    this.maxOfftrackDistanceSeen=0;
+    this.pathCorrectionGain=4.0;
+    this.pathLookaheadDistance=Math.max(28,(this.pathingRadius||this.r||12)*2+18);
+    this.pathFollowMode='normal';
+    this.pathProgressStallTimer=0;
+    this.pathUnsafeSections=[];
+    this.pathClearanceFailures=[];
+    this.cornerFallbackTarget=null;
+    this.lastPlayerTileX=null;
+    this.lastPlayerTileY=null;
+    this.stuckTimer=0;
+    this.lastX=x;
+    this.lastY=y;
+    this.unstickAngle=Math.random()*Math.PI*2;
+    this.noPathTimer=0;
+    this.rangedCd=rand(1.2,3.0);
+    this.smallShotCd=rand(2.8,6.0);
+    this.burstShots=0;
+    // Phase 2.3 — Behaviour-specific state fields. Harmless for enemies that do not use them.
+    this.blinkCd = rand(4,7);              // blinkChase cooldown
+    this.blinkInvuln = 0;                  // brief invulnerability after blink
+    this.chargeTimer = 0;                  // charger/terrainCharger state timer
+    this.chargeState = 'cooldown';         // 'cooldown' | 'windup' | 'charging' | 'stunned'
+    this.chargeWindupTime = 0;             // accumulated wind-up duration
+    this.spawnCd = rand(5,8);              // spawner interval
+    this.buffPulse = 0;                    // supportBuffer pulse accumulator
+    this.sirenBoost = 0;                   // speed/damage buff from echoSiren (duration remaining)
+    this.zigzagPhase = Math.random() * Math.PI * 2;  // zigzagChase oscillation phase
+    this.flyingOscillation = 0;            // flyingChase vertical bob offset
+    this._customMoveHandled = false;       // internal flag: set true when behaviour handles its own movement
+    // Hex Shard state machine fields. They are harmless for other enemies.
+    this.state = type==='hexShard' ? 'chase' : 'chase';
+    this.boomerangCd = type==='hexShard' ? rand(1.3,2.5) : 0;
+    this.detonationTimer = 0;
+    this.detonationStarted = false;
+    this.warningSoundTimer = 0;
+    this.shakeAmount = 0;
+  }
+}
+
+const ENEMY_TYPES = {
+  // Existing legacy IDs retained for save/debug compatibility.
+  grunt: { displayName:'Clawling', r: 13, hp: 24, speed: 92, damage: 13, xp: 4, color:'#8aff6c', behavior:'meleeChase' },
+  swarmer: { displayName:'Needleling', r: 8, hp: 10, speed: 145, damage: 6, xp: 2, color:'#c8ff5c', behavior:'meleeChase' },
+  guard: { displayName:'Shellback', r: 18, hp: 68, speed: 66, damage: 22, xp: 12, color:'#ffb84d', spriteId:'eliteShellbackEnemy', behavior:'meleeChase', role:'elite' },
+  exploder: { displayName:'Blisterpod', r: 15, hp: 34, speed: 115, damage: 30, xp: 8, color:'#ff5b5b', behavior:'proximityExploder' },
+  hexShard: { displayName:'Hex Shard', r: 16, hp: 54, speed: 98, damage: 14, xp: 14, color:'#ff7a38', spriteId:'hexShardEnemy', warningSpriteId:'hexShardWarningGlow', projectileSpriteId:'hexBoomerangProjectile', behavior:'hexBoomerangDetonator' },
+  elite: { displayName:'Hollowborn Elite', r: 28, hp: 260, speed: 70, damage: 36, xp: 45, color:'#b46bff', spriteId:'obsidianTitan', behavior:'eliteShooter', role:'elite' },
+  boss: { displayName:'Hollow Tyrant', r: 42, hp: 980, speed: 58, damage: 48, xp: 120, color:'#ff4fd8', spriteId:'hollowTyrantBoss', behavior:'bossShooter', role:'boss' },
+
+  // New sprite-pack enemy roster.
+  clawlingRunner: { displayName:'Clawling Runner', spriteId:'clawlingRunner', r:12, hp:18, speed:152, damage:6, xp:2, color:'#8aff6c', behavior:'meleeChase' },
+  needleWisp: { displayName:'Needle Wisp', spriteId:'needleWisp', r:10, hp:14, speed:95, damage:4, xp:3, color:'#ff6b6b', behavior:'rangedShooter' },
+  shellbackGuard: { displayName:'Shellback Guard', spriteId:'shellbackGuard', r:20, hp:92, speed:58, damage:18, xp:14, color:'#ffb84d', behavior:'meleeChase', role:'elite' },
+  blisterPod: { displayName:'Blister Pod', spriteId:'blisterPod', r:16, hp:36, speed:108, damage:28, xp:8, color:'#ff5b5b', behavior:'proximityExploder' },
+  hexShardThrower: { displayName:'Hex Shard Thrower', spriteId:'hexShardThrower', warningSpriteId:'hexShardWarningGlow', projectileSpriteId:'hexBoomerangProjectile', r:17, hp:62, speed:102, damage:15, xp:16, color:'#ff7a38', behavior:'hexBoomerangDetonator' },
+  sporeMother: { displayName:'Spore Mother', spriteId:'sporeMother', r:23, hp:130, speed:60, damage:10, xp:28, color:'#73ff8a', behavior:'spawner', role:'elite' },
+  emberCrawler: { displayName:'Ember Crawler', spriteId:'emberCrawler', r:13, hp:28, speed:138, damage:9, xp:5, color:'#ff7a38', behavior:'meleeChase' },
+  crystalLancer: { displayName:'Crystal Lancer', spriteId:'crystalLancer', r:15, hp:52, speed:72, damage:11, xp:12, color:'#73d8ff', behavior:'rangedShooter' },
+  voidMite: { displayName:'Void Mite', spriteId:'voidMite', r:9, hp:16, speed:132, damage:8, xp:4, color:'#b46bff', behavior:'blinkChase' },
+  acidTick: { displayName:'Acid Tick', spriteId:'acidTick', r:10, hp:18, speed:124, damage:7, xp:4, color:'#98ff55', behavior:'meleeChase' },
+  ironMaw: { displayName:'Iron Maw', spriteId:'ironMaw', r:24, hp:170, speed:80, damage:28, xp:26, color:'#b9c2c9', behavior:'charger', role:'elite' },
+  stormOrb: { displayName:'Storm Orb', spriteId:'stormOrb', r:15, hp:48, speed:82, damage:9, xp:13, color:'#7df9ff', behavior:'rangedShooter' },
+  riftStalker: { displayName:'Rift Stalker', spriteId:'riftStalker', r:14, hp:44, speed:122, damage:16, xp:15, color:'#bd7cff', behavior:'meleeChase' },
+  boneSkitter: { displayName:'Bone Skitter', spriteId:'boneSkitter', r:11, hp:20, speed:193, damage:7, xp:5, color:'#e8e0c8', behavior:'zigzagChase' },
+  magmaBurrower: { displayName:'Magma Burrower', spriteId:'magmaBurrower', r:18, hp:70, speed:92, damage:18, xp:18, color:'#ff7038', behavior:'meleeChase', role:'elite' },
+  echoSiren: { displayName:'Echo Siren', spriteId:'echoSiren', r:18, hp:74, speed:78, damage:8, xp:20, color:'#42d6ff', behavior:'supportBuffer', role:'elite' },
+  fractureBeetle: { displayName:'Fracture Beetle', spriteId:'fractureBeetle', r:20, hp:96, speed:110, damage:20, xp:22, color:'#ffcc4d', behavior:'terrainCharger', role:'elite' },
+  gloomBat: { displayName:'Gloom Bat', spriteId:'gloomBat', r:11, hp:17, speed:215, damage:7, xp:5, color:'#7980ff', behavior:'flyingChase' },
+  obsidianTitan: { displayName:'Obsidian Titan', spriteId:'obsidianTitan', r:34, hp:520, speed:48, damage:42, xp:80, color:'#ff7a38', behavior:'miniBoss', role:'boss' },
+  hollowTyrantVariant: { displayName:'Hollow Tyrant Variant', spriteId:'hollowTyrantVariant', r:44, hp:1100, speed:54, damage:52, xp:130, color:'#ff4fd8', behavior:'bossShooter', role:'boss' },
+  charging_exploder: { displayName:'Rift Charger', spriteId:'emberCrawler', r:12, hp:26, speed:250, damage:0, xp:2, color:'#ff7038', behavior:'chargingExploder', rotationStyle:'fastSpin' }
+};
+
+/*
+ * Visual variants deliberately separate gameplay archetype from sprite choice.
+ * Legacy spawn archetypes such as 'grunt' and 'swarmer' can now produce many
+ * different looks from run 1 while keeping their gameplay balance readable.
+ */
+const ENEMY_VISUAL_VARIANTS = {
+  grunt: [
+    { id:'clawlingRunner', displayName:'Clawling Runner', spriteId:'clawlingRunner', weight:1.0, rotationStyle:'wobble', scale:1.00 },
+    { id:'boneSkitter', displayName:'Bone Skitter', spriteId:'boneSkitter', weight:0.80, rotationStyle:'fastSpin', scale:0.94 },
+    { id:'acidTick', displayName:'Acid Tick', spriteId:'acidTick', weight:0.62, rotationStyle:'pulse', scale:0.90 },
+    { id:'gloomBat', displayName:'Gloom Bat', spriteId:'gloomBat', weight:0.45, rotationStyle:'flyingDrift', scale:0.92 },
+  ],
+  swarmer: [
+    { id:'needleWisp', displayName:'Needle Wisp', spriteId:'needleWisp', weight:1.0, rotationStyle:'flyingDrift', scale:0.92 },
+    { id:'voidMite', displayName:'Void Mite', spriteId:'voidMite', weight:0.80, rotationStyle:'fastSpin', scale:0.88 },
+    { id:'boneSkitter', displayName:'Bone Skitter', spriteId:'boneSkitter', weight:0.55, rotationStyle:'fastSpin', scale:0.86 },
+  ],
+  guard: [
+    { id:'shellbackGuard', displayName:'Shellback Guard', spriteId:'shellbackGuard', weight:1.0, rotationStyle:'heavyTurn', scale:1.02 },
+    { id:'ironMaw', displayName:'Iron Maw', spriteId:'ironMaw', weight:0.30, rotationStyle:'heavyTurn', scale:1.08 },
+  ],
+  exploder: [
+    { id:'blisterPod', displayName:'Blister Pod', spriteId:'blisterPod', weight:1.0, rotationStyle:'pulse', scale:1.0 },
+  ],
+};
+
+/*
+ * Boss Roster — Phase 2.2
+ *
+ * Three unique bosses with phase transitions, weak points, and specific attacks.
+ * BOSS_TYPES keys are used as the bossType property on the boss enemy entity.
+ * Each boss has:
+ *   - phases: array of { hpThreshold, attacks[], speedMul, damageMul, enrage? }
+ *   - weakPointCooldown: seconds between weak point appearances
+ *   - weakPointDuration: seconds the weak point stays active
+ *   - staggerDuration: seconds the boss is stunned when weak point is hit
+ *   - uniqueDrop: resource id dropped on defeat
+ */
+const BOSS_TYPES = {
+  hollowTyrant: {
+    id: 'hollowTyrant',
+    name: 'Hollow Tyrant',
+    icon: '🏛️',
+    description: 'Massive armored behemoth. Slow but devastating.',
+    spriteId: 'hollowTyrantBoss',
+    color: '#ff4fd8',
+    baseHp: 980,
+    speed: 58,
+    damage: 48,
+    xp: 120,
+    weakPointCooldown: 10,
+    weakPointDuration: 4,
+    staggerDuration: 0.5,
+    uniqueDrop: 'tyrantCore',
+    phases: [
+      { hpThreshold: 1.0, attacks: ['swipe', 'charge', 'electricArc'], speedMul: 1.0, damageMul: 1.0 },
+      { hpThreshold: 0.66, attacks: ['swipe', 'charge', 'slam', 'multiRush', 'electricArc', 'spreadShot'], speedMul: 1.2, damageMul: 1.15 },
+      { hpThreshold: 0.33, attacks: ['swipe', 'charge', 'slam', 'multiRush', 'rageRoar', 'electricArc', 'spreadShot'], speedMul: 1.5, damageMul: 1.3, enrage: true }
+    ]
+  },
+  hexShardColossus: {
+    id: 'hexShardColossus',
+    name: 'Hex Shard Colossus',
+    icon: '🔷',
+    description: 'Ranged artillery boss that spawns hex shard enemies.',
+    spriteId: 'hexShardColossus',
+    color: '#b46bff',
+    baseHp: 840,
+    speed: 48,
+    damage: 32,
+    xp: 130,
+    weakPointCooldown: 11,
+    weakPointDuration: 4,
+    staggerDuration: 0.5,
+    uniqueDrop: 'hexCrystalFragment',
+    phases: [
+      { hpThreshold: 1.0, attacks: ['crystalSpread', 'spawnHexShard', 'spreadShot'], speedMul: 1.0, damageMul: 1.0 },
+      { hpThreshold: 0.66, attacks: ['crystalSpread', 'spawnHexShard', 'crystalRain', 'crystalWall', 'spreadShot'], speedMul: 1.15, damageMul: 1.15 },
+      { hpThreshold: 0.33, attacks: ['crystalSpread', 'spawnHexShard', 'crystalRain', 'crystalWall', 'spreadShot'], speedMul: 1.3, damageMul: 1.3, enrage: true }
+    ]
+  },
+  moltenMaw: {
+    id: 'moltenMaw',
+    name: 'Molten Maw',
+    icon: '🌋',
+    description: 'Burrowing beast that erupts from the ground.',
+    spriteId: 'moltenMaw',
+    color: '#ff7a38',
+    baseHp: 920,
+    speed: 72,
+    damage: 38,
+    xp: 140,
+    weakPointCooldown: 9,
+    weakPointDuration: 4,
+    staggerDuration: 0.5,
+    uniqueDrop: 'moltenEmber',
+    phases: [
+      { hpThreshold: 1.0, attacks: ['burrowErupt', 'spreadShot'], speedMul: 1.0, damageMul: 1.0 },
+      { hpThreshold: 0.66, attacks: ['burrowErupt', 'fireTrail', 'fireballSpew', 'lavaPoolBurst', 'spreadShot'], speedMul: 1.2, damageMul: 1.15 },
+      { hpThreshold: 0.33, attacks: ['burrowErupt', 'fireTrail', 'fireballSpew', 'lavaPoolBurst', 'spreadShot'], speedMul: 1.4, damageMul: 1.3, enrage: true }
+    ]
+  }
+};
+
+const ENEMY_ROTATION_STYLE_PRESETS = {
+  fastSpin:      { speed:[-2.6, 2.6], wobble:[0.04,0.16], wobbleSpeed:[3.0,6.2], scalePulse:[0.00,0.035], scaleSpeed:[2.0,4.5] },
+  slowSpin:      { speed:[-0.75,0.75], wobble:[0.02,0.10], wobbleSpeed:[1.2,3.0], scalePulse:[0.00,0.045], scaleSpeed:[1.0,2.8] },
+  wobble:        { speed:[-0.38,0.38], wobble:[0.07,0.25], wobbleSpeed:[2.2,5.2], scalePulse:[0.00,0.035], scaleSpeed:[1.5,3.0] },
+  pulse:         { speed:[-0.28,0.28], wobble:[0.00,0.08], wobbleSpeed:[1.5,3.2], scalePulse:[0.035,0.085], scaleSpeed:[1.8,4.0] },
+  heavyTurn:     { speed:[-0.22,0.22], wobble:[0.00,0.045], wobbleSpeed:[0.8,1.9], scalePulse:[0.00,0.022], scaleSpeed:[0.8,1.6] },
+  bossPresence:  { speed:[-0.11,0.11], wobble:[0.00,0.035], wobbleSpeed:[0.6,1.4], scalePulse:[0.025,0.055], scaleSpeed:[0.7,1.4] },
+  flyingDrift:   { speed:[-1.10,1.10], wobble:[0.10,0.28], wobbleSpeed:[2.0,4.8], scalePulse:[0.015,0.065], scaleSpeed:[1.5,3.7] },
+};
+
+function weightedPick(list){
+  if(!list || !list.length) return null;
+  const total=list.reduce((s,v)=>s+(v.weight ?? 1),0);
+  let roll=Math.random()*total;
+  for(const item of list){ roll-=(item.weight ?? 1); if(roll<=0) return item; }
+  return list[list.length-1];
+}
+
+function chooseEnemyVisualVariant(type,cfg){
+  if(ENEMY_VISUAL_VARIANTS[type]) return weightedPick(ENEMY_VISUAL_VARIANTS[type]);
+  return null;
+}
+
+function enemyRotationStyleFor(cfg,type){
+  if(cfg.role==='boss') return 'bossPresence';
+  if(cfg.role==='elite') return 'heavyTurn';
+  if(type==='hexShard' || type==='hexShardThrower') return 'slowSpin';
+  if(type==='stormOrb') return 'slowSpin';
+  if(type==='gloomBat') return 'flyingDrift';
+  if(cfg.behavior==='proximityExploder') return 'pulse';
+  if(cfg.behavior==='zigzagChase' || cfg.behavior==='blinkChase') return 'fastSpin';
+  if(cfg.behavior==='flyingChase') return 'flyingDrift';
+  return 'wobble';
+}
+
+function initEnemyVisualRange(range){ return rand(range[0], range[1]); }
+function initialiseEnemyVisualMotion(e,cfg){
+  const style=e.rotationStyle || enemyRotationStyleFor(cfg,e.type);
+  const preset=ENEMY_ROTATION_STYLE_PRESETS[style] || ENEMY_ROTATION_STYLE_PRESETS.wobble;
+  e.visualRotation = rand(0,Math.PI*2);
+  e.visualRotationSpeed = initEnemyVisualRange(preset.speed);
+  if(Math.abs(e.visualRotationSpeed)<0.035) e.visualRotationSpeed += (Math.random()<0.5?-1:1)*0.06;
+  e.visualWobbleAmount = initEnemyVisualRange(preset.wobble);
+  e.visualWobbleSpeed = initEnemyVisualRange(preset.wobbleSpeed);
+  e.visualPhase = rand(0,Math.PI*2);
+  e.visualScalePulse = initEnemyVisualRange(preset.scalePulse);
+  e.visualScaleSpeed = initEnemyVisualRange(preset.scaleSpeed);
+  if(e.role==='boss'){ e.visualRotationSpeed*=0.45; e.visualWobbleAmount*=0.65; }
+  if(e.role==='elite'){ e.visualRotationSpeed*=0.70; }
+}
+
+function makeGame(cls){
+  const g = {
+    state:'playing',
+    player:new Player(cls),
+    tiles:new Uint8Array(MAP_W*MAP_H),
+    tileHp:new Float32Array(MAP_W*MAP_H),
+    enemies:[], bullets:[], enemyBullets:[], enemyBoomerangs:[], missiles:[], targetLocks:[], boomerangs:[], borecasterBombs:[], wardenDrones:[], sifterDrones:[], traps:[], arcs:[], pickups:[], particles:[], texts:[], waves:[],
+    weapons:[],
+    arcConnection:{ unlocked:false, level:0, maxTargets:0, selectedEnemies:[], flash:0 },
+    upgradeMenuState:{ open:false, selectedIndex:0, lastMoveTime:-999, moveRepeatDelay:0.20 },
+    controllerCursor:{ active:false, screenX:innerWidth/2, screenY:innerHeight/2, worldX:WORLD_W/2, worldY:WORLD_H/2, lastMoveTime:-999, lastMoveRealTime:-999, primaryHoldTimer:0, axisPair:null },
+    navigationVersion:0,
+    debug:{ showEnemyPaths:false, enemyBulletsEnabled:true, showEnemyBulletHitboxes:false, showMiningArc:false, lowSpeedMiningTest:false, showMiningCandidates:true, showEnemyBudget:false, showFogRadius:false, forcePerformanceState:null, perfDespawnLog:false, lavaDamageEnabled:true, showLavaZones:false, showHexRanges:false, showController:false, showAccuracyCone:false, showScaledTileGrid:false, showCollisionTiles:false, showRawEnemyPaths:false, showSmoothedEnemyPaths:true, showCornerCurvePoints:true, showEnemyLookaheadTargets:true, showEnemyPathingRadius:false, showChargingWaveSpawnDirection:false, showChargingWaveFormationTargets:false, showChargingWaveTriggerRadius:false, showChargingWaveDamageRadius:false },
+    performance:{
+      currentFPS:60,
+      averageFPS:60,
+      frameTimeMs:16.7,
+      averageFrameTimeMs:16.7,
+      samples:[],
+      sampleTotal:0,
+      state:PERF_STATES.HEALTHY,
+      previousState:PERF_STATES.HEALTHY,
+      budgetFactor:1,
+      vfxFactor:1,
+      spawnRateMultiplier:1,
+      swarmSizeMultiplier:1,
+      recoveryTimer:0,
+      healthyTimer:0,
+      despawnAccumulator:0,
+      enemiesDespawned:0,
+      skippedSpawns:0,
+      skippedBullets:0,
+      forced:false
+    },
+    enemyBudget:{ baseMaxEnemies:PERFORMANCE_CONFIG.baseMaxEnemies, currentMaxEnemies:PERFORMANCE_CONFIG.baseMaxEnemies, minMaxEnemies:PERFORMANCE_CONFIG.minMaxEnemies },
+    missionIndex:saveProfile?.missionIndex || 1,
+    runIndex:saveProfile?.runIndex || 1,
+    missionType:null,
+    missionDifficulty:saveProfile ? missionDifficulty(saveProfile.missionIndex) : missionDifficulty(1),
+    objectives:[],
+    bossSpawned:false,
+    bossDefeated:false,
+    bossType:null,          // string key into BOSS_TYPES, set at run start
+    bossPhase:0,            // current phase index (0, 1, 2)
+    bossPhaseTimer:0,       // visual timer for phase transition effects
+    bossWeakPoint:{         // Phase 2.2 weak point mechanic
+      active:false,
+      timer:0,              // countdown until next weak point appearance
+      duration:0,           // how long current weak point stays active
+      cooldown:0,           // cooldown after stagger
+      x:0, y:0,             // position on boss (world coords)
+      radius:24             // hit radius
+    },
+    bossNameDisplay:{        // Phase 2.2 boss name overlay on spawn
+      text:'',
+      timer:0,
+      fadeOut:false
+    },
+    extraction:null,
+    extractionTimer:0,
+    runResolved:false,
+    objectiveEchoCollected:0,
+    resources:{ gild:0, voltarite:0, echo:0, ferriteBark:0, luminaSpores:0, aetherQuartz:0, crysalith:0, emberglass:0 },
+    time:0, kills:0, level:1, xp:0, xpNeed:28, gold:0, nitra:0,
+    hollowPressure:0, nextPressureTime:120, pressureFlash:0,
+    chargingWave:{ enabled:true, active:false, warningActive:false, warningTimer:0, warningDuration:2.0, pendingOptions:null, incomingDirection:0, lastSpawnTime:-9999, nextAllowedTime:90, checkTimer:rand(5,10), cooldown:150, activeEnemyIds:[], lastSpawnCenter:null, lastFormationTargets:[], lastSkipReason:'Not checked yet', forceNextCheck:false, nextWaveId:1 },
+    spawnTimer:2.2, eliteTimer:90, nextWave:55,
+    camera:{x:0,y:0},
+    log:['Mission started. Descend, extract, survive.'],
+    selectedClass:cls,
+    runStats:(typeof createRunStats==='function' ? createRunStats() : null)
+  };
+  generateCave(g);
+  g.objectives = saveProfile ? currentRunObjectives() : [];
+  addMineableBlockObjective(g);
+  applyPermanentUpgrades(g);
+  addOrLevelWeapon(g, cls.weapon);
+  if(cls.id === 'borecaster'){
+    addOrLevelWeapon(g, 'borecasterBomb');
+    log(g, 'Borecaster Seismic Charge armed. Timed throwable bombs are online.');
+  }
+  addOrLevelWeapon(g, 'vectorBurst');
+  if(cls.id === 'pathfinder'){
+    g.player.dashCd = -1;
+    log(g, 'Pathfinder Trap Kit ready. Press E to place seismic traps.');
+  }
+  return g;
+}
+
+
 EchoVein/js/progression.js:
 'use strict';
 
@@ -820,7 +2270,13 @@ const MISSION_TYPES = [
         targetAmount:target, currentAmount:0, completed:false }];
     },
     track:(g,dt)=>{},
-    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='hunt_kills'); return o ? o.completed : false; }
+    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='hunt_kills'); return o ? o.completed : false; },
+    bonusObjectives:[
+      { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
+      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
+      { id:'bonus_speed_run', desc:'Complete in under 5 minutes', reward:{ aetherQuartz:1 }, check:g=>g.time < 300 },
+      { id:'bonus_echo_collector', desc:'Collect 50 Echo Shards', reward:{ echo:50 }, check:g=>g.objectiveEchoCollected >= 50 }
+    ]
   },
   {
     id:'survey',
@@ -858,7 +2314,13 @@ const MISSION_TYPES = [
         }
       }
     },
-    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='survey_tiles'); return o ? o.completed : false; }
+    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='survey_tiles'); return o ? o.completed : false; },
+    bonusObjectives:[
+      { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
+      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
+      { id:'bonus_speed_run', desc:'Complete in under 5 minutes', reward:{ aetherQuartz:1 }, check:g=>g.time < 300 },
+      { id:'bonus_echo_collector', desc:'Collect 50 Echo Shards', reward:{ echo:50 }, check:g=>g.objectiveEchoCollected >= 50 }
+    ]
   },
   {
     id:'harvest',
@@ -884,7 +2346,13 @@ const MISSION_TYPES = [
       ];
     },
     track:(g,dt)=>{},
-    isComplete:g=>g.objectives.filter(o=>o.type==='harvest').every(o=>o.completed)
+    isComplete:g=>g.objectives.filter(o=>o.type==='harvest').every(o=>o.completed),
+    bonusObjectives:[
+      { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
+      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
+      { id:'bonus_speed_run', desc:'Complete in under 5 minutes', reward:{ aetherQuartz:1 }, check:g=>g.time < 300 },
+      { id:'bonus_echo_collector', desc:'Collect 50 Echo Shards', reward:{ echo:50 }, check:g=>g.objectiveEchoCollected >= 50 }
+    ]
   },
   {
     id:'holdout',
@@ -912,7 +2380,13 @@ const MISSION_TYPES = [
         if(g.runStats) g.runStats.objectivesCompleted=(g.runStats.objectivesCompleted||0)+1;
       }
     },
-    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='holdout_timer'); return o ? o.completed : false; }
+    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='holdout_timer'); return o ? o.completed : false; },
+    bonusObjectives:[
+      { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
+      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
+      { id:'bonus_speed_run', desc:'Complete in under 5 minutes', reward:{ aetherQuartz:1 }, check:g=>g.time < 300 },
+      { id:'bonus_echo_collector', desc:'Collect 50 Echo Shards', reward:{ echo:50 }, check:g=>g.objectiveEchoCollected >= 50 }
+    ]
   }
 ];
 
@@ -920,16 +2394,16 @@ const MISSION_TYPES = [
 let selectedMissionType = MISSION_TYPES[0];
 
 const PERMANENT_UPGRADES = [
-  { id:'maxHealth', category:'Player Core', name:'Reinforced Suit', desc:'+5% max HP per level.', next:'Another +5% max HP.', ore:'ferronRoot', max:20 },
-  { id:'armour', category:'Player Core', name:'Impact Weave', desc:'Reduces contact damage by 2% per level.', next:'Another -2% contact damage.', ore:'ferronRoot', max:15 },
-  { id:'moveSpeed', category:'Player Core', name:'Vector Servos', desc:'+2.5% movement speed per level.', next:'Another +2.5% movement speed.', ore:'lumicite', max:15 },
-  { id:'miningSpeed', category:'Mining', name:'Bore Calibration', desc:'+4% mining speed per level.', next:'Another +4% mining speed.', ore:'echoQuartz', max:15 },
-  { id:'weaponDamage', category:'Weapons', name:'Weapon Harmonics', desc:'+3% weapon damage per level.', next:'Another +3% weapon damage.', ore:'umbralAlloy', max:20 },
-  { id:'fireRate', category:'Weapons', name:'Trigger Relays', desc:'+2% fire rate per level.', next:'Another +2% fire rate.', ore:'voltarite', max:15 },
-  { id:'pickupRadius', category:'Utility', name:'Resonance Net', desc:'+5% pickup radius per level.', next:'Another +5% pickup range.', ore:'echoQuartz', max:12 },
-  { id:'droneEfficiency', category:'Drones', name:'Drone Uplinks', desc:'+4% drone damage and speed per level.', next:'Another +4% drone efficiency.', ore:'umbralAlloy', max:12 },
-  { id:'trapEffectiveness', category:'Character-Specific', name:'Trap Matrices', desc:'+5% trap damage and radius per level.', next:'Another +5% trap output.', ore:'pyroclastCore', max:12 },
-  { id:'arcDamage', category:'Weapons', name:'Arc Capacitors', desc:'+5% electric/arc damage per level.', next:'Another +5% arc damage.', ore:'voltarite', max:12 },
+  { id:'maxHealth', category:'Player Core', name:'Reinforced Suit', desc:'+5% max HP per level.', next:'Another +5% max HP.', ore:'ferronRoot', max:25 },
+  { id:'armour', category:'Player Core', name:'Impact Weave', desc:'Reduces contact damage by 2% per level.', next:'Another -2% contact damage.', ore:'ferronRoot', max:20 },
+  { id:'moveSpeed', category:'Player Core', name:'Vector Servos', desc:'+2.5% movement speed per level.', next:'Another +2.5% movement speed.', ore:'lumicite', max:20 },
+  { id:'miningSpeed', category:'Mining', name:'Bore Calibration', desc:'+4% mining speed per level.', next:'Another +4% mining speed.', ore:'echoQuartz', max:20 },
+  { id:'weaponDamage', category:'Weapons', name:'Weapon Harmonics', desc:'+3% weapon damage per level.', next:'Another +3% weapon damage.', ore:'umbralAlloy', max:25 },
+  { id:'fireRate', category:'Weapons', name:'Trigger Relays', desc:'+2% fire rate per level.', next:'Another +2% fire rate.', ore:'voltarite', max:20 },
+  { id:'pickupRadius', category:'Utility', name:'Resonance Net', desc:'+5% pickup radius per level.', next:'Another +5% pickup range.', ore:'echoQuartz', max:15 },
+  { id:'droneEfficiency', category:'Drones', name:'Drone Uplinks', desc:'+4% drone damage and speed per level.', next:'Another +4% drone efficiency.', ore:'umbralAlloy', max:15 },
+  { id:'trapEffectiveness', category:'Character-Specific', name:'Trap Matrices', desc:'+5% trap damage and radius per level.', next:'Another +5% trap output.', ore:'pyroclastCore', max:15 },
+  { id:'arcDamage', category:'Weapons', name:'Arc Capacitors', desc:'+5% electric/arc damage per level.', next:'Another +5% arc damage.', ore:'voltarite', max:15 },
 ];
 
 /*
@@ -1128,6 +2602,7 @@ function normalizeProfile(profile){
     permanentUpgrades:{...base.permanentUpgrades,...(profile?.permanentUpgrades || {})},
     milestones:{...base.milestones,...(profile?.milestones || {})},
     unlockedSynergies:profile?.unlockedSynergies || [],
+    permanentBonuses:profile?.permanentBonuses || {},
     statistics:{...base.statistics,...(profile?.statistics || {})}
   };
   // Merge classRuns sub-object safely.
@@ -1205,11 +2680,44 @@ function missionDifficulty(missionIndex){
   };
 }
 
+/*
+ * Resource Conversion — Phase 1.4
+ *
+ * Allows players to convert abundant resources into scarce ones, providing
+ * a resource sink for excess materials. Conversion rates are defined in the
+ * rates lookup table. Supports Gild → Voltarite, Voltarite → Aether Quartz,
+ * Ferrite Bark → Aether Quartz, and Gild → permanent HP bonus.
+ */
+function convertResources(fromType, toType, amount){
+  if(!saveProfile) return false;
+  const rates = {
+    gild_to_voltarite: { from:'gildShards', to:'voltarite', rate:50 },
+    voltarite_to_rare: { from:'voltarite', to:'aetherQuartz', rate:5 },
+    ferrite_to_aether: { from:'ferriteBark', to:'aetherQuartz', rate:10 },
+    gild_to_hp: { from:'gildShards', to:'maxHp', rate:100 }
+  };
+  const key = `${fromType}_to_${toType}`;
+  const rule = rates[key];
+  if(!rule) return false;
+  const cost = rule.rate * amount;
+  if((saveProfile.resources[rule.from] || 0) < cost) return false;
+  saveProfile.resources[rule.from] -= cost;
+  if(rule.to === 'maxHp'){
+    // Apply permanent HP bonus (once per mission)
+    saveProfile.permanentBonuses = saveProfile.permanentBonuses || {};
+    saveProfile.permanentBonuses.maxHpBonus = (saveProfile.permanentBonuses.maxHpBonus || 0) + amount;
+  } else {
+    saveProfile.resources[rule.to] = (saveProfile.resources[rule.to] || 0) + amount;
+  }
+  saveGame();
+  return true;
+}
+
 function permanentUpgradeCost(up){
   const level=saveProfile.permanentUpgrades[up.id] || 0;
   return {
-    gildShards:Math.floor(45 + level*28 + level*level*6),
-    [up.ore]:Math.floor(2 + level*1.35)
+    gildShards:Math.floor(50 + level*28 + level*level*4),
+    [up.ore]:Math.floor(2 + level*0.85)
   };
 }
 
@@ -1254,6 +2762,12 @@ function applyPermanentUpgrades(g){
   const traps=1+(up.trapEffectiveness || 0)*0.05;
   p.trapDamageMul*=traps; p.trapRadiusMul*=traps;
   p.arcDamageMul=1+(up.arcDamage || 0)*0.05;
+  // Phase 1.4: Apply permanent HP bonus from resource conversion.
+  const hpBonus = (saveProfile.permanentBonuses?.maxHpBonus || 0);
+  if(hpBonus > 0){
+    p.maxHp = Math.round(p.maxHp + hpBonus);
+    p.hp = p.maxHp;
+  }
 }
 
 /*
@@ -1526,7 +3040,7 @@ function bankRunRewards(g){
   }
   const resources=saveProfile.resources;
   const runRes=g.resources || {};
-  resources.gildShards += Math.floor(((runRes.gild || g.gold || 0) + 35 + saveProfile.runIndex*10)*rewardMul*missionMul);
+  resources.gildShards += Math.floor(((runRes.gild || g.gold || 0) + 20 + saveProfile.runIndex*8)*rewardMul*missionMul);
   resources.voltarite += Math.floor(((runRes.voltarite || g.nitra || 0) + 4)*rewardMul*missionMul);
   resources.echoQuartz += Math.max(1, Math.floor((runRes.echo || g.objectiveEchoCollected || 0)/35*missionMul));
   for(const id of ['ferriteBark','luminaSpores','aetherQuartz','crysalith','emberglass']){
@@ -1541,6 +3055,22 @@ function completeRun(g){
   if(!saveProfile || g.runResolved) return;
   g.runResolved=true;
   bankRunRewards(g);
+  // Phase 1.4: Check bonus objectives after banking rewards.
+  const missionTypeObj = g.missionType ? MISSION_TYPES.find(m => m.id === g.missionType) : null;
+  if(missionTypeObj && missionTypeObj.bonusObjectives){
+    for(const bonus of missionTypeObj.bonusObjectives){
+      if(bonus.check(g)){
+        for(const [resId, amt] of Object.entries(bonus.reward)){
+          // Map resource shorthand IDs to saveProfile resource keys
+          const resMap = { gild:'gildShards', voltarite:'voltarite', echo:'echoQuartz', aetherQuartz:'aetherQuartz' };
+          const key = resMap[resId] || resId;
+          saveProfile.resources[key] = (saveProfile.resources[key] || 0) + amt;
+        }
+        // Log bonus completion
+        if(g.log && Array.isArray(g.log)) g.log.unshift(`✅ Bonus: ${bonus.desc} – rewarded!`);
+      }
+    }
+  }
   saveProfile.statistics.totalRunsCompleted++;
   // totalEnemiesKilled is already tracked in real-time by killEnemy(), so we
   // do not re-add g.kills here to avoid double-counting.
@@ -2077,6 +3607,52 @@ function showUpgradesMenu(){
     wrapper.appendChild(section);
   }
   ui.menuContent.appendChild(wrapper);
+
+  // ── Resource Conversion Section (Phase 1.4) ──
+  const conversionSection = document.createElement('section');
+  conversionSection.className = 'upgradeCategorySection';
+  conversionSection.innerHTML = '<h3>💱 Resource Conversion</h3><p style="color:#aaa;margin:0 0 8px 0;font-size:13px;">Convert abundant resources into rarer ones or permanent bonuses.</p>';
+
+  const conversionRules = [
+    { from:'gildShards', to:'voltarite', fromLabel:'Gild Shards', toLabel:'Voltarite', key:'gild_to_voltarite', rate:50, hpBonus:false },
+    { from:'voltarite', to:'aetherQuartz', fromLabel:'Voltarite', toLabel:'Aether Quartz', key:'voltarite_to_rare', rate:5, hpBonus:false },
+    { from:'ferriteBark', to:'aetherQuartz', fromLabel:'Ferrite Bark', toLabel:'Aether Quartz', key:'ferrite_to_aether', rate:10, hpBonus:false },
+    { from:'gildShards', to:'maxHp', fromLabel:'Gild Shards', toLabel:'+1 Max HP (permanent)', key:'gild_to_hp', rate:100, hpBonus:true }
+  ];
+
+  for(const rule of conversionRules){
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #333;';
+
+    const label = document.createElement('span');
+    label.style.cssText = 'flex:1;color:#ccc;font-size:13px;';
+    label.textContent = `${rule.rate} ${rule.fromLabel} → 1 ${rule.toLabel}`;
+
+    const haveAmt = saveProfile.resources[rule.from] || 0;
+    const info = document.createElement('span');
+    info.style.cssText = 'color:#888;font-size:12px;';
+    info.textContent = `Own: ${haveAmt}`;
+
+    const btn = document.createElement('button');
+    btn.className = 'buyBtn';
+    const canConvert = haveAmt >= rule.rate;
+    btn.textContent = canConvert ? 'Convert' : 'Need more';
+    btn.disabled = !canConvert;
+    btn.title = canConvert ? `Convert ${rule.rate} ${rule.fromLabel} to 1 ${rule.toLabel}` : `You need ${rule.rate} ${rule.fromLabel} to convert.`;
+    btn.onclick = () => {
+      if(!canConvert) return;
+      if(convertResources(rule.key.split('_to_')[0], rule.key.split('_to_')[1], 1)){
+        showUpgradesMenu();
+      }
+    };
+
+    row.appendChild(label);
+    row.appendChild(info);
+    row.appendChild(btn);
+    conversionSection.appendChild(row);
+  }
+
+  ui.menuContent.appendChild(conversionSection);
   addMenuButton('Back',showMainMenu);
 }
 
@@ -2104,6 +3680,1896 @@ window.SYNERGIES=SYNERGIES;
 window.checkSynergies=checkSynergies;
 window.applySynergyRewards=applySynergyRewards;
 window.showSynergiesMenu=showSynergiesMenu;
+window.convertResources=convertResources;
+
+
+EchoVein/js/render-ui.js:
+'use strict';
+
+/* HUD updates, menus, rendering, drawing helpers, and game-over/start flows. */
+
+function updateUI(g){
+  const p=g.player;
+  const mm=Math.floor(g.time/60), ss=Math.floor(g.time%60);
+  ui.timer.textContent=`${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}`;
+  ui.hpFill.style.width=`${clamp(p.hp/p.maxHp*100,0,100)}%`;
+  ui.hpLabel.textContent=`HP ${Math.ceil(Math.max(0,p.hp))}/${p.maxHp}`;
+  ui.xpFill.style.width=`${clamp(g.xp/g.xpNeed*100,0,100)}%`;
+  ui.xpLabel.textContent=`Echo ${Math.floor(g.xp)}/${g.xpNeed}`;
+  ui.heatFill.style.width=`${clamp(p.heat/p.maxHeat*100,0,100)}%`;
+  ui.heatLabel.textContent=p.heat>=p.maxHeat?'TOOL OVERHEATED':'TOOL HEAT';
+  ui.level.textContent=g.level;
+  ui.depth.textContent=Math.floor(g.time*1.6)+' m';
+  ui.gold.textContent=g.gold; ui.nitra.textContent=g.nitra; ui.kills.textContent=g.kills;
+  const trapChip = g.player.canUseTraps ? `<div class="chip"><span>Pathfinder Trap Kit</span><b>${g.player.trapCd<=0?'READY':'CD '+g.player.trapCd.toFixed(1)+'s'}</b></div>` : '';
+  const accChip = `<div class="chip"><span>Weapon Accuracy</span><b>${Math.round((g.player.accuracy ?? 0.35)*100)}%</b></div>`;
+  const cursorChip = (g.player.mouseTargeting || g.controllerCursor?.active) ? `<div class="chip"><span>Targeting Cursor</span><b>${manualAimActive(g)?'MANUAL':'AUTO'}</b></div>` : '';
+  const arc = g.arcConnection;
+  const arcChip = arc?.unlocked
+    ? `<div class="chip"><span>Arc Connection</span><b>${arc.selectedEnemies.length}/${arcConnectionMaxTargets(g)}</b></div>`
+    : "";
+  // ── NEW ── Vampire stack value chip
+  const vampireChip = (g.player.vampire > 0)
+  ? `<div class="chip"><span>❤️ Field Reclaimer</span><b>${g.player.vampire} HP (${g.player.vampCounter}/18 kills)</b></div>`
+  : '';
+  ui.weaponList.innerHTML=g.weapons.map(w=>{
+    const spriteId=WEAPON_DATA[w.id]?.spriteId;
+    const icon=spriteId ? `<img class="weaponIcon" src="${SPRITES[spriteId]}" alt="">` : '';
+    return `<div class="chip"><span>${icon}${weaponName(w.id)}</span><b>Mk ${w.level}</b></div>`;
+  }).join('') + trapChip + accChip + cursorChip + arcChip;
+  const resourceChips = RUN_RESOURCE_IDS.filter(id=>id!=='gild' && id!=='voltarite' && id!=='echo' && (g.resources?.[id] || 0)>0)
+    .map(id=>`<div class="chip"><span>${MINERALS[id].displayName}</span><b>${g.resources[id]}</b></div>`).join('');
+  const pressureChip=`<div class="chip ${g.pressureFlash>0?'danger':''}"><span>Hollow Pressure</span><b>${g.hollowPressure || 0}</b></div>`;
+  const perfState=g.performance?.state || '';
+  const perfChip=(perfState && perfState!==PERF_STATES.HEALTHY)
+    ? `<div class="chip ${perfState===PERF_STATES.CRITICAL?'danger':''}"><span>Swarm Stabiliser</span><b>${perfState.replace('PERF_','')}</b></div>`
+    : '';
+  const objectiveChips=(typeof renderObjectiveChips==='function') ? renderObjectiveChips(g) : g.objectives.map(o=>`<div class="chip objective ${o.completed?'done':''}"><span>${o.displayName}</span><b>${Math.floor(o.currentAmount)}/${o.targetAmount}</b></div>`).join('');
+  const bossChip=g.bossDefeated ? '<div class="chip unlocked"><span>Sector Boss</span><b>DEFEATED</b></div>' : (g.bossSpawned ? '<div class="chip unlocked"><span>Sector Boss</span><b>ACTIVE</b></div>' : '<div class="chip locked"><span>Sector Boss</span><b>LOCKED</b></div>');
+  const extractionChip=g.extraction ? `<div class="chip danger"><span>Extraction</span><b>${Math.max(0,g.extractionTimer).toFixed(1)}s</b></div>` : '';
+  const missionChip=`<div class="chip"><span>Mission ${g.missionIndex}</span><b>Run ${g.runIndex}/${RUNS_PER_MISSION}</b></div>`;
+  // Phase 1.2: mission-type chip.
+  let missionTypeChip='';
+  if(g.missionType && typeof MISSION_TYPES !== 'undefined'){
+    const mt=MISSION_TYPES.find(m=>m.id===g.missionType);
+    if(mt){
+      const colors={hunt:'#ff5b5b',survey:'#42d6ff',harvest:'#ffcc4d',holdout:'#b46bff'};
+      const c=colors[mt.id]||'#95a2ba';
+      missionTypeChip=`<div class="chip" style="border-color:${c};color:${c}"><span>${mt.icon} ${mt.name}</span><b>+${Math.round((mt.rewardModifier-1)*100)}%</b></div>`;
+    }
+  }
+  ui.logList.innerHTML=missionTypeChip + missionChip + pressureChip + perfChip + resourceChips + objectiveChips + bossChip + extractionChip + g.log.slice(0,3).map((m,i)=>`<div class="chip"><span>${m}</span><b>${i===0?'NEW':''}</b></div>`).join('');
+}
+
+function render(g){
+  ctx.clearRect(0,0,innerWidth,innerHeight);
+  if(!g){ drawBackdrop(); return; }
+  const p=g.player;
+  const cam=g.camera;
+  cam.x=lerp(cam.x,p.x-innerWidth/2,0.10);
+  cam.y=lerp(cam.y,p.y-innerHeight/2,0.10);
+  cam.x=clamp(cam.x,0,WORLD_W-innerWidth); cam.y=clamp(cam.y,0,WORLD_H-innerHeight);
+  const sx=(shake>0?rand(-shake,shake):0), sy=(shake>0?rand(-shake,shake):0);
+  ctx.save(); ctx.translate(-cam.x+sx,-cam.y+sy);
+  drawTiles(g,cam);
+  drawLavaDebugZones(g,cam);
+  drawTraps(g);
+  drawExtractionCraft(g);
+  drawExtractionPath(g);
+  drawPickups(g);
+  drawTargetLocks(g);
+  drawMissiles(g);
+  drawBorecasterBombs(g);
+  drawEnemyBoomerangs(g);
+  drawEnemyBullets(g);
+  drawBullets(g);
+  drawBoomerangs(g);
+  drawArcConnection(g);
+  drawEnemies(g);
+  drawEnemyPaths(g);
+  drawChargingWaveWorldDebug(g);
+  drawWardenDrones(g);
+  drawSifterDrones(g);
+  drawPlayer(g);
+  drawThermalLanceCone(g);
+  drawMiningDebug(g);
+  drawScaledTileDebug(g,cam);
+  drawParticles(g);
+  drawArcs(g);
+  drawTargetingCursor(g);
+  drawTexts(g);
+  // Phase 2.2: boss weak point overlay and crystal rain indicators (world-space)
+  drawWeakPointHighlight(g);
+  drawBossCrystalRainIndicators(g);
+  ctx.restore();
+  // Phase 2.2: boss health bar and name display (screen-space)
+  drawBossHealthBar(g);
+  drawBossName(g);
+  // Auto-hide right panel if the player is underneath it
+  updateRightPanelVisibility(g);
+  drawFogOfWar(g,cam,sx,sy);
+  drawVignette();
+  drawChargingWaveScreenOverlay(g);
+  drawFogDebugOverlay(g,cam,sx,sy);
+  drawEnemyBudgetOverlay(g);
+  drawControllerDebugOverlay(g);
+  drawTileScaleInfoOverlay(g);
+  drawAccuracyCone(g);
+  if(paused) drawPause();
+}
+
+/*
+ * Auto-hide the right panel when the player character moves underneath it.
+ *
+ * Converts the player's world position to screen coordinates, then checks
+ * whether that point overlaps the right panel's bounding box (with a 25px
+ * buffer so the fade starts before the player reaches the edge).
+ * If overlapping, adds the 'faded' class (opacity ~0.12); otherwise removes it.
+ *
+ * Called every frame from render().
+ */
+function updateRightPanelVisibility(g){
+  if(!g || !g.player || !ui.rightbar) return;
+  const p = g.player;
+  const cam = g.camera;
+
+  // Project player world position to screen coordinates
+  const screenX = p.x - cam.x;
+  const screenY = p.y - cam.y;
+
+  // Get right panel bounding box with 25px buffer
+  const rect = ui.rightbar.getBoundingClientRect();
+  const buffer = 25;
+  const panelLeft = rect.left - buffer;
+  const panelRight = rect.right + buffer;
+  const panelTop = rect.top - buffer;
+  const panelBottom = rect.bottom + buffer;
+
+  // Check overlap
+  const overlaps = screenX >= panelLeft && screenX <= panelRight &&
+                   screenY >= panelTop && screenY <= panelBottom;
+
+  ui.rightbar.classList.toggle('faded', overlaps);
+}
+
+function drawTargetingCursor(g){
+  if(!manualAimActive(g)) return;
+  const m = mouseWorld(g);
+  ctx.save();
+  ctx.translate(m.x,m.y);
+  const pulse = 0.5 + 0.5*Math.sin(g.time*10);
+  ctx.strokeStyle=`rgba(66,214,255,${0.45+0.35*pulse})`;
+  ctx.shadowColor='#42d6ff';
+  ctx.shadowBlur=10;
+  ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(0,0,20+3*pulse,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-28,0); ctx.lineTo(-12,0);
+  ctx.moveTo(12,0); ctx.lineTo(28,0);
+  ctx.moveTo(0,-28); ctx.lineTo(0,-12);
+  ctx.moveTo(0,12); ctx.lineTo(0,28);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawArcConnection(g){
+  const arc = g.arcConnection;
+  if(!arc?.unlocked) return;
+  const selected = arc.selectedEnemies.filter(e=>e && e.hp>0);
+  if(!selected.length) return;
+  ctx.save();
+  ctx.lineCap='round';
+  ctx.lineJoin='round';
+  for(let i=1;i<selected.length;i++){
+    const a=selected[i-1], b=selected[i];
+    const pulse = 0.55 + 0.45*Math.sin(g.time*12+i);
+    ctx.strokeStyle=`rgba(93,255,154,${0.48+0.35*pulse})`;
+    ctx.shadowColor='#5dff9a';
+    ctx.shadowBlur=10;
+    ctx.lineWidth=4;
+    ctx.beginPath();
+    ctx.moveTo(a.x,a.y);
+    const segments=5;
+    for(let s=1;s<=segments;s++){
+      const t=s/segments;
+      const jitter=(1-Math.abs(0.5-t)*1.7);
+      ctx.lineTo(lerp(a.x,b.x,t)+rand(-3,3)*jitter, lerp(a.y,b.y,t)+rand(-3,3)*jitter);
+    }
+    ctx.stroke();
+  }
+  for(let i=0;i<selected.length;i++){
+    const e=selected[i];
+    const pulse = 0.5 + 0.5*Math.sin(g.time*9+i);
+    ctx.strokeStyle=`rgba(93,255,154,${0.65+0.30*pulse})`;
+    ctx.shadowColor='#5dff9a';
+    ctx.shadowBlur=12;
+    ctx.lineWidth=3;
+    ctx.beginPath();
+    ctx.arc(e.x,e.y,e.r+8+3*pulse,0,Math.PI*2);
+    ctx.stroke();
+    ctx.fillStyle='rgba(93,255,154,0.22)';
+    ctx.beginPath();
+    ctx.arc(e.x,e.y,e.r+3,0,Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.fillStyle='#d9ffe7';
+    ctx.font='bold 12px Segoe UI, Arial';
+    ctx.textAlign='center';
+    ctx.fillText(String(i+1),e.x,e.y-e.r-13);
+  }
+  ctx.restore();
+}
+
+function drawBackdrop(){
+  ctx.fillStyle='#07090d'; ctx.fillRect(0,0,innerWidth,innerHeight);
+}
+
+function drawTiles(g,cam){
+  const minx=clamp(Math.floor(cam.x/TILE)-1,0,MAP_W-1), maxx=clamp(Math.ceil((cam.x+innerWidth)/TILE)+1,0,MAP_W-1);
+  const miny=clamp(Math.floor(cam.y/TILE)-1,0,MAP_H-1), maxy=clamp(Math.ceil((cam.y+innerHeight)/TILE)+1,0,MAP_H-1);
+  ctx.fillStyle='#131722'; ctx.fillRect(cam.x-30,cam.y-30,innerWidth+60,innerHeight+60);
+  for(let y=miny;y<=maxy;y++) for(let x=minx;x<=maxx;x++){
+    const t=g.tiles[tileIdx(x,y)];
+    const px=x*TILE, py=y*TILE;
+    if(t===TILE_EMPTY){
+      ctx.fillStyle=((x+y)&1)?'#171b27':'#151925';
+      ctx.fillRect(px,py,TILE,TILE);
+      if(Math.random()<0.0002){} // keeps cave still; no-op.
+    } else {
+      const data=TILE_DATA[t];
+      const color = t===TILE_EMPTY?'#151925':(data?.color || '#3a342f');
+      ctx.fillStyle=color; ctx.fillRect(px,py,TILE,TILE);
+      const tileInfo = TILE_DATA[t];
+      if(tileInfo?.sprite){
+        drawSpriteCentered(ctx, tileInfo.sprite, px+TILE/2, py+TILE/2, TILE-6, TILE-6, {
+          glowColor: (t===TILE_LUMINA_SPORES || t===TILE_AETHER_QUARTZ || t===TILE_CRYSALITH || t===TILE_EMBERGLASS) ? tileInfo.color : null,
+          glowBlur: (t===TILE_LUMINA_SPORES || t===TILE_AETHER_QUARTZ || t===TILE_CRYSALITH || t===TILE_EMBERGLASS) ? 8 : 0
+        });
+      }
+      if(t===TILE_LAVA_ROCK){
+        ctx.fillStyle='rgba(255,96,24,0.18)';
+        ctx.beginPath(); ctx.arc(px+TILE/2,py+TILE/2,TILE*0.42,0,Math.PI*2); ctx.fill();
+      }
+      ctx.fillStyle='rgba(255,255,255,0.04)'; ctx.fillRect(px+2,py+2,TILE-4,3);
+      ctx.fillStyle='rgba(0,0,0,0.22)'; ctx.fillRect(px,py+TILE-4,TILE,4);
+      const seed=(x*73856093 ^ y*19349663)>>>0;
+      ctx.fillStyle='rgba(255,255,255,0.06)';
+      for(let k=0;k<2;k++){
+        const ox=(seed>>(k*5))%TILE, oy=(seed>>(k*7+3))%TILE;
+        ctx.fillRect(px+ox,py+oy,2,2);
+      }
+    }
+  }
+}
+
+
+function drawLavaDebugZones(g,cam){
+  if(!g.debug?.showLavaZones) return;
+  const minx=clamp(Math.floor(cam.x/TILE)-1,0,MAP_W-1), maxx=clamp(Math.ceil((cam.x+innerWidth)/TILE)+1,0,MAP_W-1);
+  const miny=clamp(Math.floor(cam.y/TILE)-1,0,MAP_H-1), maxy=clamp(Math.ceil((cam.y+innerHeight)/TILE)+1,0,MAP_H-1);
+  ctx.save();
+  ctx.strokeStyle='rgba(255,112,56,0.82)';
+  ctx.lineWidth=2;
+  for(let y=miny;y<=maxy;y++) for(let x=minx;x<=maxx;x++) if(g.tiles[tileIdx(x,y)]===TILE_LAVA_ROCK){
+    ctx.strokeRect(x*TILE+2,y*TILE+2,TILE-4,TILE-4);
+  }
+  ctx.restore();
+}
+
+function drawPlayer(g){
+  const p=g.player;
+  ctx.save(); ctx.translate(p.x,p.y);
+  const a=Math.atan2(p.lastDy,p.lastDx);
+  ctx.rotate(a);
+
+  // Determine which operator sprite to use based on classId
+  const cls = CLASSES.find(c => c.id === p.classId);
+  const spriteId = cls?.spriteId || null;
+  const size = 60;
+
+  if(spriteId){
+    const drawn = drawSpriteCentered(ctx, spriteId, 0, 0, size, size, {
+      rotation: 0,
+      alpha: p.iframes > 0 ? 0.65 : 1,
+      glowColor: '#42d6ff',
+      glowBlur: 10
+    });
+    if(drawn){
+      ctx.restore();
+      return;
+    }
+  }
+
+  // Procedural fallback (identical to original)
+  ctx.shadowColor='#42d6ff'; ctx.shadowBlur=8;
+  ctx.fillStyle=p.iframes>0?'rgba(255,255,255,0.85)':'#4fa3ff';
+  ctx.beginPath(); ctx.roundRect(-15,-12,30,24,7); ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#f5c16c'; ctx.fillRect(-4,-18,10,10);
+  ctx.fillStyle='#222'; ctx.fillRect(2,-8,20,5);
+  ctx.fillStyle='#ffcc4d'; ctx.fillRect(-12,11,8,6);
+  ctx.restore();
+}
+
+function drawThermalLanceCone(g){
+  const p = g.player;
+  const w = g.weapons.find(w => w.id === 'flamer');
+  if(!w || w.cd > 0.05) return;
+
+  // Check if we have a target OR active fire input
+  const e = targetEnemy(g, 250, 130);
+  const isFiring = mouse.down || (g.controllerCursor?.primaryHoldTimer || 0) > 0;
+  if(!e && !isFiring) return;
+
+  // ── Angle calculation ──
+  let angle;
+  if(e){
+    angle = Math.atan2(e.y - p.y, e.x - p.x);
+  } else {
+    const aim = manualAimPoint(g);
+    angle = Math.atan2(aim.y - p.y, aim.x - p.x);
+  }
+
+  const range = 210 + w.level * 18;
+  const coneHalf = 0.45 + w.level * 0.04;
+
+  ctx.save();
+  ctx.translate(p.x, p.y);
+
+  // ── Cone Fill ──
+  const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, range);
+  gradient.addColorStop(0, 'rgba(255, 180, 50, 0.25)');
+  gradient.addColorStop(0.4, 'rgba(255, 120, 30, 0.20)');
+  gradient.addColorStop(0.8, 'rgba(255, 80, 20, 0.12)');
+  gradient.addColorStop(1, 'rgba(255, 40, 10, 0.0)');
+
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.arc(0, 0, range, angle - coneHalf, angle + coneHalf);
+  ctx.closePath();
+  ctx.fill();
+
+  // ── Flame Sprites (use actual sprite IDs) ──
+  const flameSprites = [
+    'flameParticle01', 'flameParticle02', 'flameParticle03',
+    'flameParticle04', 'flameParticle05', 'flameParticle06',
+    'flameParticle07', 'flameParticle08', 'flameParticle09',
+    'flameParticle10', 'flameParticle11', 'flameParticle12'
+  ];
+
+  for(let i = 0; i < 4; i++){
+    const dist = rand(20, range * 0.75);
+    const offA = angle + rand(-coneHalf, coneHalf);
+    const spriteId = flameSprites[randi(0, flameSprites.length - 1)];
+    const size = rand(16, 32);
+    drawSpriteCentered(ctx, spriteId,
+      Math.cos(offA) * dist,
+      Math.sin(offA) * dist,
+      size, size, {
+        rotation: rand(0, Math.PI * 2),
+        alpha: rand(0.15, 0.45),
+        glowColor: '#ff8844',
+        glowBlur: 6
+      }
+    );
+  }
+
+  // ── Cone Outline ──
+  const pulse = 0.6 + 0.4 * Math.sin(g.time * 12);
+  ctx.strokeStyle = `rgba(255, 160, 60, ${0.15 + 0.1 * pulse})`;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([6, 4]);
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.arc(0, 0, range, angle - coneHalf, angle + coneHalf);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ── Heat Ripple ──
+  for(let i = 1; i <= 3; i++){
+    const r = (range / 3) * i;
+    const alpha = 0.06 + 0.04 * Math.sin(g.time * 8 + i * 1.5);
+    ctx.strokeStyle = `rgba(255, 200, 100, ${alpha})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, angle - coneHalf * 0.8, angle + coneHalf * 0.8);
+    ctx.stroke();
+  }
+
+  // ── Sparks ──
+  if(Math.random() < 0.6){
+    const dist = rand(10, range);
+    const offAngle = angle + rand(-coneHalf, coneHalf);
+    addParticle(g,
+      Math.cos(offAngle) * dist,
+      Math.sin(offAngle) * dist,
+      Math.cos(offAngle + rand(-0.2, 0.2)) * rand(20, 80),
+      Math.sin(offAngle + rand(-0.2, 0.2)) * rand(20, 80),
+      rand(0,1) > 0.5 ? '#ff8844' : '#ffcc66',
+      rand(0.06, 0.15),
+      rand(1.5, 3.5),
+      'spark'
+    );
+  }
+
+  ctx.restore();
+}
+
+
+function enemyRenderTransform(g,e,cfg,warning=false){
+  const style=e.rotationStyle || cfg.rotationStyle || 'wobble';
+  const base=(e.visualRotation || 0) + (e.visualRotationSpeed || 0)*g.time;
+  const wobble=Math.sin(g.time*(e.visualWobbleSpeed || 2.5) + (e.visualPhase || e.phase || 0)) * (e.visualWobbleAmount || 0);
+  const warningTwist=warning ? Math.sin(g.time*24 + e.phase)*0.18 : 0;
+  const scale=1 + Math.sin(g.time*(e.visualScaleSpeed || 1.5) + (e.visualPhase || 0))*(e.visualScalePulse || 0);
+  return { rotation:base+wobble+warningTwist, scale:scale*(e.visualScaleMul || 1) };
+}
+
+function drawEnemies(g){
+  for(const e of g.enemies){
+    ctx.save();
+    let shakeX=0, shakeY=0;
+    if((ENEMY_TYPES[e.type]?.behavior || e.behavior) === 'hexBoomerangDetonator' && e.detonationStarted){
+      const amp=e.shakeAmount || 4;
+      shakeX=rand(-amp,amp); shakeY=rand(-amp,amp);
+    }
+    ctx.translate(e.x+shakeX,e.y+shakeY);
+
+    const cfg = ENEMY_TYPES[e.type] || {};
+    const isHexLike = (cfg.behavior || e.behavior) === 'hexBoomerangDetonator';
+    const warning = isHexLike && e.detonationStarted;
+    const pulse = 0.5 + 0.5*Math.sin(g.time*(warning?18:6)+e.phase);
+    let spriteDrawn=false;
+
+    // Enemy sprites are purely visual. If any sprite is missing, the existing
+    // procedural fallback below still renders the enemy safely. New enemy-pack
+    // enemies all flow through cfg.spriteId so future sprite swaps are data-only.
+    const spriteId = e.spriteId || cfg.spriteId;
+    if(spriteId){
+      const role = cfg.role || e.role || 'normal';
+      const baseScale = role==='boss' ? 3.25 : role==='elite' ? 3.15 : 3.05;
+      const minSize = role==='boss' ? 110 : role==='elite' ? 64 : 44;
+      const tr=enemyRenderTransform(g,e,cfg,warning);
+      const size = Math.max(minSize, e.r*baseScale) * (warning ? 1+0.08*pulse : 1) * tr.scale;
+      spriteDrawn = drawSpriteCentered(ctx,spriteId,0,0,size,size,{
+        rotation:tr.rotation,
+        alpha: e.hitFlash>0 ? 0.72 : (cfg.behavior==='riftStalker'?0.82:1),
+        glowColor: warning ? '#ff3d22' : e.color,
+        glowBlur: warning ? 24 : (role==='boss'?26:(role==='elite'?16:8))
+      });
+      if(spriteDrawn && warning){
+        drawSpriteCentered(ctx,cfg.warningSpriteId || 'hexShardWarningGlow',0,0,size*1.35,size*1.35,{
+          rotation: -g.time*1.6,
+          alpha: 0.38+0.50*pulse,
+          glowColor:'#ff7038',
+          glowBlur:28
+        });
+        ctx.strokeStyle=`rgba(255,72,40,${0.42+0.42*pulse})`;
+        ctx.lineWidth=3;
+        ctx.beginPath(); ctx.arc(0,0,70+8*pulse,0,Math.PI*2); ctx.stroke();
+      }
+    }
+
+    if(!spriteDrawn){
+      const tr=enemyRenderTransform(g,e,cfg,warning);
+      ctx.save();
+      ctx.rotate(tr.rotation);
+      ctx.scale(tr.scale,tr.scale);
+      if((ENEMY_TYPES[e.type]?.behavior || e.behavior) === 'hexBoomerangDetonator'){
+        ctx.fillStyle=e.hitFlash>0?'#fff':(warning?`rgba(255,112,56,${0.78+0.22*pulse})`:e.color);
+        ctx.strokeStyle=warning?'#ffe0a8':'rgba(255,220,170,0.82)';
+        ctx.lineWidth=warning?3:2;
+        ctx.shadowColor=warning?'#ff3d22':e.color;
+        ctx.shadowBlur=warning?26:10;
+        ctx.beginPath();
+        for(let i=0;i<6;i++){
+          const a=-Math.PI/6+i*Math.PI*2/6;
+          const rr=e.r*(warning?1+0.10*pulse:1);
+          const x=Math.cos(a)*rr, y=Math.sin(a)*rr;
+          if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+        }
+        ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.shadowBlur=0;
+        ctx.fillStyle='rgba(0,0,0,0.38)';
+        ctx.beginPath(); ctx.arc(0,0,e.r*0.42,0,Math.PI*2); ctx.fill();
+        if(warning){
+          ctx.strokeStyle=`rgba(255,72,40,${0.42+0.42*pulse})`;
+          ctx.lineWidth=3;
+          ctx.beginPath(); ctx.arc(0,0,70+8*pulse,0,Math.PI*2); ctx.stroke();
+        }
+      } else {
+        ctx.fillStyle=e.hitFlash>0?'#fff':e.color;
+        const fallbackRole=ENEMY_TYPES[e.type]?.role || e.role || 'normal';
+        ctx.shadowColor=e.color; ctx.shadowBlur=fallbackRole==='boss'?28:(fallbackRole==='elite'?18:6);
+        ctx.beginPath();
+        for(let i=0;i<8;i++){
+          const a=i*Math.PI*2/8;
+          const rr=e.r*(i%2?0.82:1.08);
+          ctx.lineTo(Math.cos(a)*rr,Math.sin(a)*rr);
+        }
+        ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
+      }
+      ctx.restore();
+    }
+
+    ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(-e.r,-e.r-10,e.r*2,4);
+    ctx.fillStyle='#ff5b5b'; ctx.fillRect(-e.r,-e.r-10,e.r*2*clamp(e.hp/e.maxHp,0,1),4);
+    if((ENEMY_TYPES[e.type]?.role || e.role)==='boss'){
+      ctx.strokeStyle='rgba(255,255,255,0.75)';
+      ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(0,0,e.r+8+Math.sin(g.time*5)*3,0,Math.PI*2); ctx.stroke();
+    }
+    if(e.isChargingWaveEnemy && (g.debug?.showChargingWaveTriggerRadius || g.debug?.showChargingWaveDamageRadius)){
+      ctx.shadowBlur=0;
+      if(g.debug.showChargingWaveTriggerRadius){
+        ctx.strokeStyle='rgba(255,228,90,0.55)'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.arc(0,0,e.explosionTriggerRadius || 55,0,Math.PI*2); ctx.stroke();
+      }
+      if(g.debug.showChargingWaveDamageRadius){
+        ctx.strokeStyle='rgba(255,112,56,0.36)'; ctx.lineWidth=1.5;
+        ctx.beginPath(); ctx.arc(0,0,e.explosionRadius || 95,0,Math.PI*2); ctx.stroke();
+      }
+    }
+    if(g.debug?.showHexRanges && (ENEMY_TYPES[e.type]?.behavior || e.behavior)==='hexBoomerangDetonator'){
+      ctx.shadowBlur=0;
+      ctx.strokeStyle='rgba(255,112,56,0.32)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.arc(0,0,70,0,Math.PI*2); ctx.stroke();
+      ctx.strokeStyle='rgba(255,200,80,0.18)';
+      ctx.beginPath(); ctx.arc(0,0,420,0,Math.PI*2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+
+function drawChargingWaveWorldDebug(g){
+  if(!g?.chargingWave) return;
+  const cw=g.chargingWave;
+  ctx.save();
+  if(g.debug?.showChargingWaveSpawnDirection && cw.lastSpawnCenter){
+    ctx.strokeStyle='rgba(255,112,56,0.72)';
+    ctx.lineWidth=3;
+    ctx.setLineDash([10,7]);
+    ctx.beginPath(); ctx.moveTo(cw.lastSpawnCenter.x,cw.lastSpawnCenter.y); ctx.lineTo(g.player.x,g.player.y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle='rgba(255,112,56,0.95)';
+    ctx.beginPath(); ctx.arc(cw.lastSpawnCenter.x,cw.lastSpawnCenter.y,8,0,Math.PI*2); ctx.fill();
+  }
+  if(g.debug?.showChargingWaveFormationTargets){
+    const targets=[];
+    for(const e of g.enemies||[]) if(e.isChargingWaveEnemy && e.formationTarget) targets.push(e.formationTarget);
+    if(!targets.length && cw.lastFormationTargets) targets.push(...cw.lastFormationTargets);
+    ctx.fillStyle='rgba(255,228,90,0.82)';
+    ctx.strokeStyle='rgba(255,112,56,0.38)';
+    for(const t of targets){ ctx.beginPath(); ctx.arc(t.x,t.y,3.4,0,Math.PI*2); ctx.fill(); }
+  }
+  ctx.restore();
+}
+
+function drawChargingWaveScreenOverlay(g){
+  const cw=g?.chargingWave;
+  if(!cw) return;
+  const warning=cw.warningActive && cw.warningTimer>0;
+  const alive=(g.enemies||[]).filter(e=>e.isChargingWaveEnemy && e.hp>0).length;
+  if(!warning && alive<=0) return;
+  ctx.save();
+  const pulse=0.5+0.5*Math.sin((g.time||0)*14);
+  if(warning){
+    const alpha=0.16+0.13*pulse;
+    ctx.fillStyle=`rgba(255,72,32,${alpha})`;
+    ctx.fillRect(0,0,innerWidth,innerHeight);
+    ctx.font='900 34px Segoe UI, Arial';
+    ctx.textAlign='center';
+    ctx.fillStyle=`rgba(255,240,210,${0.80+0.20*pulse})`;
+    ctx.shadowColor='#ff3d22'; ctx.shadowBlur=18;
+    ctx.fillText('CHARGING WAVE INCOMING!',innerWidth/2,112);
+    ctx.font='700 15px Segoe UI, Arial';
+    ctx.fillText(`${Math.max(0,cw.warningTimer).toFixed(1)}s · Dodge the Rift Chargers`,innerWidth/2,140);
+  }
+  // Directional incoming arrow is visible even when fog hides the enemies.
+  const a=cw.incomingDirection || 0;
+  const cx=innerWidth/2 + Math.cos(a)*Math.min(innerWidth,innerHeight)*0.34;
+  const cy=innerHeight/2 + Math.sin(a)*Math.min(innerWidth,innerHeight)*0.34;
+  ctx.translate(cx,cy);
+  ctx.rotate(a+Math.PI);
+  ctx.fillStyle=`rgba(255,112,56,${0.55+0.35*pulse})`;
+  ctx.strokeStyle='rgba(255,245,210,0.88)';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(0,-24); ctx.lineTo(38,0); ctx.lineTo(0,24); ctx.lineTo(10,7); ctx.lineTo(-36,7); ctx.lineTo(-36,-7); ctx.lineTo(10,-7);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+function drawExtractionCraft(g){
+  if(!g.extraction) return;
+  const ex=g.extraction;
+  const pulse=0.5+0.5*Math.sin(g.time*8);
+  ctx.save();
+  ctx.translate(ex.x,ex.y);
+  ctx.shadowColor='#5dff9a';
+  ctx.shadowBlur=22;
+  ctx.strokeStyle=`rgba(93,255,154,${0.45+0.35*pulse})`;
+  ctx.fillStyle='rgba(93,255,154,0.16)';
+  ctx.lineWidth=4;
+  ctx.beginPath(); ctx.arc(0,0,ex.r+14+8*pulse,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  const drawn=drawSpriteCentered(ctx,'extractionCraft',0,0,110,110,{
+    rotation: Math.sin(g.time*1.2)*0.025,
+    glowColor:'#5dff9a',
+    glowBlur:18
+  });
+  if(!drawn){
+    ctx.fillStyle='#d9ffe7';
+    ctx.beginPath();
+    ctx.moveTo(0,-30); ctx.lineTo(28,14); ctx.lineTo(10,26); ctx.lineTo(-10,26); ctx.lineTo(-28,14);
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#15251f';
+    ctx.fillRect(-11,3,22,12);
+  }
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#fff';
+  ctx.font='900 13px Segoe UI, Arial';
+  ctx.textAlign='center';
+  ctx.fillText('EXTRACTION',0,-60);
+  ctx.restore();
+}
+
+/*
+ * drawExtractionPath — glowing dashed path from player to extraction craft.
+ * Checks line-of-sight per segment; falls back to a "go around" indicator
+ * when terrain blocks the direct line.
+ */
+function drawExtractionPath(g){
+  if(!g.extraction || !g.player) return;
+  const p = g.player;
+  const ex = g.extraction;
+  const pulse = 0.6 + 0.4 * Math.sin(g.time * 6);
+  const color = `rgba(255,204,77,${0.55 * pulse})`;
+  const glowColor = `rgba(255,204,77,${0.25 * pulse})`;
+
+  // Step along the line from player to extraction in ~TILE-sized steps
+  const dx = ex.x - p.x;
+  const dy = ex.y - p.y;
+  const dist = Math.hypot(dx, dy);
+  if(dist < 20) return;
+
+  const steps = Math.max(2, Math.ceil(dist / (TILE * 0.7)));
+  let blocked = false;
+  let lastClearX = p.x, lastClearY = p.y;
+
+  // Sample points along the line to check for solid tiles
+  for(let i = 1; i <= steps; i++){
+    const t = i / steps;
+    const sx = p.x + dx * t;
+    const sy = p.y + dy * t;
+    const [tx, ty] = worldToTile(sx, sy);
+    if(isSolid(tileAt(g, tx, ty))){
+      blocked = true;
+      break;
+    }
+    lastClearX = sx;
+    lastClearY = sy;
+  }
+
+  ctx.save();
+
+  if(!blocked){
+    // ── Direct clear path — draw pulsing dotted line ──────────────
+    ctx.shadowColor = '#ffcc4d';
+    ctx.shadowBlur = 14 * pulse;
+    ctx.setLineDash([6, 10]);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(ex.x, ex.y);
+    ctx.stroke();
+
+    // Second pass: wider fainter glow line
+    ctx.shadowBlur = 28;
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = glowColor;
+    ctx.setLineDash([6, 10]);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(ex.x, ex.y);
+    ctx.stroke();
+
+  } else {
+    // ── Blocked path — draw to last clear point, then "go around" ─
+    ctx.shadowColor = '#ff8844';
+    ctx.shadowBlur = 8;
+    ctx.setLineDash([4, 10]);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = `rgba(255,136,68,${0.6 * pulse})`;
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y);
+    ctx.lineTo(lastClearX, lastClearY);
+    ctx.stroke();
+
+    // Dashed continuation hint
+    ctx.setLineDash([2, 14]);
+    ctx.strokeStyle = `rgba(255,136,68,${0.3 * pulse})`;
+    ctx.beginPath();
+    ctx.moveTo(lastClearX, lastClearY);
+    ctx.lineTo(lastClearX + (ex.x - lastClearX) * 0.3, lastClearY + (ex.y - lastClearY) * 0.3);
+    ctx.stroke();
+
+    // "Go around" indicator at the blocked point
+    ctx.shadowBlur = 12;
+    ctx.setLineDash([]);
+    ctx.fillStyle = `rgba(255,200,100,${0.5 + 0.5 * pulse})`;
+    ctx.font = 'bold 18px Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('⚠', lastClearX, lastClearY - 12);
+  }
+
+  ctx.restore();
+}
+
+function drawEnemyPaths(g){
+  if(!g.debug?.showEnemyPaths) return;
+  ctx.save();
+  for(const e of g.enemies){
+    if(e.stuckTimer>0.75){
+      ctx.strokeStyle='rgba(255,91,91,0.95)';
+      ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(e.x,e.y,e.r+14,0,Math.PI*2); ctx.stroke();
+    }
+    if(g.debug.showEnemyPathingRadius){
+      ctx.strokeStyle='rgba(255,255,255,0.24)';
+      ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(e.x,e.y,e.pathingRadius || e.r,0,Math.PI*2); ctx.stroke();
+    }
+    if(g.debug.showRawEnemyPaths && e.rawPath && e.rawPath.length){
+      ctx.strokeStyle='rgba(255,112,56,0.50)';
+      ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.moveTo(e.x,e.y);
+      for(const p of e.rawPath) ctx.lineTo(p.x,p.y);
+      ctx.stroke();
+    }
+    if(!e.path || e.pathIndex>=e.path.length) continue;
+    ctx.strokeStyle=g.debug.showSmoothedEnemyPaths!==false ? 'rgba(93,255,154,0.58)' : 'rgba(93,255,154,0.32)';
+    ctx.lineWidth=2.25;
+    ctx.beginPath();
+    ctx.moveTo(e.x,e.y);
+    for(let i=e.pathIndex;i<e.path.length;i++) ctx.lineTo(e.path[i].x,e.path[i].y);
+    ctx.stroke();
+    if(g.debug.showCornerCurvePoints!==false){
+      for(const p of e.path){
+        if(!p.curve && !p.corner) continue;
+        ctx.fillStyle=p.corner?'rgba(255,228,90,0.95)':'rgba(255,228,90,0.65)';
+        ctx.beginPath(); ctx.arc(p.x,p.y,p.corner?4:2.6,0,Math.PI*2); ctx.fill();
+      }
+      if(e.pathClearanceFailures){
+        ctx.strokeStyle='rgba(255,60,80,0.92)'; ctx.lineWidth=2;
+        for(const f of e.pathClearanceFailures){
+          ctx.beginPath(); ctx.moveTo(f.x-6,f.y-6); ctx.lineTo(f.x+6,f.y+6); ctx.moveTo(f.x+6,f.y-6); ctx.lineTo(f.x-6,f.y+6); ctx.stroke();
+        }
+      }
+    }
+    const wp=e.path[e.pathIndex];
+    ctx.fillStyle='rgba(66,214,255,0.85)';
+    ctx.beginPath(); ctx.arc(wp.x,wp.y,4,0,Math.PI*2); ctx.fill();
+    if(g.debug.showEnemyLookaheadTargets!==false && e.currentLookaheadTarget){
+      ctx.fillStyle=e.currentLookaheadTarget.clearanceAdjusted?'rgba(255,120,255,0.95)':'rgba(90,170,255,0.95)';
+      ctx.beginPath(); ctx.arc(e.currentLookaheadTarget.x,e.currentLookaheadTarget.y,5,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(90,170,255,0.42)'; ctx.lineWidth=1;
+      ctx.beginPath(); ctx.moveTo(e.x,e.y); ctx.lineTo(e.currentLookaheadTarget.x,e.currentLookaheadTarget.y); ctx.stroke();
+    }
+    if(g.debug.showPathFollowingOverlay && e.closestPathPoint){
+      ctx.fillStyle='rgba(255,228,90,0.96)';
+      ctx.beginPath(); ctx.arc(e.closestPathPoint.x,e.closestPathPoint.y,4,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle='rgba(255,140,60,0.78)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(e.x,e.y); ctx.lineTo(e.closestPathPoint.x,e.closestPathPoint.y); ctx.stroke();
+      if(e.pathTangent){
+        ctx.strokeStyle='rgba(120,255,220,0.78)'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(e.closestPathPoint.x,e.closestPathPoint.y); ctx.lineTo(e.closestPathPoint.x+e.pathTangent.x*26,e.closestPathPoint.y+e.pathTangent.y*26); ctx.stroke();
+      }
+      if(e.desiredVelocity){
+        ctx.strokeStyle='rgba(93,255,154,0.82)'; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.moveTo(e.x,e.y); ctx.lineTo(e.x+e.desiredVelocity.x*0.16,e.y+e.desiredVelocity.y*0.16); ctx.stroke();
+      }
+      if(g.debug.showOfftrackDistanceOverlay){
+        ctx.fillStyle='rgba(255,255,255,0.92)';
+        ctx.font='700 11px Segoe UI, Arial';
+        ctx.textAlign='center';
+        ctx.fillText(`${(e.offtrackDistance||0).toFixed(1)}px`, e.x, e.y-(e.r||12)-20);
+        ctx.fillText(e.pathFollowMode||'path', e.x, e.y-(e.r||12)-8);
+      }
+    }
+    if(g.debug.showPathClearanceOverlay && e.pathUnsafeSections){
+      ctx.strokeStyle='rgba(255,55,75,0.92)'; ctx.lineWidth=2;
+      for(const u of e.pathUnsafeSections){
+        ctx.beginPath(); ctx.moveTo(u.x-7,u.y-7); ctx.lineTo(u.x+7,u.y+7); ctx.moveTo(u.x+7,u.y-7); ctx.lineTo(u.x-7,u.y+7); ctx.stroke();
+      }
+    }
+    if(e.cornerFallbackTarget){
+      ctx.strokeStyle='rgba(220,70,255,0.92)'; ctx.lineWidth=2;
+      ctx.strokeRect(e.cornerFallbackTarget.tx*TILE+4,e.cornerFallbackTarget.ty*TILE+4,TILE-8,TILE-8);
+    }
+    if(e.tunnelCentreBias){
+      ctx.strokeStyle='rgba(126,249,255,0.45)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(e.x,e.y); ctx.lineTo(e.x+e.tunnelCentreBias.x*22,e.y+e.tunnelCentreBias.y*22); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function drawBullets(g){
+  for(const b of g.bullets){
+    ctx.strokeStyle=b.color; ctx.fillStyle=b.color;
+    ctx.lineWidth=b.rail?4:2;
+    ctx.beginPath(); ctx.moveTo(b.x-b.vx*0.025,b.y-b.vy*0.025); ctx.lineTo(b.x,b.y); ctx.stroke();
+    ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fill();
+  }
+}
+
+
+
+function drawBorecasterBombs(g){
+  for(const b of g.borecasterBombs || []){
+    const fuseRatio=clamp((b.fuseTime || 0)/(b.maxFuseTime || 1),0,1);
+    if(!b.grounded){
+      const markerSize=(b.blastRadius || 90)*2;
+      drawSpriteCentered(ctx,'borecasterBombLandingMarker',b.landingX,b.landingY,markerSize,markerSize,{alpha:0.16+0.10*Math.sin(g.time*8),rotation:g.time*0.5,glowColor:'#ffcc4d',glowBlur:8});
+    }
+    ctx.save();
+    ctx.strokeStyle='rgba(255,204,77,0.30)';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    for(let i=0;i<b.trail.length;i++){
+      const t=b.trail[i];
+      if(i===0) ctx.moveTo(t.x,t.y); else ctx.lineTo(t.x,t.y);
+    }
+    ctx.stroke();
+    for(const t of b.trail){
+      drawSpriteCentered(ctx,'borecasterBombThrowTrail',t.x,t.y,24,24,{alpha:clamp(t.life/0.18,0,1)*0.28,rotation:b.rotation,additive:true});
+    }
+    ctx.translate(b.x,b.y);
+    const pulse=0.5+0.5*Math.sin(g.time*18 + b.age*4);
+    const size=b.grounded ? 28+2*pulse : 25;
+    const drawn=drawSpriteCentered(ctx,'borecasterBombLit',0,0,size,size,{rotation:b.rotation,glowColor:fuseRatio<0.35?'#ff3d22':'#ffcc4d',glowBlur:fuseRatio<0.35?22:12});
+    if(!drawn){
+      ctx.fillStyle=fuseRatio<0.35?'#ff7038':'#ffcc4d';
+      ctx.strokeStyle='#2b1a10';
+      ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(0,0,10,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    }
+    drawSpriteCentered(ctx,'borecasterBombFuseSpark',5,-11,14+5*pulse,14+5*pulse,{alpha:0.72+0.28*pulse,rotation:g.time*8,glowColor:'#ffecb3',glowBlur:14,additive:true});
+    ctx.strokeStyle=`rgba(255,204,77,${0.25+0.35*(1-fuseRatio)})`;
+    ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(0,0,18, -Math.PI/2, -Math.PI/2 + Math.PI*2*(1-fuseRatio)); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+function drawEnemyBoomerangs(g){
+  for(const b of g.enemyBoomerangs || []){
+    ctx.save();
+    ctx.strokeStyle='rgba(255,112,56,0.40)';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    for(let i=0;i<b.trail.length;i++){
+      const t=b.trail[i];
+      if(i===0) ctx.moveTo(t.x,t.y); else ctx.lineTo(t.x,t.y);
+    }
+    ctx.stroke();
+    const a=Math.atan2(b.vy,b.vx)+Math.PI/2+(b.spin||0);
+    const drawn=drawSpriteCentered(ctx,'hexBoomerangProjectile',b.x,b.y,30,30,{
+      rotation:a,
+      glowColor:b.color || '#ff7038',
+      glowBlur:14
+    });
+    if(!drawn){
+      ctx.translate(b.x,b.y);
+      ctx.rotate(a);
+      ctx.fillStyle=b.color || '#ff7038';
+      ctx.strokeStyle='rgba(255,235,185,0.85)';
+      ctx.shadowColor=b.color || '#ff7038';
+      ctx.shadowBlur=14;
+      ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.moveTo(0,-10); ctx.lineTo(8,2); ctx.lineTo(0,8); ctx.lineTo(-8,2); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+function drawEnemyBullets(g){
+  for(const b of g.enemyBullets){
+    ctx.save();
+    const angle=Math.atan2(b.vy,b.vx);
+    // Phase 2.2: support custom boss projectile sprites
+    let spriteId=b.spriteId || (b.destructive?'destructiveEnemyBullet':'enemyRedBullet');
+    let size=b.spriteId ? b.r*2.2 : (b.destructive?24:(b.small?15:19));
+    const drawn=drawSpriteCentered(ctx,spriteId,b.x,b.y,size,size,{
+      rotation:angle,
+      glowColor:b.color || '#ff3030',
+      glowBlur:b.spriteId?14:(b.destructive?18:(b.small?8:12))
+    });
+    if(!drawn){
+      ctx.fillStyle=b.color || '#ff3030';
+      ctx.strokeStyle=b.destructive?'rgba(255,220,180,0.92)':'rgba(255,210,210,0.72)';
+      ctx.shadowColor=b.color || '#ff3030';
+      ctx.shadowBlur=b.destructive?18:(b.small?8:12);
+      ctx.lineWidth=b.destructive?3:(b.small?1.5:2);
+      ctx.beginPath();
+      ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    // All hostile bullets get a red trail for readability. Elite/boss shots are
+    // larger and brighter; small-enemy shots stay small but still readable.
+    ctx.strokeStyle=b.destructive?'rgba(255,220,180,0.92)':'rgba(255,80,80,0.72)';
+    ctx.shadowColor=b.color || '#ff3030';
+    ctx.shadowBlur=b.destructive?12:7;
+    ctx.lineWidth=b.destructive?3:(b.small?1.5:2);
+    ctx.beginPath();
+    ctx.moveTo(b.x-b.vx*(b.destructive?0.040:0.030),b.y-b.vy*(b.destructive?0.040:0.030));
+    ctx.lineTo(b.x+b.vx*0.008,b.y+b.vy*0.008);
+    ctx.stroke();
+    if(g.debug?.showEnemyBulletHitboxes){
+      ctx.shadowBlur=0;
+      ctx.strokeStyle='rgba(255,255,255,0.85)';
+      ctx.lineWidth=1;
+      ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+function drawMiningDebug(g){
+  if(!g.debug?.showMiningArc || !g.debug.miningIntent) return;
+  const d=g.debug.miningIntent;
+  const p=g.player;
+  ctx.save();
+
+  // Intended movement vector: what the player asked for before collision.
+  ctx.strokeStyle='rgba(66,214,255,0.85)';
+  ctx.lineWidth=3;
+  ctx.beginPath();
+  ctx.moveTo(d.x,d.y);
+  ctx.lineTo(d.x+d.dx*58,d.y+d.dy*58);
+  ctx.stroke();
+
+  // Actual resolved movement vector: what collision permitted this frame.
+  if(g.debug.actualMovement){
+    const m=g.debug.actualMovement;
+    ctx.strokeStyle='rgba(255,255,255,0.72)';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(m.x,m.y);
+    ctx.lineTo(m.x+m.dx*14,m.y+m.dy*14);
+    ctx.stroke();
+  }
+
+  // Mining fan/contact area.
+  ctx.strokeStyle=g.debug.lowSpeedMiningActive?'rgba(255,204,77,0.72)':'rgba(66,214,255,0.45)';
+  ctx.fillStyle=g.debug.lowSpeedMiningActive?'rgba(255,204,77,0.13)':'rgba(66,214,255,0.12)';
+  ctx.lineWidth=2;
+  const half=Math.PI*0.50;
+  const base=Math.atan2(d.dy,d.dx);
+  const r=(p.collisionR||p.r)+(g.debug.lowSpeedMiningActive?34:28);
+  ctx.beginPath();
+  ctx.moveTo(d.x,d.y);
+  ctx.arc(d.x,d.y,r,base-half,base+half);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+
+  if(g.debug.miningSamples){
+    ctx.fillStyle='rgba(255,255,255,0.85)';
+    for(const smp of g.debug.miningSamples){ ctx.beginPath(); ctx.arc(smp.x,smp.y,2.2,0,Math.PI*2); ctx.fill(); }
+  }
+  if(g.debug.miningSamplesPost){
+    ctx.fillStyle='rgba(125,249,255,0.65)';
+    for(const smp of g.debug.miningSamplesPost){ ctx.beginPath(); ctx.arc(smp.x,smp.y,1.7,0,Math.PI*2); ctx.fill(); }
+  }
+
+  // Candidate mineable tiles: cyan before collision, blue after collision.
+  if(g.debug.showMiningCandidates!==false){
+    if(g.debug.miningCandidates){
+      ctx.lineWidth=1.5;
+      for(const c of g.debug.miningCandidates){
+        ctx.strokeStyle=c.touching?'rgba(255,204,77,0.65)':'rgba(66,214,255,0.45)';
+        ctx.strokeRect(c.tx*TILE+5,c.ty*TILE+5,TILE-10,TILE-10);
+      }
+    }
+    if(g.debug.miningCandidatesPost){
+      ctx.lineWidth=1.25;
+      for(const c of g.debug.miningCandidatesPost){
+        ctx.strokeStyle='rgba(125,249,255,0.38)';
+        ctx.strokeRect(c.tx*TILE+8,c.ty*TILE+8,TILE-16,TILE-16);
+      }
+    }
+  }
+
+  if(g.debug.currentMiningLock){
+    const t=g.debug.currentMiningLock;
+    ctx.strokeStyle='rgba(255,112,67,0.95)';
+    ctx.lineWidth=4;
+    ctx.setLineDash([6,4]);
+    ctx.strokeRect(t.tx*TILE+2,t.ty*TILE+2,TILE-4,TILE-4);
+    ctx.setLineDash([]);
+  }
+  if(g.debug.currentMiningTarget){
+    const t=g.debug.currentMiningTarget;
+    ctx.strokeStyle='rgba(255,255,255,0.95)';
+    ctx.lineWidth=3;
+    ctx.strokeRect(t.tx*TILE+3,t.ty*TILE+3,TILE-6,TILE-6);
+  }
+
+  ctx.fillStyle='rgba(255,255,255,0.88)';
+  ctx.font='bold 12px Segoe UI, Arial';
+  ctx.textAlign='left';
+  const status=[];
+  if(g.debug.lowSpeedMiningActive) status.push('LOW SPEED');
+  if(g.debug.miningStickinessActive) status.push('STICKY LOCK');
+  if(status.length) ctx.fillText(status.join(' · '), d.x+14, d.y-18);
+  ctx.restore();
+}
+
+function drawTargetLocks(g){
+  for(const l of g.targetLocks){
+    const e=l.enemy;
+    if(!e) continue;
+    const alpha=clamp(l.life/l.maxLife,0,1);
+    const pulse=0.5+0.5*Math.sin(g.time*16);
+    ctx.save();
+    ctx.translate(e.x,e.y-e.r-18);
+    ctx.globalAlpha=alpha;
+    const drawn=drawSpriteCentered(ctx,'targetLockReticle',0,0,34+5*pulse,34+5*pulse,{
+      rotation:(l.spin||0)+g.time*1.8,
+      alpha:0.82+0.18*pulse,
+      glowColor:'#ff4949',
+      glowBlur:12
+    });
+    if(!drawn){
+      ctx.strokeStyle=`rgba(255,73,73,${0.55+0.35*pulse})`;
+      ctx.fillStyle='rgba(255,73,73,0.10)';
+      ctx.shadowColor='#ff4949';
+      ctx.shadowBlur=12;
+      ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(0,0,14+2*pulse,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(-20,-4); ctx.lineTo(-12,-4); ctx.lineTo(-12,4); ctx.lineTo(-20,4);
+      ctx.moveTo(20,-4); ctx.lineTo(12,-4); ctx.lineTo(12,4); ctx.lineTo(20,4);
+      ctx.moveTo(-4,-20); ctx.lineTo(-4,-12); ctx.lineTo(4,-12); ctx.lineTo(4,-20);
+      ctx.moveTo(-4,20); ctx.lineTo(-4,12); ctx.lineTo(4,12); ctx.lineTo(4,20);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
+function drawMissiles(g){
+  for(const m of g.missiles){
+    if(m.trail && m.trail.length>1){
+      ctx.save();
+      ctx.lineCap='round';
+      for(let i=1;i<m.trail.length;i++){
+        const a=i/m.trail.length;
+        ctx.globalAlpha=a*0.45;
+        ctx.strokeStyle='rgba(255,159,67,0.75)';
+        ctx.lineWidth=1+a*3;
+        ctx.beginPath();
+        ctx.moveTo(m.trail[i-1].x,m.trail[i-1].y);
+        ctx.lineTo(m.trail[i].x,m.trail[i].y);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    const a=Math.atan2(m.vy,m.vx);
+    ctx.save();
+    ctx.strokeStyle=`rgba(255,159,67,${m.phase==='launch'?0.85:0.55})`;
+    ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(m.x-Math.cos(a)*18,m.y-Math.sin(a)*18); ctx.lineTo(m.x-Math.cos(a)*5,m.y-Math.sin(a)*5); ctx.stroke();
+    const drawn=drawSpriteCentered(ctx,'hammerfallMissile',m.x,m.y,28,14,{
+      rotation:a,
+      glowColor:m.phase==='launch'?'#ffcc4d':'#ff9f43',
+      glowBlur:14
+    });
+    if(!drawn){
+      ctx.translate(m.x,m.y);
+      ctx.rotate(a);
+      ctx.shadowColor=m.phase==='launch'?'#ffcc4d':'#ff9f43';
+      ctx.shadowBlur=14;
+      ctx.fillStyle='#ffdd80';
+      ctx.beginPath(); ctx.moveTo(10,0); ctx.lineTo(-8,-4.5); ctx.lineTo(-4,0); ctx.lineTo(-8,4.5); ctx.closePath(); ctx.fill();
+      ctx.fillStyle='rgba(255,110,60,0.95)';
+      ctx.beginPath(); ctx.arc(-11,0,3.8,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function drawWardenDrones(g){
+  for(const d of g.wardenDrones){
+    ctx.save();
+    ctx.translate(d.x,d.y);
+    const a=Math.atan2(d.vy,d.vx || 1);
+    ctx.rotate(a);
+    const sprite = getSprite('wardenDrone');
+    if(sprite){
+      ctx.shadowColor='#d6a2ff'; ctx.shadowBlur=15;
+      ctx.drawImage(sprite,-14,-14,28,28);
+      ctx.shadowBlur=0;
+      ctx.restore();
+      continue;
+    }
+    ctx.shadowColor='#d6a2ff'; ctx.shadowBlur=15;
+    ctx.fillStyle='#b46bff';
+    ctx.beginPath();
+    ctx.roundRect(-10,-7,20,14,5);
+    ctx.fill();
+    ctx.fillStyle='#f6e8ff';
+    ctx.beginPath(); ctx.arc(3,-2,2.5,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.65)';
+    ctx.fillRect(8,-2,9,4);
+    ctx.shadowBlur=0;
+    ctx.restore();
+  }
+}
+
+function drawSifterDrones(g){
+  for(const sw of g.sifterDrones){
+    ctx.save();
+    ctx.translate(sw.x,sw.y);
+    const a=Math.atan2(sw.vy,sw.vx || 1);
+    ctx.rotate(a);
+    const sprite = getSprite('sifterDrone');
+    if(sprite){
+      ctx.shadowColor='#7df9ff'; ctx.shadowBlur=14;
+      ctx.drawImage(sprite,-15,-15,30,30);
+      ctx.shadowBlur=0;
+      ctx.restore();
+      continue;
+    }
+    ctx.shadowColor='#7df9ff'; ctx.shadowBlur=14;
+    ctx.fillStyle='#30d7ff';
+    ctx.beginPath();
+    ctx.roundRect(-11,-6,22,12,6);
+    ctx.fill();
+    ctx.strokeStyle='rgba(220,255,255,0.9)';
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.arc(-2,0,9,Math.PI*0.25,Math.PI*1.75);
+    ctx.stroke();
+    ctx.fillStyle='#eaffff';
+    ctx.beginPath(); ctx.arc(5,-1,2.4,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(125,249,255,0.30)';
+    ctx.beginPath(); ctx.arc(0,0,18+Math.sin(g.time*8+sw.phase)*2,0,Math.PI*2); ctx.stroke();
+    ctx.shadowBlur=0;
+    ctx.restore();
+  }
+}
+function drawTraps(g){
+  for(const tr of g.traps){
+    const pulse = 0.5 + 0.5*Math.sin(g.time*7 + tr.age*3);
+    ctx.save();
+    ctx.translate(tr.x,tr.y);
+    ctx.strokeStyle=tr.armed ? `rgba(255,204,77,${0.35+0.35*pulse})` : 'rgba(160,160,160,0.45)';
+    ctx.fillStyle=tr.armed ? 'rgba(255,204,77,0.16)' : 'rgba(120,120,120,0.13)';
+    ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(0,0,tr.triggerR,0,Math.PI*2); ctx.stroke();
+    const drawn=drawSpriteCentered(ctx,'pathfinderTrap',0,0,34,34,{
+      rotation:tr.age*0.35,
+      alpha:tr.armed ? 1 : 0.62,
+      glowColor:tr.armed ? '#ffcc4d' : null,
+      glowBlur:tr.armed ? 10 : 0
+    });
+    if(!drawn){
+      ctx.beginPath(); ctx.arc(0,0,11+2*pulse,0,Math.PI*2); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#ffcc4d';
+      ctx.fillRect(-6,-2,12,4);
+      ctx.fillRect(-2,-6,4,12);
+    }
+    ctx.restore();
+  }
+}
+
+function drawBoomerangs(g){
+  for(const b of g.boomerangs){
+    ctx.save();
+    ctx.translate(b.x,b.y);
+    ctx.rotate(b.spin);
+    ctx.strokeStyle=b.color;
+    ctx.fillStyle='rgba(255,211,107,0.18)';
+    ctx.shadowColor=b.color; ctx.shadowBlur=14;
+    ctx.lineWidth=4;
+    ctx.beginPath();
+    ctx.moveTo(-10,-6);
+    ctx.quadraticCurveTo(0,-16,10,-6);
+    ctx.quadraticCurveTo(0,-2,-10,-6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(10,6);
+    ctx.quadraticCurveTo(0,16,-10,6);
+    ctx.quadraticCurveTo(0,2,10,6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur=0;
+    ctx.restore();
+  }
+}
+function drawPickups(g){
+  for(const it of g.pickups){
+    if(it.type==='health'){
+      const bob = Math.sin((game?.time||0)*6 + it.x*0.01)*1.5;
+      const scale = 1 + Math.sin((game?.time||0)*5)*0.1;
+      drawHeartShape(it.x, it.y+bob, it.r*2.5*scale, '#ff6b8f', '#ff3d5f');
+      continue;
+    }
+    const res = it.type==='xp' ? MINERALS.echo : MINERALS[it.type];
+    const spriteId = res?.sprite;
+    const color = res?.color || (it.type==='xp'?'#42d6ff':'#ff5b5b');
+    const bob = Math.sin((game?.time||0)*6 + it.x*0.01)*1.5;
+    if(spriteId && drawSpriteCentered(ctx,spriteId,it.x,it.y+bob,it.r*3.0,it.r*3.0,{
+      glowColor:color,
+      glowBlur:8
+    })){
+      continue;
+    }
+    ctx.fillStyle=color;
+    ctx.shadowColor=ctx.fillStyle; ctx.shadowBlur=10;
+    ctx.beginPath(); ctx.moveTo(it.x,it.y-it.r); ctx.lineTo(it.x+it.r,it.y); ctx.lineTo(it.x,it.y+it.r); ctx.lineTo(it.x-it.r,it.y); ctx.closePath(); ctx.fill(); ctx.shadowBlur=0;
+  }
+}
+
+function drawHeartShape(x, y, size, fillColor, outlineColor){
+  ctx.fillStyle = fillColor;
+  ctx.strokeStyle = outlineColor;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = fillColor;
+  ctx.shadowBlur = 12;
+  const s = size;
+  ctx.beginPath();
+  ctx.moveTo(x, y + s*0.3);
+  ctx.bezierCurveTo(x-s*0.5, y-s*0.3, x-s*0.8, y-s*0.1, x-s*0.5, y+s*0.4);
+  ctx.bezierCurveTo(x, y+s*0.7, x+s*0.5, y+s*0.4, x+s*0.8, y-s*0.1);
+  ctx.bezierCurveTo(x+s*0.5, y-s*0.3, x, y+s*0.3, x, y+s*0.3);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+function drawParticles(g){
+  for(const p of g.particles){
+    const alpha=clamp(p.life/p.maxLife,0,1);
+    ctx.globalAlpha=alpha;
+    if(p.shape==='ring'){
+      ctx.strokeStyle=p.color;
+      ctx.lineWidth=(p.lineWidth || 4) * Math.max(0.25, alpha);
+      ctx.beginPath();
+      ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+      ctx.stroke();
+      continue;
+    }
+    if(p.shape==='sprite' && p.spriteId){
+      const prevComp = ctx.globalCompositeOperation;
+      if(p.additive) ctx.globalCompositeOperation='lighter';
+      const ok = drawSpriteCentered(ctx,p.spriteId,p.x,p.y,p.size,p.size,{
+        rotation:p.rotation || 0,
+        alpha:alpha * (p.alphaMul ?? 1),
+        glowColor:p.glowColor || null,
+        glowBlur:p.glowBlur || 0
+      });
+      ctx.globalCompositeOperation = prevComp;
+      if(ok) continue;
+    }
+    if(p.shape==='fragment'){
+      const angle=Math.atan2(p.vy,p.vx)+p.life*6;
+      if(drawSpriteCentered(ctx,'lavaFragmentDebris',p.x,p.y,p.size*2.4,p.size*2.4,{rotation:angle,alpha,glowColor:p.color,glowBlur:4})) continue;
+    }
+    if(p.shape==='spark'){
+      ctx.strokeStyle=p.color;
+      ctx.lineWidth=Math.max(1, p.size*0.45);
+      ctx.beginPath();
+      ctx.moveTo(p.x-p.vx*0.010, p.y-p.vy*0.010);
+      ctx.lineTo(p.x+p.vx*0.016, p.y+p.vy*0.016);
+      ctx.stroke();
+      continue;
+    }
+    ctx.fillStyle=p.color;
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+    ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+function drawArcs(g){
+  for(const a of g.arcs){
+    const alpha=clamp(a.life/a.maxLife,0,1);
+    ctx.save();
+    ctx.globalAlpha=alpha;
+    ctx.strokeStyle=a.color;
+    ctx.shadowColor=a.color;
+    ctx.shadowBlur=14;
+    ctx.lineWidth=(a.width || 3) * Math.max(0.35, alpha);
+    ctx.beginPath();
+    const segments=7;
+    for(let i=0;i<=segments;i++){
+      const t=i/segments;
+      const x=lerp(a.x1,a.x2,t)+rand(-7,7)*(1-Math.abs(0.5-t)*1.6);
+      const y=lerp(a.y1,a.y2,t)+rand(-7,7)*(1-Math.abs(0.5-t)*1.6);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.lineWidth=1;
+    ctx.strokeStyle='rgba(235,255,255,0.95)';
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+function drawTexts(g){
+  ctx.font='bold 14px Segoe UI, Arial'; ctx.textAlign='center';
+  for(const t of g.texts){
+    ctx.globalAlpha=clamp(t.life/t.maxLife,0,1); ctx.fillStyle=t.color; ctx.fillText(t.text,t.x,t.y);
+  }
+  ctx.globalAlpha=1;
+}
+
+function drawFogOfWar(g,cam,sx=0,sy=0){
+  const settings=getFogSettings();
+  if(!settings.fogOfWarEnabled || !g?.player) return;
+
+  // Keep the first implementation cheap: one full-screen radial gradient. If
+  // adaptive performance is under pressure, avoid extra texture/noise work and
+  // simply draw the soft radial overlay.
+  const p=g.player;
+  const cx=p.x-cam.x+sx;
+  const cy=p.y-cam.y+sy;
+  const radius=settings.fogOfWarRadius;
+  const soft=settings.fogOfWarSoftEdge;
+  const outer=radius+soft;
+  const intensity=clamp(settings.fogOfWarIntensity,0,0.95);
+  const perf=g.performance?.state;
+  const perfTrim=perf===PERF_STATES.CRITICAL ? 0.92 : perf===PERF_STATES.WARNING ? 0.97 : 1;
+  const outerAlpha=intensity*perfTrim;
+
+  const gradient=ctx.createRadialGradient(cx,cy,Math.max(1,radius*0.35),cx,cy,outer);
+  gradient.addColorStop(0,'rgba(0,0,0,0)');
+  gradient.addColorStop(Math.max(0.05, radius/outer),'rgba(3,8,16,0.02)');
+  gradient.addColorStop(Math.min(0.98,(radius+soft*0.55)/outer),`rgba(3,8,16,${outerAlpha*0.50})`);
+  gradient.addColorStop(1,`rgba(0,0,0,${outerAlpha})`);
+
+  ctx.save();
+  ctx.fillStyle=gradient;
+  ctx.fillRect(0,0,innerWidth,innerHeight);
+
+  // Atmospheric soft blue rim around the visibility boundary. This is a single
+  // stroke and remains performance-safe.
+  ctx.globalAlpha=0.16;
+  ctx.strokeStyle='rgba(66,214,255,0.42)';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.arc(cx,cy,radius+soft*0.24,0,Math.PI*2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawFogDebugOverlay(g,cam,sx=0,sy=0){
+  if(!g.debug?.showFogRadius || !g?.player) return;
+  const settings=getFogSettings();
+  const cx=g.player.x-cam.x+sx;
+  const cy=g.player.y-cam.y+sy;
+  ctx.save();
+  ctx.strokeStyle='rgba(93,255,154,0.85)';
+  ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(cx,cy,settings.fogOfWarRadius,0,Math.PI*2); ctx.stroke();
+  ctx.strokeStyle='rgba(66,214,255,0.55)';
+  ctx.setLineDash([8,6]);
+  ctx.beginPath(); ctx.arc(cx,cy,settings.fogOfWarRadius+settings.fogOfWarSoftEdge,0,Math.PI*2); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='rgba(255,255,255,0.86)';
+  ctx.font='bold 12px Segoe UI, Arial';
+  ctx.textAlign='left';
+  ctx.fillText(`Fog ${settings.fogOfWarEnabled?'ON':'OFF'} · R ${settings.fogOfWarRadius} · Soft ${settings.fogOfWarSoftEdge}`,cx+18,cy-settings.fogOfWarRadius-12);
+  ctx.restore();
+}
+
+function drawVignette(){
+  const grd=ctx.createRadialGradient(innerWidth/2,innerHeight/2,innerHeight*0.15,innerWidth/2,innerHeight/2,innerWidth*0.72);
+  grd.addColorStop(0,'rgba(0,0,0,0)'); grd.addColorStop(1,'rgba(0,0,0,0.58)');
+  ctx.fillStyle=grd; ctx.fillRect(0,0,innerWidth,innerHeight);
+}
+
+function drawEnemyBudgetOverlay(g){
+  if(!g.debug?.showEnemyBudget || !g.performance) return;
+  const p=g.performance;
+  ctx.save();
+  ctx.font='12px Consolas, monospace';
+  ctx.textAlign='left';
+  ctx.fillStyle='rgba(0,0,0,0.68)';
+  ctx.fillRect(14, innerHeight-170, 310, 144);
+  ctx.fillStyle='#d7ecff';
+  const lines=[
+    `FPS ${p.currentFPS.toFixed(1)}  AVG ${p.averageFPS.toFixed(1)}  ${p.state.replace('PERF_','')}`,
+    `Enemies ${g.enemies.length}/${g.enemyBudget.currentMaxEnemies}  Bullets ${g.enemyBullets.length}/${getEnemyBulletCap(g)}`,
+    `Spawn x${p.spawnRateMultiplier.toFixed(2)}  Swarm x${p.swarmSizeMultiplier.toFixed(2)}`,
+    `Budget ${p.budgetFactor.toFixed(2)}  VFX ${p.vfxFactor.toFixed(2)}`,
+    `Skipped spawns ${p.skippedSpawns||0} bullets ${p.skippedBullets||0}`,
+    `Perf despawned ${p.enemiesDespawned||0}`
+  ];
+  for(let i=0;i<lines.length;i++) ctx.fillText(lines[i],24,innerHeight-144+i*20);
+  ctx.restore();
+}
+
+function drawPause(){
+  ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(0,0,innerWidth,innerHeight);
+  ctx.fillStyle='#fff'; ctx.font='900 42px Segoe UI'; ctx.textAlign='center'; ctx.fillText('PAUSED',innerWidth/2,innerHeight/2);
+}
+
+function gameOver(g){
+  if(g.state==='dead') return;
+  if(typeof failRun === 'function'){
+    failRun(g,'Operator vitals collapsed before extraction.');
+    return;
+  }
+  g.state='dead';
+  sfx('gameover');
+  ui.gameOverText.innerHTML=`You survived <b>${ui.timer.textContent}</b>, reached <b>Level ${g.level}</b>, mined <b>${g.gold} Gild Shards</b> and <b>${g.nitra} Voltarite</b>, and killed <b>${g.kills}</b> Hollowborn.`;
+  ui.gameOverOverlay.classList.add('show');
+}
+
+function setupClassCards(){
+  ui.classCards.innerHTML='';
+  for(const cls of CLASSES){
+    const div=document.createElement('div');
+    div.className='card';
+    div.dataset.classId=cls.id;
+    div.setAttribute('role','button');
+    div.setAttribute('tabindex','0');
+    const iconHtml = cls.spriteId ? spriteIconHtml(cls.spriteId, cls.icon) : cls.icon;
+    div.innerHTML=`<div class="icon">${iconHtml}</div><h3>${cls.name}</h3><p>${cls.desc}</p><span class="tag">${cls.tag}</span>`;
+    ui.classCards.appendChild(div);
+  }
+}
+
+function getClassById(id){
+  return CLASSES.find(c=>c.id===id) || CLASSES[0];
+}
+
+function showDebugError(title, err){
+  console.error(title, err);
+  let box=document.getElementById('debugBox');
+  if(!box){
+    box=document.createElement('pre');
+    box.id='debugBox';
+    box.className='debugBox';
+    document.body.appendChild(box);
+  }
+  const message = err && (err.stack || err.message) ? (err.stack || err.message) : String(err);
+  box.textContent = `${title}\n\n${message}\n\nOpen the browser console with F12 for full details.`;
+}
+
+function startGame(clsOrId){
+  try{
+    startRunWithClass(clsOrId);
+    const box=document.getElementById('debugBox');
+    if(box) box.remove();
+  }catch(err){
+    showDebugError('Failed to start mission after class selection.', err);
+  }
+}
+
+function bindStartCardInput(){
+  ui.classCards.addEventListener('click', ev=>{
+    const card=ev.target.closest('.card[data-class-id]');
+    if(card) startGame(card.dataset.classId);
+  });
+  ui.classCards.addEventListener('keydown', ev=>{
+    if(ev.code==='Enter' || ev.code==='Space'){
+      const card=ev.target.closest('.card[data-class-id]');
+      if(card){ ev.preventDefault(); startGame(card.dataset.classId); }
+    }
+  });
+}
+
+window.startGame=startGame;
+window.restartGame=function(){ startGame(game?.selectedClass || CLASSES[0]); };
+window.showStart=function(){ showClassSelect(); };
+
+
+
+function drawScaledTileDebug(g,cam){
+  if(!g?.debug?.showScaledTileGrid && !g?.debug?.showCollisionTiles) return;
+  const minx=clamp(Math.floor(cam.x/TILE)-1,0,MAP_W-1), maxx=clamp(Math.ceil((cam.x+innerWidth)/TILE)+1,0,MAP_W-1);
+  const miny=clamp(Math.floor(cam.y/TILE)-1,0,MAP_H-1), maxy=clamp(Math.ceil((cam.y+innerHeight)/TILE)+1,0,MAP_H-1);
+  ctx.save();
+  if(g.debug.showScaledTileGrid){
+    ctx.strokeStyle='rgba(100,232,255,0.20)';
+    ctx.lineWidth=1;
+    for(let x=minx;x<=maxx+1;x++){
+      ctx.beginPath(); ctx.moveTo(x*TILE,miny*TILE); ctx.lineTo(x*TILE,(maxy+1)*TILE); ctx.stroke();
+    }
+    for(let y=miny;y<=maxy+1;y++){
+      ctx.beginPath(); ctx.moveTo(minx*TILE,y*TILE); ctx.lineTo((maxx+1)*TILE,y*TILE); ctx.stroke();
+    }
+  }
+  if(g.debug.showCollisionTiles){
+    for(let y=miny;y<=maxy;y++) for(let x=minx;x<=maxx;x++){
+      const t=g.tiles[tileIdx(x,y)];
+      if(!isSolid(t)) continue;
+      ctx.strokeStyle=t===TILE_HARD?'rgba(255,255,255,0.35)':(t===TILE_LAVA_ROCK?'rgba(255,112,56,0.50)':'rgba(255,204,77,0.30)');
+      ctx.lineWidth=2;
+      ctx.strokeRect(x*TILE+2,y*TILE+2,TILE-4,TILE-4);
+    }
+  }
+  ctx.restore();
+}
+
+function drawTileScaleInfoOverlay(g){
+  if(!g?.debug?.showScaledTileGrid && !g?.debug?.showCollisionTiles) return;
+  const [ptx,pty]=worldToTile(g.player.x,g.player.y);
+  const nearest=g.enemies?.[0];
+  const enemyTile=nearest ? worldToTile(nearest.x,nearest.y).join(',') : '-';
+  const lines=[
+    `Tile base: ${TILE_SIZE_BASE}px`,
+    `Tile scale: ${TILE_SIZE_SCALE}x`,
+    `Effective tile: ${TILE}px`,
+    `Map pixels: ${WORLD_W} x ${WORLD_H}`,
+    `Player tile: ${ptx},${pty}`,
+    `First enemy tile: ${enemyTile}`
+  ];
+  ctx.save();
+  ctx.font='12px Consolas, Monaco, monospace';
+  ctx.textAlign='left';
+  const x=14, y=innerHeight-258;
+  ctx.fillStyle='rgba(0,0,0,0.66)';
+  ctx.fillRect(x-8,y-16,260,lines.length*16+18);
+  ctx.fillStyle='#b7f7ff';
+  for(let i=0;i<lines.length;i++) ctx.fillText(lines[i],x,y+i*16);
+  ctx.restore();
+}
+
+function drawControllerDebugOverlay(g){
+  if(!g?.debug?.showController) return;
+  const lines=[
+    `Gamepad: ${gamepadState.connected ? gamepadState.id : 'not connected'}`,
+    `Left: ${Number(gamepadState.leftX||0).toFixed(2)}, ${Number(gamepadState.leftY||0).toFixed(2)}`,
+    `Right raw 2/3: ${Number(gamepadState.rightX||0).toFixed(2)}, ${Number(gamepadState.rightY||0).toFixed(2)}`,
+    `Cursor axis pair: ${game?.controllerCursor?.axisPair ? game.controllerCursor.axisPair.join('/') : 'none'}`,
+    `Cursor: ${Math.round(mouse.x)}, ${Math.round(mouse.y)}`,
+    `World: ${Math.round(mouseWorld(g).x)}, ${Math.round(mouseWorld(g).y)}`,
+    `Manual aim: ${manualAimActive(g) ? 'ON' : 'AUTO'}`,
+    `Upgrade index: ${g.upgradeMenuState?.selectedIndex ?? '-'}`,
+    `Accuracy: ${Math.round((g.player.accuracy ?? 0.35)*100)}%`
+  ];
+  ctx.save();
+  ctx.font='12px Consolas, Monaco, monospace';
+  ctx.textAlign='left';
+  const x=14, y=innerHeight-150;
+  ctx.fillStyle='rgba(0,0,0,0.64)';
+  ctx.fillRect(x-8,y-16,360,lines.length*16+18);
+  ctx.fillStyle='#b7f7ff';
+  for(let i=0;i<lines.length;i++) ctx.fillText(lines[i],x,y+i*16);
+  ctx.restore();
+}
+
+function drawAccuracyCone(g){
+  if(!g?.debug?.showAccuracyCone || !g.player) return;
+  const p=g.player;
+  const target=nearestEnemy(g,p.x,p.y,720);
+  if(!target) return;
+  const spread=weaponSpreadRadians(p.accuracy ?? 0.35);
+  const base=Math.atan2(target.y-p.y,target.x-p.x);
+  const length=360;
+  ctx.save();
+  ctx.translate(-g.camera.x,-g.camera.y);
+  ctx.strokeStyle='rgba(255,220,128,0.55)';
+  ctx.fillStyle='rgba(255,220,128,0.08)';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(p.x,p.y);
+  ctx.lineTo(p.x+Math.cos(base-spread)*length,p.y+Math.sin(base-spread)*length);
+  ctx.arc(p.x,p.y,length,base-spread,base+spread);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+}
+
+/*
+ * Phase 2.2: Boss UI Rendering
+ *
+ * Four drawing functions called from render():
+ *   drawBossHealthBar(g)     — Top-center bar with phase markers
+ *   drawBossName(g)          — Dramatic name display on spawn
+ *   drawWeakPointHighlight(g) — Glowing weak point circle on boss
+ *   drawBossCrystalRainIndicators(g) — Floor markers for crystal rain
+ */
+
+function drawBossHealthBar(g){
+  if(!g || !g.bossSpawned || g.bossDefeated) return;
+  // Find the boss enemy
+  const boss = g.enemies.find(e => e.role === 'boss' && e.hp > 0);
+  if(!boss) return;
+  const bossDef = BOSS_TYPES[g.bossType];
+  if(!bossDef) return;
+
+  const hpPct = clamp(boss.hp / boss.maxHp, 0, 1);
+  const barW = 380;
+  const barH = 28;
+  const x = (innerWidth - barW) / 2;
+  const y = 12;
+
+  ctx.save();
+
+  // Background frame sprite (fallback to procedural if sprite missing)
+  const frameDrawn = drawSpriteCentered(ctx, 'bossHealthBarFrame', x + barW/2, y + barH/2, barW + 12, barH + 16, {
+    alpha: 0.85,
+    glowColor: bossDef.color,
+    glowBlur: 6
+  });
+  if(!frameDrawn){
+    // Procedural fallback background
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.roundRect(x - 4, y - 4, barW + 8, barH + 8, 12);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    ctx.strokeStyle = bossDef.color;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = bossDef.color;
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.roundRect(x - 2, y - 2, barW + 4, barH + 4, 10);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  // HP fill (always procedural — the bar itself fills over the frame)
+  const gradient = ctx.createLinearGradient(x, y, x + barW, y);
+  if(boss.bossPhase >= 2){
+    gradient.addColorStop(0, '#ff3030');
+    gradient.addColorStop(0.5, '#ff6060');
+    gradient.addColorStop(1, '#ff3030');
+  } else if(boss.bossPhase >= 1){
+    gradient.addColorStop(0, '#ff8a5b');
+    gradient.addColorStop(0.5, '#ffb84d');
+    gradient.addColorStop(1, '#ff8a5b');
+  } else {
+    gradient.addColorStop(0, '#ff5b5b');
+    gradient.addColorStop(0.5, '#ff8a5b');
+    gradient.addColorStop(1, '#ff5b5b');
+  }
+  ctx.fillStyle = gradient;
+  ctx.beginPath();
+  ctx.roundRect(x, y, barW * hpPct, barH, 8);
+  ctx.fill();
+
+  // Phase markers on bar (at 66% and 33%)
+  const markers = [0.66, 0.33];
+  for(const m of markers){
+    const mx = x + barW * (1 - m);
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(mx, y - 4);
+    ctx.lineTo(mx, y + barH + 4);
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px Inter, Segoe UI, Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText(m === 0.66 ? 'P2' : 'P3', mx, y + barH + 18);
+  }
+
+  // Boss name above bar
+  ctx.fillStyle = bossDef.color;
+  ctx.shadowColor = bossDef.color;
+  ctx.shadowBlur = 8;
+  ctx.font = 'bold 15px Inter, Segoe UI, Arial';
+  ctx.textAlign = 'center';
+  const phaseText = boss.bossPhase >= 2 ? ' ⚡ENRAGE' : (boss.bossPhase >= 1 ? ` • Phase ${boss.bossPhase + 1}` : '');
+  ctx.fillText(`${bossDef.icon} ${bossDef.name}${phaseText}`, innerWidth / 2, y - 8);
+  ctx.shadowBlur = 0;
+
+  // HP percentage text
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 13px Inter, Segoe UI, Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${Math.round(hpPct * 100)}%`, x + barW / 2, y + barH / 2 + 5);
+
+  ctx.restore();
+}
+
+/*
+ * Boss name display — appears dramatically when boss spawns.
+ * Fades out after 3 seconds.
+ */
+function drawBossName(g){
+  if(!g || !g.bossNameDisplay) return;
+  const bnd = g.bossNameDisplay;
+  // Skip rendering if completely faded out (timer <= 0)
+  if(bnd.timer <= 0) return;
+  // Alpha: full opacity for first half of timer, then fade out over last 1.5 seconds
+  const alpha = bnd.fadeOut ? clamp(bnd.timer / 1.5, 0, 1) : 1;
+  // Also hide if the boss is already dead
+  const bossAlive = g.enemies && g.enemies.some(e => e.role === 'boss' && e.hp > 0);
+  if(!bossAlive && !bnd.fadeOut){
+    // Boss died before name faded — force immediate fade
+    bnd.fadeOut = true;
+  }
+  if(alpha <= 0) return;
+  const bossDef = BOSS_TYPES[Object.keys(BOSS_TYPES).find(k => BOSS_TYPES[k].name === bnd.text)];
+  const color = bossDef?.color || '#ff4fd8';
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  // Background banner
+  const text = `🔥 BOSS: ${bnd.text}`;
+  ctx.font = 'bold 42px Inter, Segoe UI, Arial';
+  ctx.textAlign = 'center';
+  const metrics = ctx.measureText(text);
+  const bw = metrics.width + 80;
+  const bx = (innerWidth - bw) / 2;
+  const by = innerHeight / 2 - 80;
+
+  // Sprite-based name plate background (fallback to procedural)
+  const plateDrawn = drawSpriteCentered(ctx, 'bossNamePlate', innerWidth / 2, by + 16, bw + 32, 80, {
+    alpha: 0.92,
+    glowColor: color,
+    glowBlur: 14
+  });
+  if(!plateDrawn){
+    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    ctx.shadowColor = 'rgba(0,0,0,0.6)';
+    ctx.shadowBlur = 20;
+    ctx.beginPath();
+    ctx.roundRect(bx - 8, by - 16, bw + 16, 72, 16);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 18;
+    ctx.beginPath();
+    ctx.roundRect(bx - 8, by - 16, bw + 16, 72, 16);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+  }
+
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 14;
+  ctx.fillText(text, innerWidth / 2, by + 38);
+
+  // Subtitle
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 16px Inter, Segoe UI, Arial';
+  ctx.shadowBlur = 6;
+  ctx.shadowColor = '#000';
+  ctx.fillText('Prepare for combat.', innerWidth / 2, by + 72);
+
+  ctx.restore();
+}
+
+/*
+ * Weak Point Highlight — glowing circle on the boss when weak point is active.
+ */
+function drawWeakPointHighlight(g){
+  if(!g || !g.bossWeakPoint?.active) return;
+  const wp = g.bossWeakPoint;
+  const bossDef = BOSS_TYPES[g.bossType];
+
+  ctx.save();
+
+  const pulse = 0.6 + 0.4 * Math.sin(g.time * 10);
+  const glowRadius = wp.radius * (1 + 0.3 * pulse);
+
+  // Sprite-based weak point indicator (fallback to procedural glow)
+  const wpDrawn = drawSpriteCentered(ctx, 'bossWeakPoint', wp.x, wp.y, glowRadius * 2.4, glowRadius * 2.4, {
+    rotation: g.time * 1.5,
+    alpha: 0.7 + 0.3 * pulse,
+    glowColor: '#42d6ff',
+    glowBlur: 24
+  });
+
+  if(!wpDrawn){
+    // Multiple layered circles for glow effect
+    ctx.shadowColor = '#42d6ff';
+    ctx.shadowBlur = 30;
+    ctx.strokeStyle = `rgba(66,214,255,${0.5 + 0.4 * pulse})`;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(wp.x, wp.y, glowRadius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.shadowBlur = 18;
+    ctx.strokeStyle = `rgba(66,214,255,${0.7 + 0.3 * pulse})`;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(wp.x, wp.y, glowRadius * 0.7, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner fill
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = `rgba(66,214,255,${0.15 + 0.12 * pulse})`;
+    ctx.beginPath();
+    ctx.arc(wp.x, wp.y, wp.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Crosshair marks
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = `rgba(66,214,255,${0.6 + 0.3 * pulse})`;
+    ctx.lineWidth = 2;
+    const ch = wp.radius * 0.6;
+    for(const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      ctx.beginPath();
+      ctx.moveTo(wp.x + dx * ch * 0.4, wp.y + dy * ch * 0.4);
+      ctx.lineTo(wp.x + dx * ch, wp.y + dy * ch);
+      ctx.stroke();
+    }
+  }
+
+  // "⚡ WEAK POINT" floating text
+  const textAlpha = 0.7 + 0.3 * pulse;
+  ctx.fillStyle = `rgba(66,214,255,${textAlpha})`;
+  ctx.shadowColor = '#42d6ff';
+  ctx.shadowBlur = 14;
+  ctx.font = 'bold 14px Inter, Segoe UI, Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('⚡ WEAK POINT', wp.x, wp.y - wp.radius - 14);
+
+  ctx.restore();
+}
+
+/*
+ * Crystal Rain Indicators — floor markers showing where crystals will fall.
+ */
+function drawBossCrystalRainIndicators(g){
+  if(!g || !g.bossCrystalRainIndicators || !g.bossCrystalRainIndicators.length) return;
+  ctx.save();
+  for(const ind of g.bossCrystalRainIndicators){
+    const pulse = 0.5 + 0.5 * Math.sin(g.time * 12 + ind.x + ind.y);
+    const alpha = clamp(ind.timer / ind.maxTimer, 0, 1);
+    const radius = 18 + 6 * pulse;
+
+    // Sprite-based indicator (fallback to procedural)
+    const indDrawn = drawSpriteCentered(ctx, 'crystalRainIndicator', ind.x, ind.y, radius * 2, radius * 2, {
+      rotation: -g.time * 0.8,
+      alpha: 0.5 + 0.3 * alpha * pulse,
+      glowColor: '#b46bff',
+      glowBlur: 14
+    });
+
+    if(!indDrawn){
+      ctx.shadowColor = '#b46bff';
+      ctx.shadowBlur = 12;
+      ctx.strokeStyle = `rgba(180,107,255,${0.5 + 0.3 * pulse * alpha})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(ind.x, ind.y, radius, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillStyle = `rgba(180,107,255,${0.08 * alpha})`;
+      ctx.beginPath();
+      ctx.arc(ind.x, ind.y, radius * 0.6, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Diagonal cross
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = `rgba(180,107,255,${0.4 * alpha})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(ind.x - radius * 0.4, ind.y - radius * 0.4);
+      ctx.lineTo(ind.x + radius * 0.4, ind.y + radius * 0.4);
+      ctx.moveTo(ind.x + radius * 0.4, ind.y - radius * 0.4);
+      ctx.lineTo(ind.x - radius * 0.4, ind.y + radius * 0.4);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 
 
 EchoVein/js/systems.js:
@@ -2759,7 +6225,7 @@ function resourceIdForTile(t){
 
 function resourceAmountForTile(t){
   if(t===TILE_GOLD) return randi(2,5);
-  if(t===TILE_NITRA) return randi(1,3);
+  if(t===TILE_NITRA) return randi(2,4);
   if(t===TILE_AETHER_QUARTZ) return randi(1,2);
   if(t===TILE_LUMINA_SPORES) return randi(2,4);
   if(t===TILE_FERRITE_BARK) return randi(3,6);
@@ -6497,7 +9963,7 @@ function killEnemy(g,e){
     sfx('explosion',1.2);
     addRing(g,e.x,e.y,'rgba(255,79,216,0.9)',0.42,e.r,e.r+95,8);
   }
-  if(Math.random()<0.06) dropPickup(g,e.x+rand(-8,8),e.y+rand(-8,8),'voltarite',1);
+  if(Math.random()<0.12) dropPickup(g,e.x+rand(-8,8),e.y+rand(-8,8),'voltarite', randi(1,2));
   if(Math.random()<0.025) dropPickup(g,e.x+rand(-12,12),e.y+rand(-12,12),MISSION_RESOURCE_IDS[randi(2,MISSION_RESOURCE_IDS.length-1)],1);
   for(let k=0;k<10;k++) addParticle(g,e.x,e.y,rand(-100,100),rand(-100,100),e.color,rand(0.22,0.55),rand(2,6));
   if(g.player.vampire>0){
@@ -6837,96 +10303,4 @@ function addRing(g,x,y,color,life,size,targetSize,lineWidth=4){ g.particles.push
 function floating(g,x,y,text,color){ g.texts.push({x,y,text,color,life:0.9,maxLife:0.9}); }
 function flashDamage(){ ui.damageFlash.classList.add('on'); setTimeout(()=>ui.damageFlash.classList.remove('on'),90); }
 
-
-EchoVein/PROJECT_CONTEXT.md:
-# Echo Vein - Project Context
-
-## Core Architecture
-- Engine: Canvas 2D with Web Audio
-- Structure: main.js, core.js, entities.js, systems.js, render-ui.js, progression.js
-- State: Central game state object in core.js
-
-## Key Systems
-- Combat: Heat-based weapon system with overheat mechanics
-- Progression: XP/level system with operator classes
-- Resources: Ore mining with tiered economy (Common/Uncommon/Rare)
-- Enemies: 20+ enemy types with visual variants, A* pathfinding
-- Missions: 4 types (Hunt, Survey, Harvest, Holdout)
-- Milestones: 30 achievements across 5 categories
-
-## ✅ Completed Phases
-
-### Phase 1: Progression & Meta Overhaul
-- ✅ **1.1 Milestones & Achievements** — 30 milestones, locked/unlocked, progress tracking, persistence
-- ✅ **1.2 Mission Variety** — Hunt, Survey, Harvest, Holdout with selection UI and tracking
-- ✅ **1.3 Permanent Upgrade Expansion** — 10 upgrade categories with tiered costs
-- ⏳ **1.4 Resource Economy Rebalance** — Planned
-- ⏳ **1.5 Operator XP & Prestige** — Planned
-- ⏳ **1.6 Run History / Hall of Records** — Planned
-
-### Phase 2.1 — Upgrade Synergies ✅
-- 8 synergies with check/apply logic, UI menu, profile persistence, and in-run hooks
-
-### Phase 2.2 — Boss Rework ✅
-- 3 unique bosses (Hollow Tyrant, Hex Shard Colossus, Molten Maw)
-- Phase system with 3 transitions per boss (P1/P2/Enrage)
-- Weak point mechanic with stagger (2x damage on hit)
-- 9 boss-specific attack patterns across 3 bosses
-- Boss health bar UI with phase markers
-- Boss name display on spawn with dramatic animation
-- Unique boss drops per boss type
-- Boss selection logic (Mission 1 = Tyrant, Mission 2+ = random)
-- Audio: bossRoar, bossPhase, bossDefeat, weakPointAppear, weakPointHit
-
-## 🎯 Next Tasks (Planned)
-- ⏳ Phase 1.4 — Resource Economy Rebalance
-- ⏳ Phase 1.5 — Operator XP & Prestige
-- ⏳ Phase 1.6 — Run History / Hall of Records
-- ⏳ Phase 2.3+ — TBD
-- Phase 1: Slow melee swipe, charge attack
-- Phase 2: Faster swipe, ground slam (shockwave)
-- Phase 3 (Enrage): All attacks 30% faster, rage roar (multiple shockwaves)
-
-**Hex Shard Colossus (Ranged/Artillery):**
-- Phase 1: 3-crystal spread, spawns 1 Hex Shard
-- Phase 2: 5-crystal spread, spawns 2 Hex Shards, Crystal Rain
-- Phase 3 (Enrage): 7-crystal spread, spawns 3 Hex Shards, faster Crystal Rain
-
-**Molten Maw (Burrower/Fire):**
-- Phase 1: Burrow → erupt, leaves lava pool
-- Phase 2: Faster burrow, fire trail, 3 fireballs
-- Phase 3 (Enrage): Even faster, longer fire trail, tracking fireballs
-
-### Boss Rewards
-- **XP:** 120 XP (scaled with mission difficulty)
-- **Resources:** Bonus Gild Shards + rare ore drop on defeat
-- **Unique Drop:** Each boss drops a unique boss-specific resource:
-  - Hollow Tyrant → **Tyrant Core** (used for future crafting/synergies)
-  - Hex Shard Colossus → **Hex Crystal Fragment**
-  - Molten Maw → **Molten Ember**
-- **Milestone:** Counts toward BossKill1 milestone
-- **Run Progress:** Triggers extraction sequence
-
-### Key Files to Modify
-| File | Changes |
-|---|---|
-| `entities.js` | Add BOSS_TYPES data, boss constructors, weak point logic |
-| `systems.js` | Add updateBoss() function, phase transitions, attack timers, weak point tracking |
-| `render-ui.js` | Add boss health bar (top of screen), boss name display, phase indicator, weak point highlight |
-| `core.js` | Add bossType, bossPhase, bossWeakPoint to game state |
-| `world.js` | Add boss selection logic (random with Mission 1 guarantee) |
-| `audio.js` | Add boss-specific sounds (roar, phase change, defeat, weak point hit) |
-| `assets.js` | Add sprites for each boss and their attacks |
-| `style.css` | Add boss health bar styling, phase indicators |
-
-## Code Patterns
-- Use existing enemy system in entities.js
-- UI rendering uses render-ui.js
-- Event system in systems.js
-- Boss state stored in `g.bossType`, `g.bossPhase`, `g.bossWeakPoint`
-
-## File References
-- Main entry: index.html
-- Styles: css/style.css
-- Assets: assets/sprites/
 

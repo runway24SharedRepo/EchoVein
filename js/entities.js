@@ -35,6 +35,8 @@ class Player {
     this.sweeperRangeMul = 1;
     this.sweeperSpeedMul = 1;
     this.sweeperCollectMul = 1;
+    this.operatorLevel = 1;  // overwritten from profile at run start
+    this.operatorXPMultiplier = 1;
     this.mouseTargeting = false;
     this.canUseTraps = cls.id === 'pathfinder';
     this.trapCd = 0;
@@ -400,6 +402,10 @@ function makeGame(cls){
   g.objectives = saveProfile ? currentRunObjectives() : [];
   addMineableBlockObjective(g);
   applyPermanentUpgrades(g);
+  // Phase 1.5: set operator level from profile.
+  if(saveProfile?.operatorData?.[cls.id]){
+    g.player.operatorLevel = saveProfile.operatorData[cls.id].level || 1;
+  }
   addOrLevelWeapon(g, cls.weapon);
   if(cls.id === 'borecaster'){
     addOrLevelWeapon(g, 'borecasterBomb');

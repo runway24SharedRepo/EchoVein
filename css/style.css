@@ -1026,3 +1026,112 @@ input.controllerSelected {
     width: min(340px, calc(100vw - 40px));
   }
 }
+
+/* ==============================
+   Operator Progression (Phase 1.5)
+   ============================== */
+.operatorProgression {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.03);
+}
+
+.operatorProgression h3 {
+  margin: 0 0 10px;
+  font-size: 16px;
+  color: var(--gold);
+}
+
+.operatorProgCard {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+}
+
+.operatorProgHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.operatorProgIcon {
+  font-size: 24px;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+}
+
+.operatorProgName {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+  flex: 1;
+}
+
+.operatorProgLevel {
+  font-size: 13px;
+  color: var(--cyan);
+  font-weight: 700;
+}
+
+.operatorProgPrestige {
+  font-size: 12px;
+  color: var(--purple);
+  font-weight: 700;
+}
+
+.prestigeBtn {
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,204,77,0.60);
+  background: linear-gradient(180deg, rgba(255,204,77,0.25), rgba(255,204,77,0.10));
+  color: var(--gold);
+  font-weight: 900;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.prestigeBtn:hover {
+  background: linear-gradient(180deg, rgba(255,204,77,0.40), rgba(255,204,77,0.20));
+  border-color: var(--gold);
+}
+
+.prestigeMaxed {
+  font-size: 11px;
+  color: var(--green);
+  font-weight: 900;
+  padding: 4px 8px;
+  border: 1px solid rgba(93,255,154,0.40);
+  border-radius: 8px;
+}
+
+.operatorProgBarWrap {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+}
+
+.operatorProgBar {
+  height: 100%;
+  background: linear-gradient(90deg, var(--purple), var(--cyan));
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.operatorProgXP {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}

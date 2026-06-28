@@ -15,6 +15,10 @@ function updateUI(g){
   ui.level.textContent=g.level;
   ui.depth.textContent=Math.floor(g.time*1.6)+' m';
   ui.gold.textContent=g.gold; ui.nitra.textContent=g.nitra; ui.kills.textContent=g.kills;
+  // Phase 1.5: Operator level chip
+  const cls = CLASSES.find(c => c.id === g.player.classId);
+  const opData = saveProfile?.operatorData?.[g.player.classId];
+  const operatorChip = opData ? `<div class="chip"><span>✦ ${cls?.name || g.player.classId} Lv.${opData.level}</span><b>${Math.floor(opData.xp)}/${opData.xpToNext}</b></div>` : '';
   const trapChip = g.player.canUseTraps ? `<div class="chip"><span>Pathfinder Trap Kit</span><b>${g.player.trapCd<=0?'READY':'CD '+g.player.trapCd.toFixed(1)+'s'}</b></div>` : '';
   const accChip = `<div class="chip"><span>Weapon Accuracy</span><b>${Math.round((g.player.accuracy ?? 0.35)*100)}%</b></div>`;
   const cursorChip = (g.player.mouseTargeting || g.controllerCursor?.active) ? `<div class="chip"><span>Targeting Cursor</span><b>${manualAimActive(g)?'MANUAL':'AUTO'}</b></div>` : '';
@@ -26,7 +30,8 @@ function updateUI(g){
   const vampireChip = (g.player.vampire > 0)
   ? `<div class="chip"><span>❤️ Field Reclaimer</span><b>${g.player.vampire} HP (${g.player.vampCounter}/18 kills)</b></div>`
   : '';
-  ui.weaponList.innerHTML=g.weapons.map(w=>{
+  // Prepend operator chip to weapon list
+  ui.weaponList.innerHTML=operatorChip + g.weapons.map(w=>{
     const spriteId=WEAPON_DATA[w.id]?.spriteId;
     const icon=spriteId ? `<img class="weaponIcon" src="${SPRITES[spriteId]}" alt="">` : '';
     return `<div class="chip"><span>${icon}${weaponName(w.id)}</span><b>Mk ${w.level}</b></div>`;
