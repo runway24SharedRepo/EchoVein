@@ -809,12 +809,13 @@ function debugClearRunStats(){ if(requireGame()){ game.runStats=typeof createRun
 
 function buildDebugPanel(){
   if(!DEBUG_MODE) return;
-  const toggle = document.createElement('button');
+  //Disable Debug Toggle Button for now, since it can be accidentally clicked and is not needed for most debugging.
+  /*const toggle = document.createElement('button');
   toggle.id = 'debugToggle';
   toggle.className = 'debugToggle';
   toggle.textContent = 'Debug';
   toggle.addEventListener('click', toggleDebugPanel);
-  document.body.appendChild(toggle);
+  document.body.appendChild(toggle);*/
 
   const panel = document.createElement('div');
   panel.id = 'debugPanel';
