@@ -557,6 +557,14 @@ function createDefaultProfile(){
       totalUpgradesBought:0,
       maxLevelReached:0,
       classRuns:{ bulwark:0, pathfinder:0, borecaster:0 }
+    },
+    runHistory: [],
+    bestRuns: {
+      mostKills: null,
+      fastestExtraction: null,
+      mostResources: null,
+      highestOperatorLevel: null,
+      deepestDepth: null
     }
   };
 }
@@ -578,7 +586,9 @@ function normalizeProfile(profile){
     milestones:{...base.milestones,...(profile?.milestones || {})},
     unlockedSynergies:profile?.unlockedSynergies || [],
     permanentBonuses:profile?.permanentBonuses || {},
-    statistics:{...base.statistics,...(profile?.statistics || {})}
+    statistics:{...base.statistics,...(profile?.statistics || {})},
+    runHistory:profile?.runHistory || [],
+    bestRuns:{...base.bestRuns, ...(profile?.bestRuns || {})}
   };
   // Merge classRuns sub-object safely.
   if(profile?.statistics?.classRuns){
@@ -1202,6 +1212,204 @@ function bankRunRewards(g){
   if(Math.random()<0.35){ const ore=SPECIAL_ORES[randi(0,SPECIAL_ORES.length-1)]; resources[ore]=(resources[ore] || 0)+1; }
 }
 
+/*
+ * Phase 1.6 — Run History / Hall of Records
+ *
+ * saveRunRecord — Persist a completed/failed run to the profile's runHistory.
+ * Called from completeRun() and failRun() after run resolution.
+ */
+function saveRunRecord(g, success){
+  if(!saveProfile || !g) return;
+  const stats = g.runStats || {};
+  const resources = {};
+  // Collate resources from g.resources into a flat record
+  const resMap = g.resources || {};
+  for(const [id, val] of Object.entries(resMap)){
+    if(val > 0) resources[id] = Math.floor(val);
+  }
+  // Also capture collectible resources from runStats if available
+  if(stats.resourcesCollected){
+    for(const [id, val] of Object.entries(stats.resourcesCollected)){
+      resources[id] = (resources[id] || 0) + Math.floor(val);
+    }
+  }
+  const record = {
+    id: Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+    timestamp: new Date().toISOString(),
+    classId: g.player?.classId || g.selectedClass?.id || 'unknown',
+    missionType: g.missionType || null,
+    missionIndex: saveProfile.missionIndex || 1,
+    runIndex: saveProfile.runIndex || 1,
+    success: !!success,
+    duration: g.time || stats.durationSec || 0,
+    kills: g.kills || stats.enemiesKilled || 0,
+    elitesKilled: stats.elitesKilled || 0,
+    bossesKilled: stats.bossesKilled || 0,
+    resources: resources,
+    operatorXP: stats.operatorXPGained || 0,
+    operatorLevel: saveProfile.operatorData?.[g.player?.classId]?.level || 1,
+    playerLevel: g.level || stats.playerLevelMax || 1,
+    depth: Math.floor((g.time || 0) * 1.6),
+    damageDealt: Math.round(stats.damageDealt || 0),
+    damageTaken: Math.round(stats.damageTaken || 0),
+    blocksMined: stats.blocksMined || 0
+  };
+  saveProfile.runHistory.push(record);
+  // Keep max 20 entries, remove oldest
+  if(saveProfile.runHistory.length > 20){
+    saveProfile.runHistory = saveProfile.runHistory.slice(-20);
+  }
+  updateBestRuns(record);
+  saveGame();
+}
+
+/*
+ * updateBestRuns — Compare a new run record against current bests and update.
+ */
+function updateBestRuns(record){
+  if(!saveProfile || !record) return;
+  const br = saveProfile.bestRuns;
+
+  // mostKills
+  if(!br.mostKills || record.kills > br.mostKills.kills){
+    br.mostKills = record;
+  }
+
+  // fastestExtraction (successful runs only, shortest duration)
+  if(record.success && (!br.fastestExtraction || record.duration < br.fastestExtraction.duration)){
+    br.fastestExtraction = record;
+  }
+
+  // mostResources
+  const totalRes = Object.values(record.resources || {}).reduce((a, b) => a + b, 0);
+  const prevTotal = br.mostResources ? Object.values(br.mostResources.resources || {}).reduce((a, b) => a + b, 0) : 0;
+  if(!br.mostResources || totalRes > prevTotal){
+    br.mostResources = record;
+  }
+
+  // highestOperatorLevel
+  if(!br.highestOperatorLevel || record.operatorLevel > br.highestOperatorLevel.operatorLevel){
+    br.highestOperatorLevel = record;
+  }
+
+  // deepestDepth
+  if(!br.deepestDepth || record.depth > br.deepestDepth.depth){
+    br.deepestDepth = record;
+  }
+}
+
+/*
+ * renderHallOfRecords — Generates HTML for the Hall of Records menu content.
+ */
+function renderHallOfRecords(){
+  if(!saveProfile) return '<p>No profile data available.</p>';
+  const history = saveProfile.runHistory || [];
+  const best = saveProfile.bestRuns || {};
+
+  // ── Best Runs Section ──
+  const bestCategories = [
+    { key:'mostKills',         label:'Most Kills',         icon:'⚔️',  value:r=>`${r.kills} kills`,                   classId:r=>r.classId },
+    { key:'fastestExtraction', label:'Fastest Extraction', icon:'⏱️',  value:r=>formatDuration(r.duration),           classId:r=>r.classId, filter:r=>r.success },
+    { key:'mostResources',     label:'Most Resources',     icon:'💎',  value:r=>{const t=Object.values(r.resources||{}).reduce((a,b)=>a+b,0); return `${t} total`;}, classId:r=>r.classId },
+    { key:'highestOperatorLevel', label:'Best Operator',   icon:'⭐',  value:r=>`Lv.${r.operatorLevel}`,              classId:r=>r.classId },
+    { key:'deepestDepth',      label:'Deepest Descent',    icon:'🕳️', value:r=>`${r.depth}m`,                         classId:r=>r.classId }
+  ];
+
+  let bestHtml = '<div class="bestRunsGrid">';
+  for(const cat of bestCategories){
+    const record = best[cat.key];
+    const cls = record ? CLASSES.find(c => c.id === record.classId) : null;
+    const iconHtml = cls?.spriteId ? spriteIconHtml(cls.spriteId, cls.icon) : (cls?.icon || '❓');
+    if(record && (!cat.filter || cat.filter(record))){
+      const dateStr = record.timestamp ? new Date(record.timestamp).toLocaleDateString() : '';
+      bestHtml += `<div class="bestRunCard">
+        <div class="bestRunIcon">${cat.icon}</div>
+        <div class="bestRunInfo">
+          <div class="bestRunLabel">${cat.label}</div>
+          <div class="bestRunValue">${cat.value(record)}</div>
+          <div class="bestRunMeta">${iconHtml} ${cls?.name || record.classId} &middot; ${dateStr}</div>
+        </div>
+      </div>`;
+    } else {
+      bestHtml += `<div class="bestRunCard bestRunEmpty">
+        <div class="bestRunIcon">${cat.icon}</div>
+        <div class="bestRunInfo">
+          <div class="bestRunLabel">${cat.label}</div>
+          <div class="bestRunValue">—</div>
+          <div class="bestRunMeta">No record yet</div>
+        </div>
+      </div>`;
+    }
+  }
+  bestHtml += '</div>';
+
+  // ── Recent Runs Section ──
+  let recentHtml = '<h3>Recent Runs</h3>';
+  if(!history.length){
+    recentHtml += '<p class="emptyState">No runs completed yet. Descend into the Echo Vein to start building your record.</p>';
+  } else {
+    const reversed = [...history].reverse();
+    recentHtml += '<div class="recentRunsTableWrap"><table class="recentRunsTable">';
+    recentHtml += '<thead><tr><th>#</th><th>Class</th><th>Mission</th><th>Result</th><th>Duration</th><th>Kills</th><th>Resources</th><th>Op Lv</th><th>Depth</th><th>Date</th></tr></thead><tbody>';
+    for(let i = 0; i < reversed.length; i++){
+      const r = reversed[i];
+      const cls = CLASSES.find(c => c.id === r.classId);
+      const clsIcon = cls?.icon || '?';
+      const totalRes = Object.values(r.resources || {}).reduce((a, b) => a + b, 0);
+      const dateStr = r.timestamp ? new Date(r.timestamp).toLocaleDateString() : '—';
+      const resultClass = r.success ? 'resultSuccess' : 'resultFail';
+      const resultText = r.success ? '✓ Extract' : '✗ Failed';
+      const missionName = r.missionType || '—';
+      recentHtml += `<tr class="${r.success ? 'rowSuccess' : 'rowFail'}">
+        <td>${history.length - i}</td>
+        <td>${clsIcon} ${cls?.name || r.classId}</td>
+        <td>${missionName}</td>
+        <td class="${resultClass}">${resultText}</td>
+        <td>${formatDuration(r.duration)}</td>
+        <td>${r.kills}</td>
+        <td>${totalRes}</td>
+        <td>${r.operatorLevel}</td>
+        <td>${r.depth}m</td>
+        <td>${dateStr}</td>
+      </tr>`;
+    }
+    recentHtml += '</tbody></table></div>';
+  }
+
+  return `<div class="hallOfRecords">${bestHtml}${recentHtml}</div>`;
+}
+
+/*
+ * showHallOfRecords — Renders the Hall of Records menu.
+ */
+function showHallOfRecords(){
+  appState = 'HALL_OF_RECORDS';
+  setMenu('Hall of Records', 'Review your past descents and best achievements.');
+  ui.menuMeta.innerHTML = `<div class="menuStats"><span>Total Runs <b>${saveProfile?.runHistory?.length || 0}</b></span><span>Successful <b>${(saveProfile?.runHistory || []).filter(r=>r.success).length}</b></span><span>Failed <b>${(saveProfile?.runHistory || []).filter(r=>!r.success).length}</b></span></div>`;
+  ui.menuContent.innerHTML = renderHallOfRecords();
+  // Clear history button
+  const clearBtn = document.createElement('button');
+  clearBtn.className = 'clearHistoryBtn';
+  clearBtn.textContent = '🗑️ Clear History';
+  clearBtn.title = 'Remove all run records and best run data. This cannot be undone.';
+  clearBtn.onclick = () => {
+    if(confirm('Clear all run history and best records? This cannot be undone.')){
+      saveProfile.runHistory = [];
+      saveProfile.bestRuns = {
+        mostKills: null,
+        fastestExtraction: null,
+        mostResources: null,
+        highestOperatorLevel: null,
+        deepestDepth: null
+      };
+      saveGame();
+      showHallOfRecords();
+    }
+  };
+  ui.menuContent.appendChild(clearBtn);
+  addMenuButton('Back', showMainMenu);
+}
+
 function completeRun(g){
   if(!saveProfile || g.runResolved) return;
   g.runResolved=true;
@@ -1239,6 +1447,8 @@ function completeRun(g){
     // Phase 1.1: check mission-complete milestones.
     if(typeof checkMilestoneOnMissionComplete === 'function') checkMilestoneOnMissionComplete(g);
   }
+  // Phase 1.6: Save run record for successful extraction.
+  if(typeof saveRunRecord === 'function') saveRunRecord(g, true);
   saveGame();
   if(typeof showRunStatsScreen==='function') showRunStatsScreen(g,{title:missionCompleted ? 'Mission Complete' : 'Run Extracted', cause:missionCompleted ? 'Mission completed' : 'Extracted'});
   else showRunComplete(g, missionCompleted);
@@ -1248,6 +1458,8 @@ function failRun(g,reason){
   if(g.runResolved) return;
   g.runResolved=true;
   g.state='failed';
+  // Phase 1.6: Save run record for failure.
+  if(typeof saveRunRecord === 'function') saveRunRecord(g, false);
   sfx('gameover');
   saveGame();
   if(typeof showRunStatsScreen==='function') showRunStatsScreen(g,{title:'Run Failed', cause:reason || 'Failed'});
@@ -1346,6 +1558,7 @@ function showMainMenu(){
   addMenuButton('Synergies',showSynergiesMenu);
   addMenuButton('Gears',()=>showPlaceholderMenu('Gears','Gears feature coming later.'));
   addMenuButton('Milestones',showMilestonesMenu);
+  addMenuButton('Hall of Records',showHallOfRecords);
   addMenuButton('Settings',showSettingsMenu);
   addMenuButton('Credits',showCreditsMenu);
 }
@@ -1839,3 +2052,6 @@ window.prestigeOperator=prestigeOperator;
 window.prestigeOperatorFromMenu=prestigeOperatorFromMenu;
 window.checkMilestoneOnOperatorLevelUp=checkMilestoneOnOperatorLevelUp;
 window.checkMilestoneOnPrestige=checkMilestoneOnPrestige;
+window.showHallOfRecords=showHallOfRecords;
+window.saveRunRecord=saveRunRecord;
+window.renderHallOfRecords=renderHallOfRecords;
