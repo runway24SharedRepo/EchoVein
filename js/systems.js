@@ -619,20 +619,9 @@ function mineTile(g,p,tx,ty,dt){
       if(typeof gainOperatorXP === 'function') gainOperatorXP(g, 1 * g.player.mineMul);
       // Phase 1.1: check mining-based milestones.
       if(typeof checkMilestoneOnMine === 'function') checkMilestoneOnMine(g);
-      // Phase 1.2: update Harvest mission objectives. Objective reads are
-      // normalised so old saved objective data remains compatible.
-      if(g.missionType === 'harvest' && resourceId){
-        const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
-        for(const o of objectives){
-          if(o.type==='harvest' && o.resourceId===resourceId && !o.completed && !o.failed){
-            if(typeof addObjectiveProgress === 'function') addObjectiveProgress(g,o.id,amount);
-            else {
-              o.currentAmount=Math.min(o.currentAmount+amount,o.targetAmount);
-              if(o.currentAmount>=o.targetAmount){ o.completed=true; }
-            }
-          }
-        }
-      }
+      // Harvest and resource-quota objectives now progress through
+      // collectRunResource() / progressResourceObjectives(), including legacy
+      // type:'harvest' objectives from older runs.
       sfx('mineral');
     }
   }
@@ -1662,6 +1651,151 @@ function addObjectiveProgress(g,id,amount){
 function allObjectivesComplete(g){
   const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
   return objectives.length>0 && objectives.every(o=>o.completed);
+}
+
+function objectiveParam(o,key,fallback=null){
+  if(o?.params && Object.prototype.hasOwnProperty.call(o.params,key)) return o.params[key];
+  if(o && Object.prototype.hasOwnProperty.call(o,key)) return o[key];
+  return fallback;
+}
+
+function addObjectiveProgressTracked(g,id,amount,progressed){
+  if(!id) return false;
+  if(progressed && progressed.has(id)) return false;
+  if(typeof addObjectiveProgress === 'function') addObjectiveProgress(g,id,amount);
+  if(progressed) progressed.add(id);
+  return true;
+}
+
+function resourceObjectiveTags(resourceId){
+  const tags=new Set(['resource','ore']);
+  if(resourceId) tags.add(resourceId);
+  if(resourceId==='gild') tags.add('commonOre');
+  if(resourceId==='echo') tags.add('echoOre');
+  if(resourceId && resourceId!=='gild' && resourceId!=='echo') tags.add('rareOre');
+  if(['voltarite','aetherQuartz','crysalith','emberglass'].includes(resourceId)) tags.add('highValueOre');
+  return tags;
+}
+
+function progressResourceObjectives(g,resourceId,amount,options={}){
+  if(!g || !resourceId || !amount) return;
+  const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
+  const progressed=new Set();
+  const tags=resourceObjectiveTags(resourceId);
+  if(Array.isArray(options.tags)) for(const tag of options.tags) tags.add(tag);
+
+  for(const o of objectives){
+    if(!o || o.completed || o.failed) continue;
+    if(o.type==='collectResource' || o.type==='harvest'){
+      const wanted=objectiveParam(o,'resourceId',null);
+      if(!wanted || wanted===resourceId) addObjectiveProgressTracked(g,o.id,amount,progressed);
+    } else if(o.type==='collectResourceTag'){
+      const wantedTag=objectiveParam(o,'tag',objectiveParam(o,'resourceTag',null));
+      const wantedTags=Array.isArray(objectiveParam(o,'tags',null)) ? objectiveParam(o,'tags',[]) : (Array.isArray(o.tags) ? o.tags : []);
+      if((wantedTag && tags.has(wantedTag)) || wantedTags.some(tag=>tags.has(tag))){
+        addObjectiveProgressTracked(g,o.id,amount,progressed);
+      }
+    }
+  }
+
+  // Legacy/fallback objective IDs. These keep older saves and old mission data
+  // progressing even though new objectives prefer typed params.
+  addObjectiveProgressTracked(g,`collect_${resourceId}`,amount,progressed);
+  if(resourceId==='gild') addObjectiveProgressTracked(g,'mine_gild_shards',amount,progressed);
+  if(resourceId==='echo') addObjectiveProgressTracked(g,'collect_echo_shards',amount,progressed);
+}
+
+function enemyObjectiveTags(e){
+  const tags=new Set(['enemy']);
+  if(!e) return tags;
+  const def=typeof ENEMY_TYPES !== 'undefined' ? ENEMY_TYPES[e.type] : null;
+  const role=def?.role || e.role || 'normal';
+  const behavior=def?.behavior || e.behavior || '';
+  if(e.type) tags.add(e.type);
+  if(role) tags.add(role);
+  if(behavior) tags.add(behavior);
+  if(role==='elite') tags.add('elite');
+  if(role==='boss' || e.type==='boss' || e.type==='hollowTyrantVariant') tags.add('boss');
+  if(e.isChargingWaveEnemy || behavior==='charger' || behavior==='terrainCharger' || behavior==='chargingExploder' || e.type==='charging_exploder') tags.add('charger');
+  if(['grunt','swarmer','guard','exploder'].includes(e.spawnArchetype)) tags.add(e.spawnArchetype);
+  if(e.missionTarget) tags.add('missionTarget');
+  return tags;
+}
+
+function progressKillObjectives(g,e,amount=1){
+  if(!g || !amount) return;
+  const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
+  const tags=enemyObjectiveTags(e);
+  const def=typeof ENEMY_TYPES !== 'undefined' ? ENEMY_TYPES[e?.type] : null;
+  const behavior=def?.behavior || e?.behavior || '';
+  const role=def?.role || e?.role || 'normal';
+  const progressed=new Set();
+
+  for(const o of objectives){
+    if(!o || o.completed || o.failed) continue;
+    if(o.type==='killEnemyTag'){
+      const wantedTag=objectiveParam(o,'tag',null);
+      const wantedTags=Array.isArray(objectiveParam(o,'tags',null)) ? objectiveParam(o,'tags',[]) : (Array.isArray(o.tags) ? o.tags : []);
+      if((wantedTag && tags.has(wantedTag)) || wantedTags.some(tag=>tags.has(tag))){
+        addObjectiveProgressTracked(g,o.id,amount,progressed);
+      }
+    } else if(o.type==='killEnemyType'){
+      const wanted=objectiveParam(o,'enemyType',objectiveParam(o,'typeId','any'));
+      if(wanted==='any' || wanted===e?.type || wanted===e?.spawnArchetype || wanted===role || wanted===behavior || tags.has(wanted)){
+        addObjectiveProgressTracked(g,o.id,amount,progressed);
+      }
+    }
+  }
+}
+
+function progressRevealMapPercentObjectives(g,dt){
+  if(!g?.player) return;
+  const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
+  if(!objectives.some(o=>(o.type==='revealMapPercent' || o.type==='survey' || o.id==='survey_tiles') && !o.completed && !o.failed)) return;
+
+  if(!g._objectiveRevealedTiles) g._objectiveRevealedTiles=new Set();
+  const [ptx,pty]=worldToTile(g.player.x,g.player.y);
+  const fogSettings=typeof getFogSettings === 'function' ? getFogSettings() : null;
+  const radiusPx=fogSettings?.fogOfWarRadius || 280;
+  // Use a slightly conservative reveal radius so Survey remains exploration-led
+  // rather than completing instantly from the visual fog radius alone.
+  const radiusTiles=Math.max(3, Math.ceil((radiusPx/TILE)*0.55));
+  let newlyRevealed=0;
+  for(let ty=pty-radiusTiles; ty<=pty+radiusTiles; ty++) for(let tx=ptx-radiusTiles; tx<=ptx+radiusTiles; tx++){
+    if(!inMap(tx,ty)) continue;
+    const dx=tx-ptx, dy=ty-pty;
+    if(dx*dx+dy*dy<=radiusTiles*radiusTiles){
+      const key=tx+','+ty;
+      if(!g._objectiveRevealedTiles.has(key)){
+        g._objectiveRevealedTiles.add(key);
+        newlyRevealed++;
+      }
+    }
+  }
+
+  const percent=(g._objectiveRevealedTiles.size/(MAP_W*MAP_H))*100;
+  for(const o of objectives){
+    if(o.completed || o.failed) continue;
+    if(o.type==='revealMapPercent'){
+      const target=Number(o.targetAmount || objectiveParam(o,'percent',1)) || 1;
+      const next=Math.min(target, percent);
+      const delta=next-(Number(o.currentAmount)||0);
+      if(delta>0.001) addObjectiveProgress(g,o.id,delta);
+    } else if((o.type==='survey' || o.id==='survey_tiles') && newlyRevealed>0){
+      // Legacy survey objectives counted newly visited/revealed tiles.
+      addObjectiveProgress(g,o.id,newlyRevealed);
+    }
+  }
+}
+
+function progressSurviveTimerObjectives(g,dt){
+  if(!g || !dt) return;
+  const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
+  for(const o of objectives){
+    if((o.type==='surviveTimer' || o.type==='holdout' || o.id==='holdout_timer') && !o.completed && !o.failed){
+      addObjectiveProgress(g,o.id,dt);
+    }
+  }
 }
 
 function spawnRunBoss(g){
@@ -4386,8 +4520,10 @@ function killEnemy(g,e){
   if(typeof gainOperatorXP === 'function') gainOperatorXP(g, Math.round(e.xp * 0.5));
   // Track kills persistently so kill-count milestones can fire mid-run.
   saveProfile.statistics.totalEnemiesKilled = (saveProfile.statistics.totalEnemiesKilled||0) + 1;
-  // Phase 1.2: update Hunt mission objective through the shared helper so
-  // primary/secondary/pressure metadata remains normalised.
+  // Stronger Mission Variety: progress typed kill objectives such as
+  // killEnemyTag(elite) and killEnemyType(any/charger). The legacy hunt_kills
+  // objective is still updated below for old save/run compatibility.
+  if(typeof progressKillObjectives === 'function') progressKillObjectives(g,e,1);
   if(g.missionType === 'hunt') addObjectiveProgress(g,'hunt_kills',1);
   // Phase 1.1: check kill-based milestones.
   if(typeof checkMilestoneOnKill === 'function') checkMilestoneOnKill(g);
@@ -4631,10 +4767,13 @@ function collectRunResource(g,resourceId,amount,options={}){
     if(g.runStats) g.runStats.xpCollected=(g.runStats.xpCollected||0)+amount;
     g.objectiveEchoCollected=(g.objectiveEchoCollected || 0)+amount;
   }
-  addObjectiveProgress(g,`collect_${resourceId}`,amount);
-  // compatibility with older objective IDs
-  if(resourceId==='gild') addObjectiveProgress(g,'mine_gild_shards',amount);
-  if(resourceId==='echo') addObjectiveProgress(g,'collect_echo_shards',amount);
+  if(typeof progressResourceObjectives === 'function') progressResourceObjectives(g,resourceId,amount,options);
+  else {
+    addObjectiveProgress(g,`collect_${resourceId}`,amount);
+    // compatibility with older objective IDs
+    if(resourceId==='gild') addObjectiveProgress(g,'mine_gild_shards',amount);
+    if(resourceId==='echo') addObjectiveProgress(g,'collect_echo_shards',amount);
+  }
 }
 
 function addHeartVfx(g, x, y){

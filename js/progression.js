@@ -297,22 +297,47 @@ const MISSION_TYPES = [
     id:'hunt',
     name:'Hunt',
     icon:'🗡️',
-    description:'Eliminate a set number of Hollowborn. Combat-focused — mining is optional.',
+    description:'Track and eliminate elite Hollowborn targets. Combat priority mission — mining is optional.',
     rewardModifier:1.15,
     generateObjectives:(profile,g)=>{
       const diff=missionDifficulty(g.missionIndex||profile.missionIndex);
-      const baseTarget=30 + (g.missionIndex||1)*5;
-      const target=Math.floor(baseTarget*diff.objectiveMultiplier);
-      const rewardLabel=`+${Math.round((1.15-1)*100)}% reward`;
-      return [createObjective({ id:'hunt_kills', type:'hunt',
-        displayName:`🗡️ Eliminate ${target} enemies [${rewardLabel}]`,
-        targetAmount:target, currentAmount:0, completed:false })];
+      const eliteTarget=Math.max(3, Math.floor(3*diff.objectiveMultiplier));
+      const killTarget=Math.max(20, Math.floor((18+(g.missionIndex||1)*2)*diff.objectiveMultiplier));
+      return [
+        createObjective({
+          id:'hunt_elites',
+          type:'killEnemyTag',
+          objectiveType:'primary',
+          optional:false,
+          displayName:`🗡️ Eliminate ${eliteTarget} elite enemies`,
+          description:'Primary Hunt objective. Elite-tagged enemies are required before the sector boss can spawn.',
+          targetAmount:eliteTarget,
+          currentAmount:0,
+          completed:false,
+          params:{ tag:'elite' },
+          tags:['hunt','combat','elite']
+        }),
+        createObjective({
+          id:'hunt_bonus_kills',
+          type:'killEnemyType',
+          objectiveType:'secondary',
+          optional:true,
+          displayName:`Cull ${killTarget} Hollowborn`,
+          description:'Bonus Hunt objective. Kill additional enemies for an end-of-run bonus later.',
+          targetAmount:killTarget,
+          currentAmount:0,
+          completed:false,
+          reward:{ xp:25, resources:{ voltarite:2 } },
+          params:{ enemyType:'any' },
+          tags:['hunt','bonus','combat']
+        })
+      ];
     },
     track:(g,dt)=>{},
-    isComplete:g=>{ const o=normaliseObjectives(g).find(o=>o.id==='hunt_kills'); return o ? o.completed : false; },
+    isComplete:g=> typeof allPrimaryObjectivesComplete === 'function' ? allPrimaryObjectivesComplete(g) : !!normaliseObjectives(g).find(o=>o.id==='hunt_elites' && o.completed),
     bonusObjectives:[
       { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
-      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
+      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_elites' || o.id==='hunt_kills')?.targetAmount || 0) + 10 },
       { id:'bonus_speed_run', desc:'Complete in under 5 minutes', reward:{ aetherQuartz:1 }, check:g=>g.time < 300 },
       { id:'bonus_echo_collector', desc:'Collect 50 Echo Shards', reward:{ echo:50 }, check:g=>g.objectiveEchoCollected >= 50 }
     ]
@@ -321,42 +346,63 @@ const MISSION_TYPES = [
     id:'survey',
     name:'Survey',
     icon:'🔍',
-    description:'Explore and reveal cave tiles. Move through uncharted tunnels to complete the survey.',
+    description:'Reveal and map uncharted cave sectors. Exploration and fog-of-war management matter most.',
     rewardModifier:1.10,
     generateObjectives:(profile,g)=>{
-      const diff=missionDifficulty(g.missionIndex||profile.missionIndex);
-      const totalTiles=MAP_W*MAP_H;
-      const pctTarget=Math.min(0.25 + (g.missionIndex||1)*0.03, 0.50);
-      const target=Math.floor(totalTiles*pctTarget*diff.objectiveMultiplier);
-      const rewardLabel=`+${Math.round((1.10-1)*100)}% reward`;
-      return [createObjective({ id:'survey_tiles', type:'survey',
-        displayName:`🔍 Explore ${target} tiles [${rewardLabel}]`,
-        targetAmount:target, currentAmount:0, completed:false })];
+      const missionIndex=g.missionIndex||profile.missionIndex||1;
+      const primaryPct=Math.min(34, 16 + missionIndex*2);
+      const secondaryPct=Math.min(50, primaryPct + 16);
+      return [
+        createObjective({
+          id:'survey_reveal_primary',
+          type:'revealMapPercent',
+          objectiveType:'primary',
+          optional:false,
+          displayName:`🔍 Reveal ${primaryPct}% of the cave`,
+          description:'Primary Survey objective. Explore new ground and push back the fog before the boss can spawn.',
+          targetAmount:primaryPct,
+          currentAmount:0,
+          completed:false,
+          params:{ percent:primaryPct },
+          tags:['survey','exploration','fog']
+        }),
+        createObjective({
+          id:'survey_bonus_reveal',
+          type:'revealMapPercent',
+          objectiveType:'secondary',
+          optional:true,
+          displayName:`Chart ${secondaryPct}% of the cave`,
+          description:'Bonus Survey objective. Reveal a larger portion of the cave for a future bonus reward.',
+          targetAmount:secondaryPct,
+          currentAmount:0,
+          completed:false,
+          reward:{ xp:30, resources:{ echo:35 } },
+          params:{ percent:secondaryPct },
+          tags:['survey','bonus','exploration','fog']
+        })
+      ];
     },
     track:(g,dt)=>{
-      if(!g._tilesRevealed) g._tilesRevealed=new Set();
-      if(!g._tilesRevealedCount) g._tilesRevealedCount=0;
-      const [tx,ty]=worldToTile(g.player.x,g.player.y);
-      const key=tx+','+ty;
-      if(!g._tilesRevealed.has(key)){
-        g._tilesRevealed.add(key);
-        g._tilesRevealedCount++;
-        const o=normaliseObjectives(g).find(o=>o.id==='survey_tiles');
-        if(o && !o.completed && !o.failed){
-          o.currentAmount=Math.min(o.currentAmount+1,o.targetAmount);
-          if(o.currentAmount>=o.targetAmount){
-            o.completed=true;
-            if(typeof log==='function') log(g,`${o.displayName} complete.`);
-            if(typeof sfx==='function') sfx('level',0.75);
-            if(g.runStats) g.runStats.objectivesCompleted=(g.runStats.objectivesCompleted||0)+1;
+      if(typeof progressRevealMapPercentObjectives === 'function') progressRevealMapPercentObjectives(g,dt);
+      else {
+        // Safe legacy fallback: count the tile under the player if the richer
+        // reveal helper is not available for any reason.
+        if(!g._tilesRevealed) g._tilesRevealed=new Set();
+        const [tx,ty]=worldToTile(g.player.x,g.player.y);
+        const key=tx+','+ty;
+        if(!g._tilesRevealed.has(key)){
+          g._tilesRevealed.add(key);
+          const percent=(g._tilesRevealed.size/(MAP_W*MAP_H))*100;
+          for(const o of normaliseObjectives(g).filter(o=>o.type==='revealMapPercent' && !o.completed && !o.failed)){
+            if(percent>o.currentAmount && typeof addObjectiveProgress === 'function') addObjectiveProgress(g,o.id,percent-o.currentAmount);
           }
         }
       }
     },
-    isComplete:g=>{ const o=normaliseObjectives(g).find(o=>o.id==='survey_tiles'); return o ? o.completed : false; },
+    isComplete:g=> typeof allPrimaryObjectivesComplete === 'function' ? allPrimaryObjectivesComplete(g) : !!normaliseObjectives(g).find(o=>o.id==='survey_reveal_primary' && o.completed),
     bonusObjectives:[
       { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
-      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
+      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > 10 },
       { id:'bonus_speed_run', desc:'Complete in under 5 minutes', reward:{ aetherQuartz:1 }, check:g=>g.time < 300 },
       { id:'bonus_echo_collector', desc:'Collect 50 Echo Shards', reward:{ echo:50 }, check:g=>g.objectiveEchoCollected >= 50 }
     ]
@@ -365,30 +411,53 @@ const MISSION_TYPES = [
     id:'harvest',
     name:'Harvest',
     icon:'⛏️',
-    description:'Extract a quota of specific minerals. Enemies escalate faster — prioritise mining.',
+    description:'Extract a focused rare-resource quota. Greed and mining route choices define the run.',
     rewardModifier:1.20,
     generateObjectives:(profile,g)=>{
       const diff=missionDifficulty(g.missionIndex||profile.missionIndex);
-      const rewardLabel=`+${Math.round((1.20-1)*100)}% reward`;
-      const pool=['voltarite','echo','ferriteBark','luminaSpores','crysalith','emberglass'];
-      const secondRes=pool[(g.missionIndex||1 + g.runIndex||1) % pool.length];
-      const mineral2=MINERALS[secondRes];
-      const target1=Math.floor(40*diff.objectiveMultiplier);
-      const target2=Math.floor((secondRes==='aetherQuartz'?4:12)*diff.objectiveMultiplier);
+      const pool=['voltarite','ferriteBark','luminaSpores','aetherQuartz','crysalith','emberglass'];
+      const rareRes=pool[((g.missionIndex||1)+(g.runIndex||1)-2) % pool.length];
+      const mineral=MINERALS[rareRes];
+      const rareBase=rareRes==='aetherQuartz' ? 5 : 12;
+      const rareTarget=Math.max(1, Math.floor(rareBase*diff.objectiveMultiplier));
+      const gildTarget=Math.max(45, Math.floor((45+(g.missionIndex||1)*5)*diff.objectiveMultiplier));
       return [
-        createObjective({ id:'harvest_gild', type:'harvest', resourceId:'gild',
-          displayName:`⛏️ Collect ${target1} Gild Shards [${rewardLabel}]`,
-          targetAmount:target1, currentAmount:0, completed:false }),
-        createObjective({ id:'harvest_'+secondRes, type:'harvest', resourceId:secondRes,
-          displayName:`⛏️ Collect ${target2} ${mineral2.displayName} [${rewardLabel}]`,
-          targetAmount:target2, currentAmount:0, completed:false })
+        createObjective({
+          id:'harvest_rare_quota',
+          type:'collectResource',
+          objectiveType:'primary',
+          optional:false,
+          resourceId:rareRes,
+          displayName:`⛏️ Collect ${rareTarget} ${mineral.displayName}`,
+          description:'Primary Harvest objective. Mine and collect the assigned rare resource before the boss can spawn.',
+          targetAmount:rareTarget,
+          currentAmount:0,
+          completed:false,
+          params:{ resourceId:rareRes },
+          tags:['harvest','rareOre',rareRes]
+        }),
+        createObjective({
+          id:'harvest_bonus_gild',
+          type:'collectResource',
+          objectiveType:'secondary',
+          optional:true,
+          resourceId:'gild',
+          displayName:`Stockpile ${gildTarget} Gild Shards`,
+          description:'Bonus Harvest objective. Gather extra Gild while chasing the rare-resource quota.',
+          targetAmount:gildTarget,
+          currentAmount:0,
+          completed:false,
+          reward:{ xp:20, resources:{ gild:25 } },
+          params:{ resourceId:'gild' },
+          tags:['harvest','bonus','commonOre','gild']
+        })
       ];
     },
     track:(g,dt)=>{},
-    isComplete:g=>{ const objectives=normaliseObjectives(g).filter(o=>o.type==='harvest'); return objectives.length>0 && objectives.every(o=>o.completed); },
+    isComplete:g=> typeof allPrimaryObjectivesComplete === 'function' ? allPrimaryObjectivesComplete(g) : !!normaliseObjectives(g).find(o=>o.id==='harvest_rare_quota' && o.completed),
     bonusObjectives:[
       { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
-      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
+      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > 10 },
       { id:'bonus_speed_run', desc:'Complete in under 5 minutes', reward:{ aetherQuartz:1 }, check:g=>g.time < 300 },
       { id:'bonus_echo_collector', desc:'Collect 50 Echo Shards', reward:{ echo:50 }, check:g=>g.objectiveEchoCollected >= 50 }
     ]
@@ -397,38 +466,56 @@ const MISSION_TYPES = [
     id:'holdout',
     name:'Holdout',
     icon:'🛡️',
-    description:'Survive a set duration. Endless waves of enemies pressure your position.',
+    description:'Survive a timed pressure window. Area control and endurance define the run.',
     rewardModifier:1.25,
     generateObjectives:(profile,g)=>{
       const diff=missionDifficulty(g.missionIndex||profile.missionIndex);
-      const baseTime=120 + (g.missionIndex||1)*15;
+      const baseTime=90 + (g.missionIndex||1)*10;
       const target=Math.floor(baseTime*diff.objectiveMultiplier);
-      const rewardLabel=`+${Math.round((1.25-1)*100)}% reward`;
-      return [createObjective({ id:'holdout_timer', type:'holdout',
-        displayName:`🛡️ Survive ${target}s [${rewardLabel}]`,
-        targetAmount:target, currentAmount:0, completed:false })];
+      const killTarget=Math.max(24, Math.floor((22+(g.missionIndex||1)*3)*diff.objectiveMultiplier));
+      return [
+        createObjective({
+          id:'holdout_timer',
+          type:'surviveTimer',
+          objectiveType:'primary',
+          optional:false,
+          displayName:`🛡️ Survive ${target}s`,
+          description:'Primary Holdout objective. Stay alive until the timer completes before the boss can spawn.',
+          targetAmount:target,
+          currentAmount:0,
+          completed:false,
+          params:{ seconds:target },
+          tags:['holdout','survival','timer']
+        }),
+        createObjective({
+          id:'holdout_bonus_kills',
+          type:'killEnemyType',
+          objectiveType:'secondary',
+          optional:true,
+          displayName:`Repel ${killTarget} enemies during holdout`,
+          description:'Bonus Holdout objective. Thin the attacking swarm while surviving the timer.',
+          targetAmount:killTarget,
+          currentAmount:0,
+          completed:false,
+          reward:{ xp:25, resources:{ aetherQuartz:1 } },
+          params:{ enemyType:'any' },
+          tags:['holdout','bonus','combat']
+        })
+      ];
     },
     track:(g,dt)=>{
-      const o=normaliseObjectives(g).find(o=>o.id==='holdout_timer');
-      if(!o || o.completed || o.failed) return;
-      o.currentAmount=Math.min(o.currentAmount+dt,o.targetAmount);
-      if(o.currentAmount>=o.targetAmount && !o.completed){
-        o.completed=true;
-        if(typeof log==='function') log(g,`${o.displayName} complete.`);
-        if(typeof sfx==='function') sfx('level',0.75);
-        if(g.runStats) g.runStats.objectivesCompleted=(g.runStats.objectivesCompleted||0)+1;
-      }
+      if(typeof progressSurviveTimerObjectives === 'function') progressSurviveTimerObjectives(g,dt);
+      else addObjectiveProgress(g,'holdout_timer',dt);
     },
-    isComplete:g=>{ const o=normaliseObjectives(g).find(o=>o.id==='holdout_timer'); return o ? o.completed : false; },
+    isComplete:g=> typeof allPrimaryObjectivesComplete === 'function' ? allPrimaryObjectivesComplete(g) : !!normaliseObjectives(g).find(o=>o.id==='holdout_timer' && o.completed),
     bonusObjectives:[
       { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
-      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
+      { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > 10 },
       { id:'bonus_speed_run', desc:'Complete in under 5 minutes', reward:{ aetherQuartz:1 }, check:g=>g.time < 300 },
       { id:'bonus_echo_collector', desc:'Collect 50 Echo Shards', reward:{ echo:50 }, check:g=>g.objectiveEchoCollected >= 50 }
     ]
   }
 ];
-
 // Track the mission type selected by the player for the next run.
 let selectedMissionType = MISSION_TYPES[0];
 
