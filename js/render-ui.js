@@ -61,13 +61,13 @@ function updateUI(g){
 }
 
 function render(g){
-  ctx.clearRect(0,0,innerWidth,innerHeight);
+  ctx.clearRect(0,0,viewW(),viewH());
   if(!g){ drawBackdrop(); return; }
   const p=g.player;
   const cam=g.camera;
-  cam.x=lerp(cam.x,p.x-innerWidth/2,0.10);
-  cam.y=lerp(cam.y,p.y-innerHeight/2,0.10);
-  cam.x=clamp(cam.x,0,WORLD_W-innerWidth); cam.y=clamp(cam.y,0,WORLD_H-innerHeight);
+  cam.x=lerp(cam.x,p.x-viewW()/2,0.10);
+  cam.y=lerp(cam.y,p.y-viewH()/2,0.10);
+  cam.x=clamp(cam.x,0,WORLD_W-viewW()); cam.y=clamp(cam.y,0,WORLD_H-viewH());
   const sx=(shake>0?rand(-shake,shake):0), sy=(shake>0?rand(-shake,shake):0);
   ctx.save(); ctx.translate(-cam.x+sx,-cam.y+sy);
   drawTiles(g,cam);
@@ -220,13 +220,13 @@ function drawArcConnection(g){
 }
 
 function drawBackdrop(){
-  ctx.fillStyle='#07090d'; ctx.fillRect(0,0,innerWidth,innerHeight);
+  ctx.fillStyle='#07090d'; ctx.fillRect(0,0,viewW(),viewH());
 }
 
 function drawTiles(g,cam){
-  const minx=clamp(Math.floor(cam.x/TILE)-1,0,MAP_W-1), maxx=clamp(Math.ceil((cam.x+innerWidth)/TILE)+1,0,MAP_W-1);
-  const miny=clamp(Math.floor(cam.y/TILE)-1,0,MAP_H-1), maxy=clamp(Math.ceil((cam.y+innerHeight)/TILE)+1,0,MAP_H-1);
-  ctx.fillStyle='#131722'; ctx.fillRect(cam.x-30,cam.y-30,innerWidth+60,innerHeight+60);
+  const minx=clamp(Math.floor(cam.x/TILE)-1,0,MAP_W-1), maxx=clamp(Math.ceil((cam.x+viewW())/TILE)+1,0,MAP_W-1);
+  const miny=clamp(Math.floor(cam.y/TILE)-1,0,MAP_H-1), maxy=clamp(Math.ceil((cam.y+viewH())/TILE)+1,0,MAP_H-1);
+  ctx.fillStyle='#131722'; ctx.fillRect(cam.x-30,cam.y-30,viewW()+60,viewH()+60);
   for(let y=miny;y<=maxy;y++) for(let x=minx;x<=maxx;x++){
     const t=g.tiles[tileIdx(x,y)];
     const px=x*TILE, py=y*TILE;
@@ -264,8 +264,8 @@ function drawTiles(g,cam){
 
 function drawLavaDebugZones(g,cam){
   if(!g.debug?.showLavaZones) return;
-  const minx=clamp(Math.floor(cam.x/TILE)-1,0,MAP_W-1), maxx=clamp(Math.ceil((cam.x+innerWidth)/TILE)+1,0,MAP_W-1);
-  const miny=clamp(Math.floor(cam.y/TILE)-1,0,MAP_H-1), maxy=clamp(Math.ceil((cam.y+innerHeight)/TILE)+1,0,MAP_H-1);
+  const minx=clamp(Math.floor(cam.x/TILE)-1,0,MAP_W-1), maxx=clamp(Math.ceil((cam.x+viewW())/TILE)+1,0,MAP_W-1);
+  const miny=clamp(Math.floor(cam.y/TILE)-1,0,MAP_H-1), maxy=clamp(Math.ceil((cam.y+viewH())/TILE)+1,0,MAP_H-1);
   ctx.save();
   ctx.strokeStyle='rgba(255,112,56,0.82)';
   ctx.lineWidth=2;
@@ -577,19 +577,19 @@ function drawChargingWaveScreenOverlay(g){
   if(warning){
     const alpha=0.16+0.13*pulse;
     ctx.fillStyle=`rgba(255,72,32,${alpha})`;
-    ctx.fillRect(0,0,innerWidth,innerHeight);
+    ctx.fillRect(0,0,viewW(),viewH());
     ctx.font='900 34px Segoe UI, Arial';
     ctx.textAlign='center';
     ctx.fillStyle=`rgba(255,240,210,${0.80+0.20*pulse})`;
     ctx.shadowColor='#ff3d22'; ctx.shadowBlur=18;
-    ctx.fillText('CHARGING WAVE INCOMING!',innerWidth/2,112);
+    ctx.fillText('CHARGING WAVE INCOMING!',viewW()/2,112);
     ctx.font='700 15px Segoe UI, Arial';
-    ctx.fillText(`${Math.max(0,cw.warningTimer).toFixed(1)}s · Dodge the Rift Chargers`,innerWidth/2,140);
+    ctx.fillText(`${Math.max(0,cw.warningTimer).toFixed(1)}s · Dodge the Rift Chargers`,viewW()/2,140);
   }
   // Directional incoming arrow is visible even when fog hides the enemies.
   const a=cw.incomingDirection || 0;
-  const cx=innerWidth/2 + Math.cos(a)*Math.min(innerWidth,innerHeight)*0.34;
-  const cy=innerHeight/2 + Math.sin(a)*Math.min(innerWidth,innerHeight)*0.34;
+  const cx=viewW()/2 + Math.cos(a)*Math.min(viewW(),viewH())*0.34;
+  const cy=viewH()/2 + Math.sin(a)*Math.min(viewW(),viewH())*0.34;
   ctx.translate(cx,cy);
   ctx.rotate(a+Math.PI);
   ctx.fillStyle=`rgba(255,112,56,${0.55+0.35*pulse})`;
@@ -1357,7 +1357,7 @@ function drawFogOfWar(g,cam,sx=0,sy=0){
 
   ctx.save();
   ctx.fillStyle=gradient;
-  ctx.fillRect(0,0,innerWidth,innerHeight);
+  ctx.fillRect(0,0,viewW(),viewH());
 
   // Atmospheric soft blue rim around the visibility boundary. This is a single
   // stroke and remains performance-safe.
@@ -1391,9 +1391,9 @@ function drawFogDebugOverlay(g,cam,sx=0,sy=0){
 }
 
 function drawVignette(){
-  const grd=ctx.createRadialGradient(innerWidth/2,innerHeight/2,innerHeight*0.15,innerWidth/2,innerHeight/2,innerWidth*0.72);
+  const grd=ctx.createRadialGradient(viewW()/2,viewH()/2,viewH()*0.15,viewW()/2,viewH()/2,viewW()*0.72);
   grd.addColorStop(0,'rgba(0,0,0,0)'); grd.addColorStop(1,'rgba(0,0,0,0.58)');
-  ctx.fillStyle=grd; ctx.fillRect(0,0,innerWidth,innerHeight);
+  ctx.fillStyle=grd; ctx.fillRect(0,0,viewW(),viewH());
 }
 
 function drawEnemyBudgetOverlay(g){
@@ -1403,7 +1403,7 @@ function drawEnemyBudgetOverlay(g){
   ctx.font='12px Consolas, monospace';
   ctx.textAlign='left';
   ctx.fillStyle='rgba(0,0,0,0.68)';
-  ctx.fillRect(14, innerHeight-170, 310, 144);
+  ctx.fillRect(14, viewH()-170, 310, 144);
   ctx.fillStyle='#d7ecff';
   const lines=[
     `FPS ${p.currentFPS.toFixed(1)}  AVG ${p.averageFPS.toFixed(1)}  ${p.state.replace('PERF_','')}`,
@@ -1413,13 +1413,13 @@ function drawEnemyBudgetOverlay(g){
     `Skipped spawns ${p.skippedSpawns||0} bullets ${p.skippedBullets||0}`,
     `Perf despawned ${p.enemiesDespawned||0}`
   ];
-  for(let i=0;i<lines.length;i++) ctx.fillText(lines[i],24,innerHeight-144+i*20);
+  for(let i=0;i<lines.length;i++) ctx.fillText(lines[i],24,viewH()-144+i*20);
   ctx.restore();
 }
 
 function drawPause(){
-  ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(0,0,innerWidth,innerHeight);
-  ctx.fillStyle='#fff'; ctx.font='900 42px Segoe UI'; ctx.textAlign='center'; ctx.fillText('PAUSED',innerWidth/2,innerHeight/2);
+  ctx.fillStyle='rgba(0,0,0,0.45)'; ctx.fillRect(0,0,viewW(),viewH());
+  ctx.fillStyle='#fff'; ctx.font='900 42px Segoe UI'; ctx.textAlign='center'; ctx.fillText('PAUSED',viewW()/2,viewH()/2);
 }
 
 function gameOver(g){
@@ -1496,8 +1496,8 @@ window.showStart=function(){ showClassSelect(); };
 
 function drawScaledTileDebug(g,cam){
   if(!g?.debug?.showScaledTileGrid && !g?.debug?.showCollisionTiles) return;
-  const minx=clamp(Math.floor(cam.x/TILE)-1,0,MAP_W-1), maxx=clamp(Math.ceil((cam.x+innerWidth)/TILE)+1,0,MAP_W-1);
-  const miny=clamp(Math.floor(cam.y/TILE)-1,0,MAP_H-1), maxy=clamp(Math.ceil((cam.y+innerHeight)/TILE)+1,0,MAP_H-1);
+  const minx=clamp(Math.floor(cam.x/TILE)-1,0,MAP_W-1), maxx=clamp(Math.ceil((cam.x+viewW())/TILE)+1,0,MAP_W-1);
+  const miny=clamp(Math.floor(cam.y/TILE)-1,0,MAP_H-1), maxy=clamp(Math.ceil((cam.y+viewH())/TILE)+1,0,MAP_H-1);
   ctx.save();
   if(g.debug.showScaledTileGrid){
     ctx.strokeStyle='rgba(100,232,255,0.20)';
@@ -1537,7 +1537,7 @@ function drawTileScaleInfoOverlay(g){
   ctx.save();
   ctx.font='12px Consolas, Monaco, monospace';
   ctx.textAlign='left';
-  const x=14, y=innerHeight-258;
+  const x=14, y=viewH()-258;
   ctx.fillStyle='rgba(0,0,0,0.66)';
   ctx.fillRect(x-8,y-16,260,lines.length*16+18);
   ctx.fillStyle='#b7f7ff';
@@ -1561,7 +1561,7 @@ function drawControllerDebugOverlay(g){
   ctx.save();
   ctx.font='12px Consolas, Monaco, monospace';
   ctx.textAlign='left';
-  const x=14, y=innerHeight-150;
+  const x=14, y=viewH()-150;
   ctx.fillStyle='rgba(0,0,0,0.64)';
   ctx.fillRect(x-8,y-16,360,lines.length*16+18);
   ctx.fillStyle='#b7f7ff';
@@ -1613,7 +1613,7 @@ function drawBossHealthBar(g){
   const hpPct = clamp(boss.hp / boss.maxHp, 0, 1);
   const barW = 380;
   const barH = 28;
-  const x = (innerWidth - barW) / 2;
+  const x = (viewW() - barW) / 2;
   const y = 56;
 
   ctx.save();
@@ -1687,7 +1687,7 @@ function drawBossHealthBar(g){
   ctx.font = 'bold 15px Inter, Segoe UI, Arial';
   ctx.textAlign = 'center';
   const phaseText = boss.bossPhase >= 2 ? ' ⚡ENRAGE' : (boss.bossPhase >= 1 ? ` • Phase ${boss.bossPhase + 1}` : '');
-  ctx.fillText(`${bossDef.icon} ${bossDef.name}${phaseText}`, innerWidth / 2, y - 8);
+  ctx.fillText(`${bossDef.icon} ${bossDef.name}${phaseText}`, viewW() / 2, y - 8);
   ctx.shadowBlur = 0;
 
   // HP percentage text
@@ -1729,11 +1729,11 @@ function drawBossName(g){
   ctx.textAlign = 'center';
   const metrics = ctx.measureText(text);
   const bw = metrics.width + 80;
-  const bx = (innerWidth - bw) / 2;
-  const by = innerHeight / 2 - 80;
+  const bx = (viewW() - bw) / 2;
+  const by = viewH() / 2 - 80;
 
   // Sprite-based name plate background (fallback to procedural)
-  const plateDrawn = drawSpriteCentered(ctx, 'bossNamePlate', innerWidth / 2, by + 16, bw + 32, 80, {
+  const plateDrawn = drawSpriteCentered(ctx, 'bossNamePlate', viewW() / 2, by + 16, bw + 32, 80, {
     alpha: 0.92,
     glowColor: color,
     glowBlur: 14
@@ -1760,14 +1760,14 @@ function drawBossName(g){
   ctx.fillStyle = color;
   ctx.shadowColor = color;
   ctx.shadowBlur = 14;
-  ctx.fillText(text, innerWidth / 2, by + 38);
+  ctx.fillText(text, viewW() / 2, by + 38);
 
   // Subtitle
   ctx.fillStyle = '#fff';
   ctx.font = 'bold 16px Inter, Segoe UI, Arial';
   ctx.shadowBlur = 6;
   ctx.shadowColor = '#000';
-  ctx.fillText('Prepare for combat.', innerWidth / 2, by + 72);
+  ctx.fillText('Prepare for combat.', viewW() / 2, by + 72);
 
   ctx.restore();
 }

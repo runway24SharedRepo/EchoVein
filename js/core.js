@@ -8,6 +8,39 @@ const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const DPR = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
 
+const VIEW_CONFIG = {
+  baseW: 1600,
+  baseH: 900
+};
+
+const VIEW = {
+  w: VIEW_CONFIG.baseW,
+  h: VIEW_CONFIG.baseH,
+  displayW: VIEW_CONFIG.baseW,
+  displayH: VIEW_CONFIG.baseH,
+  left: 0,
+  top: 0,
+  scale: 1
+};
+
+function viewW(){
+  return VIEW.w;
+}
+
+function viewH(){
+  return VIEW.h;
+}
+
+function setMouseFromClientPoint(clientX, clientY){
+  const rect = canvas.getBoundingClientRect();
+
+  const x = (clientX - rect.left) * (VIEW.w / rect.width);
+  const y = (clientY - rect.top) * (VIEW.h / rect.height);
+
+  mouse.x = clamp(x, 0, VIEW.w);
+  mouse.y = clamp(y, 0, VIEW.h);
+}
+
 // Logical cave tile sizing.  This test build increases every block by 1.5x.
 // Set TILE_SIZE_SCALE back to 1.0 for direct A/B comparison with the previous build.
 const TILE_SIZE_BASE = 36;
@@ -486,8 +519,8 @@ function moveControllerCursor(g,dt){
   const realNow = performance.now()/1000;
   if(rv.active){
     c.active=true;
-    c.screenX=clamp((c.screenX ?? innerWidth/2) + rv.x*GAMEPAD.CURSOR_SPEED*dt, 0, innerWidth);
-    c.screenY=clamp((c.screenY ?? innerHeight/2) + rv.y*GAMEPAD.CURSOR_SPEED*dt, 0, innerHeight);
+    c.screenX=clamp((c.screenX ?? viewW()/2) + rv.x*GAMEPAD.CURSOR_SPEED*dt, 0, viewW());
+    c.screenY=clamp((c.screenY ?? viewH()/2) + rv.y*GAMEPAD.CURSOR_SPEED*dt, 0, viewH());
     c.lastMoveTime=g.time;
     c.lastMoveRealTime=realNow;
     c.axisPair=rv.pair;
@@ -542,16 +575,36 @@ function visibleMenuGamepadElements(){
     });
 }
 
-function refreshMenuGamepadSelection(elements=visibleMenuGamepadElements()){
+function refreshMenuGamepadSelection(elements=visibleMenuGamepadElements(), options={}){
+  const scrollSelected = !!options.scrollSelected;
+
   elements.forEach((el,i)=>{
-    const selected=i===menuGamepadState.selectedIndex;
+    const selected = i === menuGamepadState.selectedIndex;
+
     el.classList.toggle('controllerSelected', selected);
     el.setAttribute('aria-selected', selected ? 'true' : 'false');
-    if(selected){
-      // Scroll the container to keep the selected element visible
-      try{ el.scrollIntoView({block:'nearest', behavior:'smooth'}); }catch(_){}
-      if(document.activeElement!==el){
-        try{ el.focus({preventScroll:true}); }catch(_){ el.focus(); }
+
+    /*
+      Important:
+      Do NOT call scrollIntoView every frame.
+      It fights mouse wheel / trackpad scrolling in the browser and causes the
+      "bouncing menu" behaviour reported on itch.io.
+    */
+    if(selected && scrollSelected){
+      try {
+        el.scrollIntoView({
+          block: 'nearest',
+          inline: 'nearest',
+          behavior: 'auto'
+        });
+      } catch(_) {}
+
+      if(document.activeElement !== el){
+        try {
+          el.focus({ preventScroll: true });
+        } catch(_) {
+          el.focus();
+        }
       }
     }
   });
@@ -565,20 +618,37 @@ function updateMenuGamepadInput(dt){
   const elements=visibleMenuGamepadElements();
   if(!elements.length) return false;
   const signature=elements.map(el=>el.textContent || el.dataset.classId || el.id || el.tagName).join('|');
-  if(signature!==menuGamepadState.lastSignature){
-    menuGamepadState.lastSignature=signature;
-    menuGamepadState.selectedIndex=0;
-    menuGamepadState.lastMoveTime=-999;
+  let selectionChanged = false;
+
+  if(signature !== menuGamepadState.lastSignature){
+    menuGamepadState.lastSignature = signature;
+    menuGamepadState.selectedIndex = 0;
+    menuGamepadState.lastMoveTime = -999;
+    selectionChanged = true;
   }
-  menuGamepadState.selectedIndex=clamp(menuGamepadState.selectedIndex,0,elements.length-1);
-  const nav=getGamepadLeftNav();
-  const t=menuInputClock();
-  if(nav.active && t-menuGamepadState.lastMoveTime>=menuGamepadState.moveRepeatDelay){
-    const step=(nav.x>0 || nav.y>0) ? 1 : -1;
-    menuGamepadState.selectedIndex=(menuGamepadState.selectedIndex+step+elements.length)%elements.length;
-    menuGamepadState.lastMoveTime=t;
+
+  menuGamepadState.selectedIndex = clamp(
+    menuGamepadState.selectedIndex,
+    0,
+    elements.length - 1
+  );
+
+  const nav = getGamepadLeftNav();
+  const t = menuInputClock();
+
+  if(nav.active && t - menuGamepadState.lastMoveTime >= menuGamepadState.moveRepeatDelay){
+    const step = (nav.x > 0 || nav.y > 0) ? 1 : -1;
+
+    menuGamepadState.selectedIndex =
+      (menuGamepadState.selectedIndex + step + elements.length) % elements.length;
+
+    menuGamepadState.lastMoveTime = t;
+    selectionChanged = true;
   }
-  refreshMenuGamepadSelection(elements);
+
+  refreshMenuGamepadSelection(elements, {
+    scrollSelected: selectionChanged
+  });
   if(gamepadPressedAny([GAMEPAD.A, GAMEPAD.X])){
     const el=elements[menuGamepadState.selectedIndex];
     if(el){
@@ -595,10 +665,35 @@ function updateMenuGamepadInput(dt){
 }
 
 function resizeCanvas(){
-  canvas.width = Math.floor(window.innerWidth * DPR);
-  canvas.height = Math.floor(window.innerHeight * DPR);
-  canvas.style.width = window.innerWidth + 'px';
-  canvas.style.height = window.innerHeight + 'px';
+  const windowW = window.innerWidth;
+  const windowH = window.innerHeight;
+
+  const aspect = VIEW_CONFIG.baseW / VIEW_CONFIG.baseH;
+
+  let displayW = windowW;
+  let displayH = Math.floor(displayW / aspect);
+
+  if(displayH > windowH){
+    displayH = windowH;
+    displayW = Math.floor(displayH * aspect);
+  }
+
+  VIEW.w = VIEW_CONFIG.baseW;
+  VIEW.h = VIEW_CONFIG.baseH;
+  VIEW.displayW = displayW;
+  VIEW.displayH = displayH;
+  VIEW.left = Math.floor((windowW - displayW) / 2);
+  VIEW.top = Math.floor((windowH - displayH) / 2);
+  VIEW.scale = displayW / VIEW_CONFIG.baseW;
+
+  canvas.width = Math.floor(VIEW_CONFIG.baseW * DPR);
+  canvas.height = Math.floor(VIEW_CONFIG.baseH * DPR);
+
+  canvas.style.width = displayW + 'px';
+  canvas.style.height = displayH + 'px';
+  canvas.style.left = VIEW.left + 'px';
+  canvas.style.top = VIEW.top + 'px';
+
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 

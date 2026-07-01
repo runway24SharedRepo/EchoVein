@@ -96,7 +96,7 @@ function performanceDespawnLowPriorityEnemies(g,dt){
     const d2=dist2(p.x,p.y,e.x,e.y);
     if(d2<PERFORMANCE_CONFIG.despawnDistance*PERFORMANCE_CONFIG.despawnDistance) continue;
     const margin=PERFORMANCE_CONFIG.cameraMargin;
-    const visible=e.x>cam.x-margin && e.x<cam.x+innerWidth+margin && e.y>cam.y-margin && e.y<cam.y+innerHeight+margin;
+    const visible=e.x>cam.x-margin && e.x<cam.x+viewW()+margin && e.y>cam.y-margin && e.y<cam.y+viewH()+margin;
     if(visible) continue;
     candidates.push({i,d2,type:e.type});
   }
@@ -2633,8 +2633,8 @@ function updateArcConnection(g,dt){
 
 function handlePrimaryActionAt(g,worldX,worldY,source='input'){
   if(!g || g.state!=='playing' || awaitingUpgrade) return false;
-  mouse.x=clamp(worldX-g.camera.x,0,innerWidth);
-  mouse.y=clamp(worldY-g.camera.y,0,innerHeight);
+  mouse.x=clamp(worldX-g.camera.x,0,viewW());
+  mouse.y=clamp(worldY-g.camera.y,0,viewH());
   mouse.used=true;
   mouse.lastMove=g.time;
   if(g.controllerCursor){
@@ -2656,8 +2656,8 @@ function handlePrimaryActionAt(g,worldX,worldY,source='input'){
 
 function handleSecondaryActionAt(g,worldX,worldY,source='input'){
   if(!g || g.state!=='playing' || awaitingUpgrade) return false;
-  mouse.x=clamp(worldX-g.camera.x,0,innerWidth);
-  mouse.y=clamp(worldY-g.camera.y,0,innerHeight);
+  mouse.x=clamp(worldX-g.camera.x,0,viewW());
+  mouse.y=clamp(worldY-g.camera.y,0,viewH());
   mouse.used=true;
   mouse.lastMove=g.time;
   return handleArcConnectionRightClick(g,worldX,worldY);
@@ -2665,6 +2665,14 @@ function handleSecondaryActionAt(g,worldX,worldY,source='input'){
 
 function updateGamepadInput(dt){
   pollGamepadState();
+
+  /*
+    If no gamepad is connected, do not run menu focus/scroll logic.
+    Mouse/keyboard input does not need this function.
+    This prevents browser menus from being auto-focused or auto-scrolled
+    while the player is using mouse wheel / trackpad.
+  */
+  if(!gamepadState.connected) return;
 
   // Check all three overlays for controller navigation:
   // startOverlay (main menus), gameOverOverlay (run failed), runStatsOverlay (mission summary)

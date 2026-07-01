@@ -30,15 +30,13 @@ addEventListener('keydown',e=>{
 });
 addEventListener('keyup',e=>keys.delete(e.code));
 addEventListener('mousemove',e=>{
-  mouse.x=e.clientX;
-  mouse.y=e.clientY;
+  setMouseFromClientPoint(e.clientX, e.clientY);
   mouse.used=true;
   mouse.lastMove=game ? game.time : 0;
   if(game?.controllerCursor) game.controllerCursor.active=false;
 });
 addEventListener('mousedown',e=>{
-  mouse.x=e.clientX;
-  mouse.y=e.clientY;
+  setMouseFromClientPoint(e.clientX, e.clientY);
   mouse.used=true;
   mouse.lastMove=game ? game.time : 0;
   if(e.button===0){
@@ -55,6 +53,56 @@ addEventListener('mouseup',e=>{
 addEventListener('contextmenu',e=>{
   if(game?.arcConnection?.unlocked) e.preventDefault();
 });
+
+function isOverlayOpenForScrollLock(){
+  const startOpen = ui.startOverlay?.classList?.contains('show');
+  const upgradeOpen = ui.upgradeOverlay?.classList?.contains('show');
+  const gameOverOpen = ui.gameOverOverlay?.classList?.contains('show');
+  const statsOpen = document.getElementById('runStatsOverlay')?.classList?.contains('show');
+
+  return !!(startOpen || upgradeOpen || gameOverOpen || statsOpen);
+}
+
+function isInsideAllowedScrollArea(target){
+  if(!(target instanceof Element)) return false;
+
+  return !!target.closest(
+    '#menuContent, #classCards, #upgradeCards, #runStatsBody, ' +
+    '.debugPanel, .spriteTestPanel, .runStatsModal'
+  );
+}
+
+window.addEventListener('wheel', e => {
+  /*
+    During menus, allow wheel only inside our scrollable panels.
+    Everywhere else, prevent the itch iframe/browser page from bouncing.
+  */
+  if(isOverlayOpenForScrollLock()){
+    if(isInsideAllowedScrollArea(e.target)) return;
+    e.preventDefault();
+    return;
+  }
+
+  /*
+    During gameplay, prevent the browser/itch page from scrolling.
+  */
+  if(game?.state === 'playing'){
+    e.preventDefault();
+  }
+}, { passive:false });
+
+window.addEventListener('touchmove', e => {
+  if(isOverlayOpenForScrollLock()){
+    if(isInsideAllowedScrollArea(e.target)) return;
+    e.preventDefault();
+    return;
+  }
+
+  if(game?.state === 'playing'){
+    e.preventDefault();
+  }
+}, { passive:false });
+
 addEventListener('blur',()=>{ mouse.down=false; });
 
 addEventListener('gamepadconnected',e=>{
