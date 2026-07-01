@@ -14,7 +14,7 @@ function createRunStats(){
     resourcesCollected:{}, blocksMined:0, distanceTravelled:0, damageDealt:0, damageTaken:0,
     shotsFired:0, shotsHit:0, dashesUsed:0, trapsPlaced:0, dronesDeployed:0, dronesPeak:0,
     missilesFired:0, boomerangsFired:0, arcDetonations:0, lavaDamageTaken:0, borecasterBombsThrown:0, borecasterBombsExploded:0,
-    objectivesCompleted:0, operatorXPGained:0, causeOfEnd:null, endTitle:null, samples:[], lastX:null, lastY:null,
+    objectivesCompleted:0, objectivesFailed:0, operatorXPGained:0, secondaryObjectiveRewards:[], causeOfEnd:null, endTitle:null, samples:[], lastX:null, lastY:null,
     maxEnemiesAlive:0, criticalHealthTime:0, miningTime:0,
     chargingWavesSpawned:0, chargingWaveEnemiesSpawned:0, chargingWaveEnemiesKilled:0, chargingWaveEnemiesExploded:0,
     damageTakenFromChargingWaves:0, blocksBrokenByChargingWaves:0, oresDestroyedByChargingWaves:0
@@ -162,12 +162,33 @@ function renderObjectiveChips(g){
   }).join('');
 }
 
+function rewardResourceDisplayName(key){
+  const displayId=key==='gildShards' ? 'gild' : (key==='echoQuartz' ? 'echo' : key);
+  return MINERALS?.[displayId]?.displayName || key;
+}
+
+function rewardEntrySummaryHtml(entry){
+  const parts=[];
+  if((entry?.xp || 0)>0) parts.push(`<span>+${Math.floor(entry.xp)} Operator XP</span>`);
+  for(const [key,amount] of Object.entries(entry?.resources || {})){
+    if((+amount||0)>0) parts.push(`<span>+${Math.floor(amount)} ${rewardResourceDisplayName(key)}</span>`);
+  }
+  if(!parts.length) return '';
+  const source=objectiveEscapeHtml(entry.source || entry.objectiveId || 'Bonus objective');
+  return `<div><strong>${source}</strong><b>${parts.join(' ')}</b></div>`;
+}
+
 function runStatsSummaryHtml(g){
   const s=ensureRunStats(g); const res=s.resourcesCollected||{};
   const resRows=Object.keys(res).sort().map(id=>`<div><span>${MINERALS[id]?.displayName||id}</span><b>${Math.floor(res[id]||0)}</b></div>`).join('') || '<div><span>No resources collected</span><b>0</b></div>';
+  const rewardRows=(Array.isArray(s.secondaryObjectiveRewards) ? s.secondaryObjectiveRewards : [])
+    .map(rewardEntrySummaryHtml)
+    .filter(Boolean)
+    .join('') || '<div><strong>No bonus rewards earned</strong><b>Complete BONUS objectives to earn more.</b></div>';
   const cards=[
     ['Duration',formatDuration(s.durationSec)], ['Kills',s.enemiesKilled||0], ['Elites',s.elitesKilled||0], ['Bosses',s.bossesKilled||0],
-    ['Level',s.playerLevelMax||g.level||1], ['Op XP',s.operatorXPGained||0], ['Resources',totalRunResources(s)], ['Damage dealt',Math.round(s.damageDealt||0)], ['Damage taken',Math.round(s.damageTaken||0)],
+    ['Level',s.playerLevelMax||g.level||1], ['Op XP',s.operatorXPGained||0], ['Resources',totalRunResources(s)], ['Objectives',s.objectivesCompleted||0], ['Failed obj.',s.objectivesFailed||0],
+    ['Damage dealt',Math.round(s.damageDealt||0)], ['Damage taken',Math.round(s.damageTaken||0)],
     ['Accuracy',`${runAccuracy(s).toFixed(1)}%`], ['Blocks mined',s.blocksMined||0], ['Dashes',s.dashesUsed||0], ['Traps',s.trapsPlaced||0],
     ...((s.borecasterBombsThrown||0)>0 ? [
       ['Seismic bombs thrown',s.borecasterBombsThrown||0], ['Seismic bombs exploded',s.borecasterBombsExploded||0]
@@ -178,7 +199,7 @@ function runStatsSummaryHtml(g){
       ['Wave blocks broken',s.chargingWaveBlocksBroken||s.blocksBrokenByChargingWaves||0]
     ] : [])
   ].map(([k,v])=>`<div class="statCard"><span>${k}</span><b>${v}</b></div>`).join('');
-  return `<div class="runStatsSummary"><div class="statCards">${cards}</div><h3>Resource Breakdown</h3><div class="resourceBreakdown">${resRows}</div></div>`;
+  return `<div class="runStatsSummary"><div class="statCards">${cards}</div><h3>Resource Breakdown</h3><div class="resourceBreakdown">${resRows}</div><h3>Bonus Objective Rewards</h3><div class="bonusRewardBreakdown">${rewardRows}</div></div>`;
 }
 
 function drawRunStatsChart(canvas,g,key='enemiesKilled'){

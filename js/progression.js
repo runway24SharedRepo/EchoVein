@@ -90,6 +90,114 @@ function allPrimaryObjectivesComplete(g){
   return primary.length>0 && primary.every(o=>o.completed);
 }
 
+
+/*
+ * Secondary objective reward helpers — Stronger Mission Variety validation pass
+ *
+ * Secondary objectives live inside g.objectives and are optional. They are
+ * paid out only after successful extraction/run completion, never during boss
+ * spawning, and never when incomplete or failed. Rewards are written directly
+ * to the persistent profile so they cannot accidentally be banked twice by
+ * bankRunRewards().
+ */
+function rewardResourceToProfileKey(resourceId){
+  const map={ gild:'gildShards', echo:'echoQuartz', voltarite:'voltarite' };
+  return map[resourceId] || resourceId;
+}
+
+function isValidRewardResourceKey(resourceId){
+  if(!resourceId) return false;
+  const profileKeys=saveProfile?.resources ? Object.keys(saveProfile.resources) : Object.keys(defaultResources());
+  const runKeys=(typeof RUN_RESOURCE_IDS!=='undefined' && Array.isArray(RUN_RESOURCE_IDS)) ? RUN_RESOURCE_IDS : [];
+  const mapped=rewardResourceToProfileKey(resourceId);
+  return profileKeys.includes(mapped) || runKeys.includes(resourceId);
+}
+
+function describeRewardResource(resourceId){
+  const mapped=rewardResourceToProfileKey(resourceId);
+  const mineralId = mapped==='gildShards' ? 'gild' : (mapped==='echoQuartz' ? 'echo' : resourceId);
+  return MINERALS?.[mineralId]?.displayName || mapped || resourceId;
+}
+
+function ensureRewardTracking(g){
+  if(!g) return [];
+  if(!Array.isArray(g.secondaryObjectiveRewards)) g.secondaryObjectiveRewards=[];
+  if(g.runStats && !Array.isArray(g.runStats.secondaryObjectiveRewards)) g.runStats.secondaryObjectiveRewards=g.secondaryObjectiveRewards;
+  return g.secondaryObjectiveRewards;
+}
+
+function applyObjectiveRewardToProfile(g,reward,sourceLabel='Bonus objective'){
+  if(!saveProfile || !reward || typeof reward!=='object') return null;
+  const entry={ source:sourceLabel, xp:0, resources:{}, skipped:{} };
+
+  const xp=Number(reward.xp || reward.operatorXp || reward.operatorXP || 0);
+  if(Number.isFinite(xp) && xp>0){
+    entry.xp=Math.floor(xp);
+    if(typeof gainOperatorXP==='function') gainOperatorXP(g,entry.xp);
+  }
+
+  const resourceRewards=(reward.resources && typeof reward.resources==='object') ? reward.resources : {};
+  for(const [resourceId,rawAmount] of Object.entries(resourceRewards)){
+    const amount=Math.floor(Number(rawAmount) || 0);
+    if(amount<=0) continue;
+    if(!isValidRewardResourceKey(resourceId)){
+      entry.skipped[resourceId]=amount;
+      continue;
+    }
+    const key=rewardResourceToProfileKey(resourceId);
+    saveProfile.resources[key]=(saveProfile.resources[key] || 0)+amount;
+    entry.resources[key]=(entry.resources[key] || 0)+amount;
+  }
+
+  // Backward-compatible shorthand: { reward:{ gild:5, voltarite:2 } }
+  for(const [resourceId,rawAmount] of Object.entries(reward)){
+    if(resourceId==='resources' || resourceId==='xp' || resourceId==='operatorXp' || resourceId==='operatorXP') continue;
+    if(rawAmount && typeof rawAmount==='object') continue;
+    const amount=Math.floor(Number(rawAmount) || 0);
+    if(amount<=0) continue;
+    if(!isValidRewardResourceKey(resourceId)){
+      entry.skipped[resourceId]=amount;
+      continue;
+    }
+    const key=rewardResourceToProfileKey(resourceId);
+    saveProfile.resources[key]=(saveProfile.resources[key] || 0)+amount;
+    entry.resources[key]=(entry.resources[key] || 0)+amount;
+  }
+
+  if(entry.xp<=0 && !Object.keys(entry.resources).length && !Object.keys(entry.skipped).length) return null;
+  return entry;
+}
+
+function rewardEntryToText(entry){
+  if(!entry) return '';
+  const parts=[];
+  if(entry.xp>0) parts.push(`${entry.xp} Operator XP`);
+  for(const [key,amount] of Object.entries(entry.resources || {})){
+    const displayId=key==='gildShards' ? 'gild' : (key==='echoQuartz' ? 'echo' : key);
+    parts.push(`${amount} ${MINERALS?.[displayId]?.displayName || key}`);
+  }
+  return parts.join(', ');
+}
+
+function applyCompletedSecondaryObjectiveRewards(g){
+  const rewards=ensureRewardTracking(g);
+  const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g?.objectives || []);
+  for(const objective of objectives){
+    if(!objective || objective.objectiveType!=='secondary') continue;
+    if(!objective.completed || objective.failed || !objective.reward || objective.rewardClaimed) continue;
+    const entry=applyObjectiveRewardToProfile(g,objective.reward,objective.displayName || objective.id || 'Bonus objective');
+    objective.rewardClaimed=true;
+    if(!entry) continue;
+    entry.objectiveId=objective.id;
+    entry.objectiveType='secondary';
+    rewards.push(entry);
+    if(g.runStats) g.runStats.secondaryObjectiveRewards=rewards;
+    const text=rewardEntryToText(entry);
+    if(g.log && Array.isArray(g.log)) g.log.unshift(`✅ Bonus objective rewarded: ${entry.source}${text ? ` — ${text}` : ''}`);
+  }
+  return rewards;
+}
+
 /*
  * Milestones & Achievements — Phase 1.1
  *
@@ -1414,6 +1522,7 @@ function saveRunRecord(g, success){
     elitesKilled: stats.elitesKilled || 0,
     bossesKilled: stats.bossesKilled || 0,
     resources: resources,
+    secondaryObjectiveRewards: Array.isArray(stats.secondaryObjectiveRewards) ? stats.secondaryObjectiveRewards : [],
     operatorXP: stats.operatorXPGained || 0,
     operatorLevel: saveProfile.operatorData?.[g.player?.classId]?.level || 1,
     playerLevel: g.level || stats.playerLevelMax || 1,
@@ -1582,20 +1691,28 @@ function completeRun(g){
   if(!saveProfile || g.runResolved) return;
   g.runResolved=true;
   bankRunRewards(g);
-  // Phase 1.4: Check bonus objectives after banking rewards.
+
+  // New objective-system bonuses: completed secondary objectives are optional
+  // and never participate in boss spawning, but they pay out on extraction.
+  if(typeof applyCompletedSecondaryObjectiveRewards === 'function') applyCompletedSecondaryObjectiveRewards(g);
+
+  // Legacy mission bonus checks remain supported for older mission logic. They
+  // are paid through the same reward mapper so resource aliases stay safe.
   const missionTypeObj = g.missionType ? MISSION_TYPES.find(m => m.id === g.missionType) : null;
   if(missionTypeObj && missionTypeObj.bonusObjectives){
     for(const bonus of missionTypeObj.bonusObjectives){
-      if(bonus.check(g)){
-        for(const [resId, amt] of Object.entries(bonus.reward)){
-          // Map resource shorthand IDs to saveProfile resource keys
-          const resMap = { gild:'gildShards', voltarite:'voltarite', echo:'echoQuartz', aetherQuartz:'aetherQuartz' };
-          const key = resMap[resId] || resId;
-          saveProfile.resources[key] = (saveProfile.resources[key] || 0) + amt;
-        }
-        // Log bonus completion
-        if(g.log && Array.isArray(g.log)) g.log.unshift(`✅ Bonus: ${bonus.desc} – rewarded!`);
+      if(!bonus || typeof bonus.check !== 'function' || !bonus.check(g)) continue;
+      const entry=typeof applyObjectiveRewardToProfile === 'function'
+        ? applyObjectiveRewardToProfile(g,bonus.reward || {},bonus.desc || bonus.id || 'Legacy bonus')
+        : null;
+      if(entry){
+        entry.objectiveId=bonus.id;
+        entry.objectiveType='legacyBonus';
+        const rewards=ensureRewardTracking(g);
+        rewards.push(entry);
+        if(g.runStats) g.runStats.secondaryObjectiveRewards=rewards;
       }
+      if(g.log && Array.isArray(g.log)) g.log.unshift(`✅ Bonus: ${bonus.desc || bonus.id} – rewarded!`);
     }
   }
   saveProfile.statistics.totalRunsCompleted++;
