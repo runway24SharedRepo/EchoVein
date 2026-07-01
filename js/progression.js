@@ -309,13 +309,13 @@ const MISSION_TYPES = [
           type:'killEnemyTag',
           objectiveType:'primary',
           optional:false,
-          displayName:`🗡️ Eliminate ${eliteTarget} elite enemies`,
-          description:'Primary Hunt objective. Elite-tagged enemies are required before the sector boss can spawn.',
+          displayName:`🗡️ Eliminate ${eliteTarget} marked elites`,
+          description:'Primary Hunt objective. Marked elite targets are required before the sector boss can spawn.',
           targetAmount:eliteTarget,
           currentAmount:0,
           completed:false,
-          params:{ tag:'elite' },
-          tags:['hunt','combat','elite']
+          params:{ tag:'missionTarget' },
+          tags:['hunt','combat','elite','missionTarget']
         }),
         createObjective({
           id:'hunt_bonus_kills',
@@ -350,21 +350,21 @@ const MISSION_TYPES = [
     rewardModifier:1.10,
     generateObjectives:(profile,g)=>{
       const missionIndex=g.missionIndex||profile.missionIndex||1;
-      const primaryPct=Math.min(34, 16 + missionIndex*2);
-      const secondaryPct=Math.min(50, primaryPct + 16);
+      const primaryRelics=3;
+      const secondaryPct=Math.min(50, 24 + missionIndex*2);
       return [
         createObjective({
-          id:'survey_reveal_primary',
-          type:'revealMapPercent',
+          id:'survey_scan_relics',
+          type:'scanMissionPoi',
           objectiveType:'primary',
           optional:false,
-          displayName:`🔍 Reveal ${primaryPct}% of the cave`,
-          description:'Primary Survey objective. Explore new ground and push back the fog before the boss can spawn.',
-          targetAmount:primaryPct,
+          displayName:`🔍 Scan ${primaryRelics} Echo Relics`,
+          description:'Primary Survey objective. Stand near each Echo Relic until the scan completes before the boss can spawn.',
+          targetAmount:primaryRelics,
           currentAmount:0,
           completed:false,
-          params:{ percent:primaryPct },
-          tags:['survey','exploration','fog']
+          params:{ poiType:'echoRelic', scanCount:primaryRelics },
+          tags:['survey','exploration','scan','echoRelic']
         }),
         createObjective({
           id:'survey_bonus_reveal',
@@ -399,7 +399,7 @@ const MISSION_TYPES = [
         }
       }
     },
-    isComplete:g=> typeof allPrimaryObjectivesComplete === 'function' ? allPrimaryObjectivesComplete(g) : !!normaliseObjectives(g).find(o=>o.id==='survey_reveal_primary' && o.completed),
+    isComplete:g=> typeof allPrimaryObjectivesComplete === 'function' ? allPrimaryObjectivesComplete(g) : !!normaliseObjectives(g).find(o=>(o.id==='survey_scan_relics' || o.id==='survey_reveal_primary') && o.completed),
     bonusObjectives:[
       { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
       { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > 10 },
@@ -424,17 +424,17 @@ const MISSION_TYPES = [
       return [
         createObjective({
           id:'harvest_rare_quota',
-          type:'collectResource',
+          type:'collectResourceTag',
           objectiveType:'primary',
           optional:false,
           resourceId:rareRes,
-          displayName:`⛏️ Collect ${rareTarget} ${mineral.displayName}`,
-          description:'Primary Harvest objective. Mine and collect the assigned rare resource before the boss can spawn.',
+          displayName:`⛏️ Mine marked ${mineral.displayName} veins`,
+          description:'Primary Harvest objective. Mine and collect from highlighted target veins before the boss can spawn.',
           targetAmount:rareTarget,
           currentAmount:0,
           completed:false,
-          params:{ resourceId:rareRes },
-          tags:['harvest','rareOre',rareRes]
+          params:{ resourceId:rareRes, tag:'missionHarvestTarget' },
+          tags:['harvest','rareOre',rareRes,'missionHarvestTarget']
         }),
         createObjective({
           id:'harvest_bonus_gild',
@@ -476,16 +476,16 @@ const MISSION_TYPES = [
       return [
         createObjective({
           id:'holdout_timer',
-          type:'surviveTimer',
+          type:'defendTargetTimer',
           objectiveType:'primary',
           optional:false,
-          displayName:`🛡️ Survive ${target}s`,
-          description:'Primary Holdout objective. Stay alive until the timer completes before the boss can spawn.',
+          displayName:`🛡️ Defend the drill for ${target}s`,
+          description:'Primary Holdout objective. Keep the beacon drill alive until the timer completes before the boss can spawn.',
           targetAmount:target,
           currentAmount:0,
           completed:false,
-          params:{ seconds:target },
-          tags:['holdout','survival','timer']
+          params:{ seconds:target, targetId:'holdout_drill' },
+          tags:['holdout','defence','timer','drill']
         }),
         createObjective({
           id:'holdout_bonus_kills',
@@ -504,8 +504,9 @@ const MISSION_TYPES = [
       ];
     },
     track:(g,dt)=>{
-      if(typeof progressSurviveTimerObjectives === 'function') progressSurviveTimerObjectives(g,dt);
-      else addObjectiveProgress(g,'holdout_timer',dt);
+      // Holdout timer progress is now owned by updateHoldoutDefenceTarget()
+      // so it can depend on the drill/beacon being alive.
+      if(!g.defenceTarget && typeof progressSurviveTimerObjectives === 'function') progressSurviveTimerObjectives(g,dt);
     },
     isComplete:g=> typeof allPrimaryObjectivesComplete === 'function' ? allPrimaryObjectivesComplete(g) : !!normaliseObjectives(g).find(o=>o.id==='holdout_timer' && o.completed),
     bonusObjectives:[
@@ -1645,6 +1646,9 @@ function startRunWithClass(clsOrId){
     game.missionType = selectedMissionType.id;
     // Replace default objectives with mission-specific ones.
     game.objectives = (selectedMissionType.generateObjectives(saveProfile, game) || []).map(normaliseObjective);
+    // World hook setup is optional and load-order safe. It gives each mission
+    // a physical anchor without touching viewport/input/menu systems.
+    if(typeof initialiseMissionWorldHooks === 'function') initialiseMissionWorldHooks(game);
   }
   saveProfile.statistics.totalRunsStarted++;
   // Phase 2.1: initialise synergy tracking arrays

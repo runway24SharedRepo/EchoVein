@@ -92,7 +92,7 @@ function performanceDespawnLowPriorityEnemies(g,dt){
   const candidates=[];
   for(let i=0;i<g.enemies.length;i++){
     const e=g.enemies[i];
-    if(!e || e.hp<=0 || e.type==='boss' || e.type==='elite') continue;
+    if(!e || e.hp<=0 || e.type==='boss' || e.type==='elite' || e.missionTarget) continue;
     const d2=dist2(p.x,p.y,e.x,e.y);
     if(d2<PERFORMANCE_CONFIG.despawnDistance*PERFORMANCE_CONFIG.despawnDistance) continue;
     const margin=PERFORMANCE_CONFIG.cameraMargin;
@@ -247,6 +247,8 @@ function update(g,dt){
   updateBoomerangs(g,dt);
   updateTraps(g,dt);
   updatePickups(g,dt);
+  updateMissionWorldHooks(g,dt);
+  if(g.state !== 'playing') return;
   updateRunProgress(g,dt);
   if(g.state !== 'playing') return;
   // Phase 1.2: track mission-specific progress each frame.
@@ -585,6 +587,9 @@ function mineTile(g,p,tx,ty,dt){
   if(Math.random()<0.55) addParticle(g, cx, cy, rand(-55,55), rand(-55,55), minedData.color || '#b48a61', rand(0.12,0.30), rand(2,5),'spark');
   sfx('mine', 0.65);
   if(g.tileHp[i]<=0){
+    const missionHarvestTarget = typeof markMissionHarvestTargetMined === 'function'
+      ? markMissionHarvestTargetMined(g,tx,ty)
+      : null;
     g.tiles[i]=TILE_EMPTY;
     if(g.runStats) g.runStats.blocksMined=(g.runStats.blocksMined||0)+1;
     addObjectiveProgress(g,'mine_blocks',1);
@@ -604,7 +609,10 @@ function mineTile(g,p,tx,ty,dt){
         dropPickup(g,tx*TILE+18,ty*TILE+18,'xp',12);
         floating(g,tileToWorldCenterX(tx),tileToWorldCenterY(ty)-TILE*0.18,'+Echo Shards',MINERALS.echo.color);
       } else {
-        collectRunResource(g,resourceId,amount);
+        const collectOptions = missionHarvestTarget
+          ? { tags:['missionHarvestTarget','rareOre',resourceId], missionHarvestTarget:true, targetTx:tx, targetTy:ty }
+          : {};
+        collectRunResource(g,resourceId,amount,collectOptions);
         floating(g,tileToWorldCenterX(tx),tileToWorldCenterY(ty)-TILE*0.18,`+${MINERALS[resourceId].displayName}`,MINERALS[resourceId].color);
       }
       if(saveProfile?.statistics) saveProfile.statistics.totalOreMined+=amount;
@@ -1690,6 +1698,8 @@ function progressResourceObjectives(g,resourceId,amount,options={}){
       const wanted=objectiveParam(o,'resourceId',null);
       if(!wanted || wanted===resourceId) addObjectiveProgressTracked(g,o.id,amount,progressed);
     } else if(o.type==='collectResourceTag'){
+      const wantedResource=objectiveParam(o,'resourceId',null);
+      if(wantedResource && wantedResource!==resourceId) continue;
       const wantedTag=objectiveParam(o,'tag',objectiveParam(o,'resourceTag',null));
       const wantedTags=Array.isArray(objectiveParam(o,'tags',null)) ? objectiveParam(o,'tags',[]) : (Array.isArray(o.tags) ? o.tags : []);
       if((wantedTag && tags.has(wantedTag)) || wantedTags.some(tag=>tags.has(tag))){
@@ -1794,6 +1804,120 @@ function progressSurviveTimerObjectives(g,dt){
   for(const o of objectives){
     if((o.type==='surviveTimer' || o.type==='holdout' || o.id==='holdout_timer') && !o.completed && !o.failed){
       addObjectiveProgress(g,o.id,dt);
+    }
+  }
+}
+
+
+function updateMissionWorldHooks(g,dt){
+  if(!g) return;
+  if(!g.missionHooksInitialised && typeof initialiseMissionWorldHooks === 'function') initialiseMissionWorldHooks(g);
+  if(g.missionType==='survey') updateSurveyMissionPoi(g,dt);
+  if(g.missionType==='holdout') updateHoldoutDefenceTarget(g,dt);
+}
+
+function progressScanMissionPoiObjectives(g,poi,amount=1){
+  const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
+  for(const o of objectives){
+    if(!o || o.completed || o.failed) continue;
+    if(o.type!=='scanMissionPoi' && o.id!=='survey_scan_relics') continue;
+    const wanted=objectiveParam(o,'poiType',null);
+    if(wanted && poi?.type && wanted!==poi.type) continue;
+    addObjectiveProgress(g,o.id,amount);
+  }
+}
+
+function updateSurveyMissionPoi(g,dt){
+  const poiList=Array.isArray(g.missionPoi) ? g.missionPoi : [];
+  if(!poiList.length || !g.player) return;
+  const p=g.player;
+  for(const poi of poiList){
+    if(!poi || poi.scanned) continue;
+    const radius=poi.scanRadius || 96;
+    const inside=dist2(p.x,p.y,poi.x,poi.y)<=radius*radius;
+    if(inside){
+      poi.scanProgress=Math.min(poi.requiredScanTime || 3,(poi.scanProgress || 0)+dt);
+      if(poi.scanProgress>=(poi.requiredScanTime || 3)){
+        poi.scanned=true;
+        poi.scanProgress=poi.requiredScanTime || 3;
+        progressScanMissionPoiObjectives(g,poi,1);
+        floating(g,poi.x,poi.y-38,'Echo Relic scanned','#42d6ff');
+        addRing(g,poi.x,poi.y,'rgba(66,214,255,0.88)',0.30,12,86,4);
+        for(let k=0;k<12;k++) addParticle(g,poi.x,poi.y,rand(-70,70),rand(-70,70),'#42d6ff',rand(0.25,0.55),rand(3,7),'spark');
+        sfx('level',0.45);
+      }
+    } else if(poi.scanProgress>0){
+      // Leaving the radius slowly bleeds progress instead of resetting it.
+      poi.scanProgress=Math.max(0,poi.scanProgress-dt*0.35);
+    }
+  }
+}
+
+function failObjectiveById(g,id,reason){
+  const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
+  const obj=objectives.find(o=>o.id===id);
+  if(obj && !obj.completed && !obj.failed){
+    obj.failed=true;
+    obj.description = obj.description || reason || '';
+    if(g.runStats) g.runStats.objectivesFailed=(g.runStats.objectivesFailed||0)+1;
+  }
+}
+
+function updateHoldoutDefenceTarget(g,dt){
+  const target=g.defenceTarget;
+  if(!target || !target.active) return;
+  target.pulse=(target.pulse || 0)+dt;
+  target.damageCooldown=Math.max(0,(target.damageCooldown || 0)-dt);
+
+  if(target.hp<=0){
+    target.active=false;
+    failObjectiveById(g,'holdout_timer','The holdout drill was destroyed.');
+    if(typeof failRun === 'function') failRun(g,'Holdout drill destroyed.');
+    return;
+  }
+
+  const holdoutObjective = typeof missionPrimaryObjective === 'function' ? missionPrimaryObjective(g,'holdout_timer') : null;
+  const required=target.requiredHoldTime || holdoutObjective?.targetAmount || 90;
+  const before=target.holdTimer || 0;
+  target.holdTimer=Math.min(required,before+dt);
+  const delta=target.holdTimer-before;
+  if(delta>0){
+    const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
+    for(const o of objectives){
+      if(!o || o.completed || o.failed) continue;
+      if(o.type==='defendTargetTimer' || o.id==='holdout_timer') addObjectiveProgress(g,o.id,delta);
+    }
+  }
+
+  if(target.holdTimer>=required){
+    target.active=false;
+    log(g,'Holdout drill secured. Boss signal exposed.');
+    addRing(g,target.x,target.y,'rgba(93,255,154,0.85)',0.42,20,120,5);
+    sfx('level',0.75);
+    return;
+  }
+
+  // Minimal stable defence interaction: enemies that reach the beacon chew it
+  // down. They still use existing pathfinding/chase code, so this does not
+  // alter enemy navigation or add new targeting behaviour.
+  for(const e of g.enemies || []){
+    if(!e || e.hp<=0 || e.role==='boss') continue;
+    const touch=(e.r || 12)+(target.r || 30)+10;
+    if(dist2(e.x,e.y,target.x,target.y)>touch*touch) continue;
+    e.defenceAttackTimer=(e.defenceAttackTimer || 0)-dt;
+    if(e.defenceAttackTimer<=0){
+      e.defenceAttackTimer=0.95;
+      const damage=Math.max(2,Math.round((e.damage || 8)*0.40));
+      target.hp=Math.max(0,target.hp-damage);
+      target.damageCooldown=0.22;
+      floating(g,target.x,target.y-44,`-${damage}`,'#ff7a7a');
+      addParticle(g,target.x+rand(-16,16),target.y+rand(-16,16),rand(-35,35),rand(-60,20),'#ff7a7a',0.22,5,'spark');
+      if(target.hp<=0){
+        target.active=false;
+        failObjectiveById(g,'holdout_timer','The holdout drill was destroyed.');
+        if(typeof failRun === 'function') failRun(g,'Holdout drill destroyed.');
+        return;
+      }
     }
   }
 }

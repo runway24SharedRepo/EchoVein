@@ -96,6 +96,7 @@ function render(g){
   drawTiles(g,cam);
   drawLavaDebugZones(g,cam);
   drawTraps(g);
+  drawMissionWorldHooks(g);
   drawExtractionCraft(g);
   drawExtractionPath(g);
   drawPickups(g);
@@ -542,6 +543,19 @@ function drawEnemies(g){
       ctx.lineWidth=3;
       ctx.beginPath(); ctx.arc(0,0,e.r+8+Math.sin(g.time*5)*3,0,Math.PI*2); ctx.stroke();
     }
+    if(e.missionTarget){
+      const mpulse=0.5+0.5*Math.sin((g.time||0)*7+e.phase);
+      ctx.shadowColor='#ffcc4d';
+      ctx.shadowBlur=18;
+      ctx.strokeStyle=`rgba(255,204,77,${0.62+0.34*mpulse})`;
+      ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(0,0,e.r+15+mpulse*4,0,Math.PI*2); ctx.stroke();
+      ctx.fillStyle=`rgba(255,204,77,${0.88+0.12*mpulse})`;
+      ctx.font='900 21px Segoe UI, Arial';
+      ctx.textAlign='center';
+      ctx.fillText('◆',0,-e.r-24-mpulse*3);
+      ctx.shadowBlur=0;
+    }
     if(e.isChargingWaveEnemy && (g.debug?.showChargingWaveTriggerRadius || g.debug?.showChargingWaveDamageRadius)){
       ctx.shadowBlur=0;
       if(g.debug.showChargingWaveTriggerRadius){
@@ -564,6 +578,107 @@ function drawEnemies(g){
   }
 }
 
+
+
+function drawMissionWorldHooks(g){
+  drawSurveyMissionPoi(g);
+  drawHarvestMissionTargets(g);
+  drawHoldoutDefenceTarget(g);
+}
+
+function drawSurveyMissionPoi(g){
+  const poiList=Array.isArray(g?.missionPoi) ? g.missionPoi : [];
+  if(!poiList.length) return;
+  ctx.save();
+  for(const poi of poiList){
+    if(!poi) continue;
+    const done=!!poi.scanned;
+    const radius=poi.scanRadius || 96;
+    const required=poi.requiredScanTime || 3;
+    const pct=clamp((poi.scanProgress || 0)/required,0,1);
+    const pulse=0.5+0.5*Math.sin((g.time||0)*4+(poi.pulse||0));
+    ctx.translate(poi.x,poi.y);
+    ctx.shadowColor=done?'#5dff9a':'#42d6ff';
+    ctx.shadowBlur=done?16:22;
+    ctx.strokeStyle=done?'rgba(93,255,154,0.75)':`rgba(66,214,255,${0.35+0.35*pulse})`;
+    ctx.fillStyle=done?'rgba(93,255,154,0.16)':`rgba(66,214,255,${0.08+0.08*pulse})`;
+    ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(0,0,radius,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.shadowBlur=18;
+    ctx.fillStyle=done?'#5dff9a':'#42d6ff';
+    ctx.beginPath(); ctx.arc(0,0,18+3*pulse,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0;
+    ctx.fillStyle='rgba(5,8,14,0.80)';
+    ctx.beginPath(); ctx.arc(0,0,8,0,Math.PI*2); ctx.fill();
+    if(!done){
+      ctx.strokeStyle='#eaf8ff';
+      ctx.lineWidth=4;
+      ctx.beginPath(); ctx.arc(0,0,31,-Math.PI/2,-Math.PI/2+pct*Math.PI*2); ctx.stroke();
+    }
+    ctx.fillStyle='#dff8ff';
+    ctx.font='900 12px Segoe UI, Arial';
+    ctx.textAlign='center';
+    ctx.fillText(done?'SCANNED':'ECHO RELIC',0,-42);
+    ctx.translate(-poi.x,-poi.y);
+  }
+  ctx.restore();
+}
+
+function drawHarvestMissionTargets(g){
+  const targets=Array.isArray(g?.missionHarvestTargets) ? g.missionHarvestTargets : [];
+  if(!targets.length) return;
+  ctx.save();
+  for(const t of targets){
+    if(!t || t.mined) continue;
+    const x=tileToWorldCenterX(t.tx), y=tileToWorldCenterY(t.ty);
+    const color=MINERALS[t.resourceId]?.color || '#ffcc4d';
+    const pulse=0.5+0.5*Math.sin((g.time||0)*5+(t.pulse||0));
+    ctx.shadowColor=color;
+    ctx.shadowBlur=18+8*pulse;
+    ctx.strokeStyle=color;
+    ctx.lineWidth=3;
+    ctx.strokeRect(t.tx*TILE+5,t.ty*TILE+5,TILE-10,TILE-10);
+    ctx.fillStyle=`rgba(255,255,255,${0.05+0.08*pulse})`;
+    ctx.fillRect(t.tx*TILE+6,t.ty*TILE+6,TILE-12,TILE-12);
+    ctx.beginPath(); ctx.arc(x,y,8+4*pulse,0,Math.PI*2); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawHoldoutDefenceTarget(g){
+  const target=g?.defenceTarget;
+  if(!target) return;
+  const pulse=0.5+0.5*Math.sin((g.time||0)*6+(target.pulse||0));
+  const damaged=(target.damageCooldown || 0)>0;
+  const hpPct=clamp((target.hp || 0)/(target.maxHp || 1),0,1);
+  const timerPct=clamp((target.holdTimer || 0)/(target.requiredHoldTime || 1),0,1);
+  ctx.save();
+  ctx.translate(target.x,target.y);
+  ctx.shadowColor=damaged?'#ff5b5b':'#5dff9a';
+  ctx.shadowBlur=damaged?26:18;
+  ctx.fillStyle=damaged?'rgba(255,91,91,0.22)':'rgba(93,255,154,0.18)';
+  ctx.strokeStyle=damaged?'rgba(255,120,120,0.90)':`rgba(93,255,154,${0.58+0.30*pulse})`;
+  ctx.lineWidth=4;
+  ctx.beginPath(); ctx.arc(0,0,target.r+8+5*pulse,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#d9ffe7';
+  ctx.beginPath();
+  ctx.moveTo(0,-30); ctx.lineTo(22,-10); ctx.lineTo(18,22); ctx.lineTo(-18,22); ctx.lineTo(-22,-10);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#12231c'; ctx.fillRect(-8,-4,16,18);
+  ctx.fillStyle='#42d6ff'; ctx.fillRect(-4,-22,8,14);
+  // HP bar
+  ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(-42,-52,84,7);
+  ctx.fillStyle=hpPct>0.35?'#5dff9a':'#ff5b5b'; ctx.fillRect(-42,-52,84*hpPct,7);
+  // Hold timer bar
+  ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(-42,-40,84,6);
+  ctx.fillStyle='#ffcc4d'; ctx.fillRect(-42,-40,84*timerPct,6);
+  ctx.fillStyle='#fff';
+  ctx.font='900 12px Segoe UI, Arial';
+  ctx.textAlign='center';
+  ctx.fillText(target.active?'DEFEND':'SECURED',0,-62);
+  ctx.restore();
+}
 
 function drawChargingWaveWorldDebug(g){
   if(!g?.chargingWave) return;

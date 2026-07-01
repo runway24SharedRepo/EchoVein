@@ -43,6 +43,187 @@ function addMineableBlockObjective(g){
   g.mineableBlocksTarget=target;
 }
 
+
+/*
+ * Stronger Mission Variety — Mission World Hooks
+ *
+ * These helpers create the physical mission anchors used by the objective
+ * system: marked Hunt targets, Survey relics, Harvest target veins, and the
+ * Holdout drill/beacon. They are intentionally data-light and safe to call on
+ * older saves; missing arrays are created on demand.
+ */
+function missionPrimaryObjective(g,id){
+  const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
+  return objectives.find(o=>o.id===id && (o.objectiveType || 'primary')==='primary') || objectives.find(o=>o.id===id);
+}
+
+function missionResourceTileForId(resourceId){
+  const def = RESOURCE_TILE_TYPES.find(r=>r.resourceId===resourceId);
+  return def ? def.tile : TILE_NITRA;
+}
+
+function missionTileResourceId(tile){
+  const def = RESOURCE_TILE_TYPES.find(r=>r.tile===tile);
+  return def ? def.resourceId : null;
+}
+
+function missionOpenTile(g,tx,ty,radius=1){
+  if(!inMap(tx,ty)) return false;
+  for(let y=ty-radius;y<=ty+radius;y++) for(let x=tx-radius;x<=tx+radius;x++){
+    if(!inMap(x,y) || isSolid(tileAt(g,x,y))) return false;
+  }
+  return true;
+}
+
+function findMissionOpenSpot(g,options={}){
+  const p=g.player || {x:WORLD_W/2,y:WORLD_H/2};
+  const minDist=options.minDist ?? 260;
+  const maxDist=options.maxDist ?? 1050;
+  const tries=options.tries ?? 160;
+  const radius=options.radius ?? 1;
+  let fallback=null;
+  for(let n=0;n<tries;n++){
+    const a=rand(0,Math.PI*2);
+    const d=rand(minDist,maxDist);
+    const x=clamp(p.x+Math.cos(a)*d,TILE*4,WORLD_W-TILE*4);
+    const y=clamp(p.y+Math.sin(a)*d,TILE*4,WORLD_H-TILE*4);
+    const [tx,ty]=worldToTile(x,y);
+    if(missionOpenTile(g,tx,ty,radius)) return {x:tileToWorldCenterX(tx),y:tileToWorldCenterY(ty),tx,ty};
+    if(!fallback && inMap(tx,ty)) fallback={x:tileToWorldCenterX(tx),y:tileToWorldCenterY(ty),tx,ty};
+  }
+  return fallback || {x:p.x+TILE*6,y:p.y,tx:worldToTileX(p.x)+6,ty:worldToTileY(p.y)};
+}
+
+function ensureMissionPocket(g,x,y,radiusTiles=3){
+  const [tx,ty]=worldToTile(x,y);
+  carveCircle(g,tx,ty,radiusTiles);
+  g.navigationVersion=(g.navigationVersion || 0)+1;
+  return {x:tileToWorldCenterX(tx),y:tileToWorldCenterY(ty),tx,ty};
+}
+
+function setupHuntMissionTargets(g){
+  const objective=missionPrimaryObjective(g,'hunt_elites');
+  const targetCount=Math.max(1, Math.floor(objective?.targetAmount || 3));
+  g.missionTargets=[];
+  let marked=0;
+  for(let i=0;i<targetCount;i++){
+    const before=(g.enemies || []).length;
+    const spawned=typeof spawnEnemy === 'function' ? spawnEnemy(g,'elite') : null;
+    const e=spawned || (g.enemies || [])[before] || (g.enemies || [])[g.enemies.length-1];
+    if(!e) continue;
+    e.missionTarget=true;
+    e.missionTargetId=`hunt_target_${i+1}`;
+    e.displayName=e.displayName || 'Marked Elite';
+    e.maxHp=e.maxHp || e.hp;
+    e.hitFlash=Math.max(e.hitFlash || 0,0.2);
+    g.missionTargets.push(e.missionTargetId);
+    marked++;
+  }
+  if(marked && typeof log === 'function') log(g,`Hunt mission: ${marked} elite target${marked===1?'':'s'} marked.`);
+}
+
+function setupSurveyMissionPoi(g){
+  const objective=missionPrimaryObjective(g,'survey_scan_relics');
+  const count=Math.max(1, Math.floor(objective?.targetAmount || objective?.params?.scanCount || 3));
+  g.missionPoi=[];
+  for(let i=0;i<count;i++){
+    const spot=findMissionOpenSpot(g,{minDist:260+i*120,maxDist:850+i*170,tries:180,radius:1});
+    const pocket=ensureMissionPocket(g,spot.x,spot.y,2.6);
+    g.missionPoi.push({
+      id:`echo_relic_${i+1}`,
+      type:'echoRelic',
+      x:pocket.x,
+      y:pocket.y,
+      scanned:false,
+      scanProgress:0,
+      requiredScanTime:3,
+      scanRadius:96,
+      pulse:rand(0,Math.PI*2)
+    });
+  }
+  if(g.missionPoi.length && typeof log === 'function') log(g,`Survey mission: ${g.missionPoi.length} Echo Relics detected.`);
+}
+
+function setupHarvestMissionTargets(g){
+  const objective=missionPrimaryObjective(g,'harvest_rare_quota');
+  const resourceId=objective?.params?.resourceId || objective?.resourceId || 'voltarite';
+  const targetAmount=Math.max(1, Math.floor(objective?.targetAmount || 12));
+  const def=RESOURCE_TILE_TYPES.find(r=>r.resourceId===resourceId) || RESOURCE_TILE_TYPES.find(r=>r.resourceId==='voltarite') || RESOURCE_TILE_TYPES[0];
+  const neededTiles=Math.max(4, Math.ceil(targetAmount/2)+2);
+  g.missionHarvestTargets=[];
+
+  let attempts=0;
+  while(g.missionHarvestTargets.length<neededTiles && attempts<40){
+    attempts++;
+    const spot=findMissionOpenSpot(g,{minDist:260,maxDist:1100,tries:120,radius:1});
+    const [cx,cy]=worldToTile(spot.x,spot.y);
+    // Make a small access pocket, then seed highlighted resource tiles on the
+    // pocket edge so they are visible and immediately mineable.
+    carveCircle(g,cx,cy,2.5);
+    const offsets=[[0,-2],[2,0],[0,2],[-2,0],[1,-2],[2,1],[-1,2],[-2,-1],[1,2],[-2,1]];
+    for(const [ox,oy] of offsets){
+      if(g.missionHarvestTargets.length>=neededTiles) break;
+      const tx=cx+ox, ty=cy+oy;
+      if(!inMap(tx,ty)) continue;
+      if(g.missionHarvestTargets.some(t=>t.tx===tx && t.ty===ty)) continue;
+      const i=tileIdx(tx,ty);
+      if(g.tiles[i]===TILE_HARD || g.tiles[i]===TILE_LAVA_ROCK) continue;
+      g.tiles[i]=def.tile;
+      g.tileHp[i]=def.hp || 36;
+      g.missionHarvestTargets.push({tx,ty,resourceId, mined:false, pulse:rand(0,Math.PI*2)});
+    }
+  }
+  g.navigationVersion=(g.navigationVersion || 0)+1;
+  if(g.missionHarvestTargets.length && typeof log === 'function'){
+    const name=MINERALS[resourceId]?.displayName || resourceId;
+    log(g,`Harvest mission: marked ${g.missionHarvestTargets.length} ${name} vein tiles.`);
+  }
+}
+
+function setupHoldoutDefenceTarget(g){
+  const objective=missionPrimaryObjective(g,'holdout_timer');
+  const required=Math.max(20, Number(objective?.targetAmount || objective?.params?.seconds || 90));
+  const spot=findMissionOpenSpot(g,{minDist:180,maxDist:420,tries:120,radius:2});
+  const pocket=ensureMissionPocket(g,spot.x,spot.y,4.0);
+  g.defenceTarget={
+    id:'holdout_drill',
+    type:'holdoutDrill',
+    x:pocket.x,
+    y:pocket.y,
+    r:30,
+    hp:260,
+    maxHp:260,
+    active:true,
+    holdTimer:0,
+    requiredHoldTime:required,
+    damageCooldown:0,
+    pulse:0
+  };
+  if(typeof log === 'function') log(g,'Holdout mission: beacon drill deployed. Defend it.');
+}
+
+function markMissionHarvestTargetMined(g,tx,ty){
+  const targets=g?.missionHarvestTargets || [];
+  const target=targets.find(t=>t.tx===tx && t.ty===ty && !t.mined);
+  if(target){
+    target.mined=true;
+    target.minedTime=g.time || 0;
+  }
+  return target || null;
+}
+
+function initialiseMissionWorldHooks(g){
+  if(!g || g.missionHooksInitialised) return;
+  g.missionPoi=Array.isArray(g.missionPoi) ? g.missionPoi : [];
+  g.missionHarvestTargets=Array.isArray(g.missionHarvestTargets) ? g.missionHarvestTargets : [];
+  g.defenceTarget=g.defenceTarget || null;
+  if(g.missionType==='hunt') setupHuntMissionTargets(g);
+  else if(g.missionType==='survey') setupSurveyMissionPoi(g);
+  else if(g.missionType==='harvest') setupHarvestMissionTargets(g);
+  else if(g.missionType==='holdout') setupHoldoutDefenceTarget(g);
+  g.missionHooksInitialised=true;
+}
+
 function generateCave(g){
   for(let y=0;y<MAP_H;y++) for(let x=0;x<MAP_W;x++) {
     const i=tileIdx(x,y);
@@ -409,6 +590,7 @@ function spawnEnemy(g,type){
     e.speed*=1+pressure*0.035;
   }
   g.enemies.push(e);
+  return e;
 }
 
 function spawnBurst(g,count,type){

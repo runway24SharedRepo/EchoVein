@@ -365,6 +365,13 @@ function makeGame(cls){
     runIndex:saveProfile?.runIndex || 1,
     missionType:null,
     missionDifficulty:saveProfile ? missionDifficulty(saveProfile.missionIndex) : missionDifficulty(1),
+    // Mission-specific world hook state. These are deliberately simple data
+    // containers so old saves/runs that do not include them can be initialised
+    // safely by initialiseMissionWorldHooks().
+    missionPoi:[],
+    missionHarvestTargets:[],
+    defenceTarget:null,
+    missionHooksInitialised:false,
     objectives:[],
     bossSpawned:false,
     bossDefeated:false,
