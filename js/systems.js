@@ -619,16 +619,16 @@ function mineTile(g,p,tx,ty,dt){
       if(typeof gainOperatorXP === 'function') gainOperatorXP(g, 1 * g.player.mineMul);
       // Phase 1.1: check mining-based milestones.
       if(typeof checkMilestoneOnMine === 'function') checkMilestoneOnMine(g);
-      // Phase 1.2: update Harvest mission objectives.
+      // Phase 1.2: update Harvest mission objectives. Objective reads are
+      // normalised so old saved objective data remains compatible.
       if(g.missionType === 'harvest' && resourceId){
-        for(const o of g.objectives){
-          if(o.type==='harvest' && o.resourceId===resourceId && !o.completed){
-            o.currentAmount=Math.min(o.currentAmount+amount,o.targetAmount);
-            if(o.currentAmount>=o.targetAmount){
-              o.completed=true;
-              log(g, `${o.displayName} complete.`);
-              sfx('level',0.75);
-              if(g.runStats) g.runStats.objectivesCompleted=(g.runStats.objectivesCompleted||0)+1;
+        const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
+        for(const o of objectives){
+          if(o.type==='harvest' && o.resourceId===resourceId && !o.completed && !o.failed){
+            if(typeof addObjectiveProgress === 'function') addObjectiveProgress(g,o.id,amount);
+            else {
+              o.currentAmount=Math.min(o.currentAmount+amount,o.targetAmount);
+              if(o.currentAmount>=o.targetAmount){ o.completed=true; }
             }
           }
         }
@@ -1647,9 +1647,10 @@ function debugChargingWaveMetrics(g){
 }
 
 function addObjectiveProgress(g,id,amount){
-  const obj=g.objectives.find(o=>o.id===id);
-  if(!obj || obj.completed) return;
-  obj.currentAmount=clamp(obj.currentAmount+amount,0,obj.targetAmount);
+  const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
+  const obj=objectives.find(o=>o.id===id);
+  if(!obj || obj.completed || obj.failed) return;
+  obj.currentAmount=clamp((obj.currentAmount || 0)+(amount || 0),0,obj.targetAmount || 1);
   if(obj.currentAmount>=obj.targetAmount){
     obj.completed=true;
     log(g, `${obj.displayName} complete.`);
@@ -1659,7 +1660,8 @@ function addObjectiveProgress(g,id,amount){
 }
 
 function allObjectivesComplete(g){
-  return g.objectives.length>0 && g.objectives.every(o=>o.completed);
+  const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
+  return objectives.length>0 && objectives.every(o=>o.completed);
 }
 
 function spawnRunBoss(g){
@@ -2485,7 +2487,10 @@ function spawnExtractionCraft(g){
 }
 
 function updateRunProgress(g,dt){
-  if(allObjectivesComplete(g) && !g.bossSpawned) spawnRunBoss(g);
+  const primaryComplete = typeof allPrimaryObjectivesComplete === 'function'
+    ? allPrimaryObjectivesComplete(g)
+    : allObjectivesComplete(g);
+  if(primaryComplete && !g.bossSpawned) spawnRunBoss(g);
   if(g.bossDefeated && !g.extraction) spawnExtractionCraft(g);
   if(!g.extraction) return;
   g.extraction.pulse+=dt;
@@ -4381,19 +4386,9 @@ function killEnemy(g,e){
   if(typeof gainOperatorXP === 'function') gainOperatorXP(g, Math.round(e.xp * 0.5));
   // Track kills persistently so kill-count milestones can fire mid-run.
   saveProfile.statistics.totalEnemiesKilled = (saveProfile.statistics.totalEnemiesKilled||0) + 1;
-  // Phase 1.2: update Hunt mission objective.
-  if(g.missionType === 'hunt'){
-    const o=g.objectives.find(o=>o.id==='hunt_kills');
-    if(o && !o.completed){
-      o.currentAmount=Math.min(o.currentAmount+1,o.targetAmount);
-      if(o.currentAmount>=o.targetAmount){
-        o.completed=true;
-        log(g, `${o.displayName} complete.`);
-        sfx('level',0.75);
-        if(g.runStats) g.runStats.objectivesCompleted=(g.runStats.objectivesCompleted||0)+1;
-      }
-    }
-  }
+  // Phase 1.2: update Hunt mission objective through the shared helper so
+  // primary/secondary/pressure metadata remains normalised.
+  if(g.missionType === 'hunt') addObjectiveProgress(g,'hunt_kills',1);
   // Phase 1.1: check kill-based milestones.
   if(typeof checkMilestoneOnKill === 'function') checkMilestoneOnKill(g);
   const role=ENEMY_TYPES[e.type]?.role || e.role || 'normal';

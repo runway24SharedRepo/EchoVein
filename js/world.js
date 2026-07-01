@@ -30,14 +30,15 @@ function addMineableBlockObjective(g){
   if(!g.objectives) g.objectives=[];
   const total=countMineableTiles(g);
   const target=Math.max(1, Math.ceil(total*0.05)); // 5% of mineable blocks
-  g.objectives.push({
+  const objective = {
     id:'mine_blocks',
     type:'mineBlocks',
     displayName:`Mine ${target} mineable blocks`,
     targetAmount:target,
     currentAmount:0,
     completed:false
-  });
+  };
+  g.objectives.push(typeof createObjective === 'function' ? createObjective(objective) : objective);
   g.mineableBlocksTotal=total;
   g.mineableBlocksTarget=target;
 }

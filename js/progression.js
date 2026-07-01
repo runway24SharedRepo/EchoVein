@@ -10,6 +10,86 @@ const SPECIAL_ORES = ['voltarite','echoQuartz','ferronRoot','lumicite','pyroclas
 let appState = 'STARTUP';
 let saveProfile = null;
 
+
+/*
+ * Objective Foundation — Stronger Mission Variety Phase 1
+ *
+ * Objectives are intentionally normalised at creation and at important read
+ * sites so older saved/run data remains valid. Any objective without an
+ * objectiveType is treated as PRIMARY, matching the old behaviour where every
+ * objective was required before the boss could spawn.
+ */
+let objectiveAutoId = 1;
+
+function normaliseObjectiveType(objectiveType){
+  return (objectiveType === 'secondary' || objectiveType === 'pressure' || objectiveType === 'primary')
+    ? objectiveType
+    : 'primary';
+}
+
+function numberOrDefault(value, fallback){
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function createObjective(data={}){
+  const source = (data && typeof data === 'object') ? data : {};
+  const objectiveType = normaliseObjectiveType(source.objectiveType || 'primary');
+  const targetAmount = numberOrDefault(source.targetAmount ?? source.target, 1);
+  const currentAmount = numberOrDefault(source.currentAmount ?? source.current, 0);
+  const id = source.id || `objective_${objectiveAutoId++}`;
+  const type = source.type || 'generic';
+  const displayName = source.displayName || source.name || source.desc || source.description || id;
+
+  return {
+    ...source,
+    id,
+    type,
+    objectiveType,
+    optional: source.optional != null ? !!source.optional : objectiveType !== 'primary',
+    displayName,
+    description: source.description || source.desc || '',
+    targetAmount,
+    currentAmount,
+    completed: source.completed != null ? !!source.completed : false,
+    failed: source.failed != null ? !!source.failed : false,
+    reward: source.reward || null,
+    failConditionType: source.failConditionType || null,
+    params: (source.params && typeof source.params === 'object') ? source.params : {},
+    tags: Array.isArray(source.tags) ? source.tags : [],
+    hiddenUntilStarted: source.hiddenUntilStarted != null ? !!source.hiddenUntilStarted : false,
+    showProgress: source.showProgress != null ? !!source.showProgress : true
+  };
+}
+
+function normaliseObjective(o){
+  // Missing objectiveType means this is old objective data; old objectives were
+  // all required, so they must stay primary for save/profile compatibility.
+  return createObjective(o || {});
+}
+
+function normaliseObjectives(g){
+  if(!g) return [];
+  if(!Array.isArray(g.objectives)) g.objectives=[];
+  g.objectives = g.objectives.map(normaliseObjective);
+  return g.objectives;
+}
+
+function getObjectivesByType(g, objectiveType){
+  const wanted = normaliseObjectiveType(objectiveType);
+  return normaliseObjectives(g).filter(o=>normaliseObjectiveType(o.objectiveType)===wanted);
+}
+
+function getPrimaryObjectives(g){ return getObjectivesByType(g,'primary'); }
+function getSecondaryObjectives(g){ return getObjectivesByType(g,'secondary'); }
+function getPressureObjectives(g){ return getObjectivesByType(g,'pressure'); }
+
+function allPrimaryObjectivesComplete(g){
+  const primary = getPrimaryObjectives(g).filter(o=>!o.failed);
+  // Safety guard: no primary objectives should never unlock the boss by accident.
+  return primary.length>0 && primary.every(o=>o.completed);
+}
+
 /*
  * Milestones & Achievements — Phase 1.1
  *
@@ -224,12 +304,12 @@ const MISSION_TYPES = [
       const baseTarget=30 + (g.missionIndex||1)*5;
       const target=Math.floor(baseTarget*diff.objectiveMultiplier);
       const rewardLabel=`+${Math.round((1.15-1)*100)}% reward`;
-      return [{ id:'hunt_kills', type:'hunt',
+      return [createObjective({ id:'hunt_kills', type:'hunt',
         displayName:`🗡️ Eliminate ${target} enemies [${rewardLabel}]`,
-        targetAmount:target, currentAmount:0, completed:false }];
+        targetAmount:target, currentAmount:0, completed:false })];
     },
     track:(g,dt)=>{},
-    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='hunt_kills'); return o ? o.completed : false; },
+    isComplete:g=>{ const o=normaliseObjectives(g).find(o=>o.id==='hunt_kills'); return o ? o.completed : false; },
     bonusObjectives:[
       { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
       { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
@@ -249,9 +329,9 @@ const MISSION_TYPES = [
       const pctTarget=Math.min(0.25 + (g.missionIndex||1)*0.03, 0.50);
       const target=Math.floor(totalTiles*pctTarget*diff.objectiveMultiplier);
       const rewardLabel=`+${Math.round((1.10-1)*100)}% reward`;
-      return [{ id:'survey_tiles', type:'survey',
+      return [createObjective({ id:'survey_tiles', type:'survey',
         displayName:`🔍 Explore ${target} tiles [${rewardLabel}]`,
-        targetAmount:target, currentAmount:0, completed:false }];
+        targetAmount:target, currentAmount:0, completed:false })];
     },
     track:(g,dt)=>{
       if(!g._tilesRevealed) g._tilesRevealed=new Set();
@@ -261,8 +341,8 @@ const MISSION_TYPES = [
       if(!g._tilesRevealed.has(key)){
         g._tilesRevealed.add(key);
         g._tilesRevealedCount++;
-        const o=g.objectives.find(o=>o.id==='survey_tiles');
-        if(o && !o.completed){
+        const o=normaliseObjectives(g).find(o=>o.id==='survey_tiles');
+        if(o && !o.completed && !o.failed){
           o.currentAmount=Math.min(o.currentAmount+1,o.targetAmount);
           if(o.currentAmount>=o.targetAmount){
             o.completed=true;
@@ -273,7 +353,7 @@ const MISSION_TYPES = [
         }
       }
     },
-    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='survey_tiles'); return o ? o.completed : false; },
+    isComplete:g=>{ const o=normaliseObjectives(g).find(o=>o.id==='survey_tiles'); return o ? o.completed : false; },
     bonusObjectives:[
       { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
       { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
@@ -296,16 +376,16 @@ const MISSION_TYPES = [
       const target1=Math.floor(40*diff.objectiveMultiplier);
       const target2=Math.floor((secondRes==='aetherQuartz'?4:12)*diff.objectiveMultiplier);
       return [
-        { id:'harvest_gild', type:'harvest', resourceId:'gild',
+        createObjective({ id:'harvest_gild', type:'harvest', resourceId:'gild',
           displayName:`⛏️ Collect ${target1} Gild Shards [${rewardLabel}]`,
-          targetAmount:target1, currentAmount:0, completed:false },
-        { id:'harvest_'+secondRes, type:'harvest', resourceId:secondRes,
+          targetAmount:target1, currentAmount:0, completed:false }),
+        createObjective({ id:'harvest_'+secondRes, type:'harvest', resourceId:secondRes,
           displayName:`⛏️ Collect ${target2} ${mineral2.displayName} [${rewardLabel}]`,
-          targetAmount:target2, currentAmount:0, completed:false }
+          targetAmount:target2, currentAmount:0, completed:false })
       ];
     },
     track:(g,dt)=>{},
-    isComplete:g=>g.objectives.filter(o=>o.type==='harvest').every(o=>o.completed),
+    isComplete:g=>{ const objectives=normaliseObjectives(g).filter(o=>o.type==='harvest'); return objectives.length>0 && objectives.every(o=>o.completed); },
     bonusObjectives:[
       { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
       { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
@@ -324,13 +404,13 @@ const MISSION_TYPES = [
       const baseTime=120 + (g.missionIndex||1)*15;
       const target=Math.floor(baseTime*diff.objectiveMultiplier);
       const rewardLabel=`+${Math.round((1.25-1)*100)}% reward`;
-      return [{ id:'holdout_timer', type:'holdout',
+      return [createObjective({ id:'holdout_timer', type:'holdout',
         displayName:`🛡️ Survive ${target}s [${rewardLabel}]`,
-        targetAmount:target, currentAmount:0, completed:false }];
+        targetAmount:target, currentAmount:0, completed:false })];
     },
     track:(g,dt)=>{
-      const o=g.objectives.find(o=>o.id==='holdout_timer');
-      if(!o || o.completed) return;
+      const o=normaliseObjectives(g).find(o=>o.id==='holdout_timer');
+      if(!o || o.completed || o.failed) return;
       o.currentAmount=Math.min(o.currentAmount+dt,o.targetAmount);
       if(o.currentAmount>=o.targetAmount && !o.completed){
         o.completed=true;
@@ -339,7 +419,7 @@ const MISSION_TYPES = [
         if(g.runStats) g.runStats.objectivesCompleted=(g.runStats.objectivesCompleted||0)+1;
       }
     },
-    isComplete:g=>{ const o=g.objectives.find(o=>o.id==='holdout_timer'); return o ? o.completed : false; },
+    isComplete:g=>{ const o=normaliseObjectives(g).find(o=>o.id==='holdout_timer'); return o ? o.completed : false; },
     bonusObjectives:[
       { id:'bonus_extra_ore', desc:'Mine 20 extra ore', reward:{ gild:5 }, check:g=>g.runStats.blocksMined > (g.objectives.find(o=>o.type==='mineBlocks')?.targetAmount || 0) + 20 },
       { id:'bonus_extra_kills', desc:'Kill 10 extra enemies', reward:{ voltarite:2 }, check:g=>g.kills > (g.objectives.find(o=>o.id==='hunt_kills')?.targetAmount || 0) + 10 },
@@ -1175,7 +1255,7 @@ function currentRunObjectives(){
   const addResourceObjective=(resourceId,base,perRun)=>{
     const mineral=MINERALS[resourceId];
     const target=Math.floor((base+run*perRun+mission*1.5)*diff.objectiveMultiplier);
-    result.push({ id:`collect_${resourceId}`, type:'collectResource', resourceId, displayName:`Collect ${target} ${mineral.displayName}`, targetAmount:target, currentAmount:0, completed:false });
+    result.push(createObjective({ id:`collect_${resourceId}`, type:'collectResource', resourceId, displayName:`Collect ${target} ${mineral.displayName}`, targetAmount:target, currentAmount:0, completed:false }));
   };
   addResourceObjective('gild',200,5);
   addResourceObjective('echo',100,10);
@@ -1477,7 +1557,7 @@ function startRunWithClass(clsOrId){
   if(selectedMissionType){
     game.missionType = selectedMissionType.id;
     // Replace default objectives with mission-specific ones.
-    game.objectives = selectedMissionType.generateObjectives(saveProfile, game);
+    game.objectives = (selectedMissionType.generateObjectives(saveProfile, game) || []).map(normaliseObjective);
   }
   saveProfile.statistics.totalRunsStarted++;
   // Phase 2.1: initialise synergy tracking arrays

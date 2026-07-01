@@ -68,8 +68,9 @@ function finalizeRunStats(g,cause,title){
   return s;
 }
 
-function getObjectiveProgress(o){ const target=o?.targetAmount ?? o?.target ?? 0; const cur=o?.currentAmount ?? o?.current ?? 0; return target>0 ? clamp(cur/target,0,1) : 0; }
+function getObjectiveProgress(o){ if(typeof normaliseObjective==='function' && o) o=normaliseObjective(o); const target=o?.targetAmount ?? o?.target ?? 0; const cur=o?.currentAmount ?? o?.current ?? 0; return target>0 ? clamp(cur/target,0,1) : 0; }
 function objectiveProgressText(o){
+  if(typeof normaliseObjective==='function' && o) o=normaliseObjective(o);
   const target=o?.targetAmount ?? o?.target ?? 0; const cur=o?.currentAmount ?? o?.current ?? 0;
   if(!target) return o?.completed ? 'Complete' : 'Active';
   if((o.id||'').includes('level')) return `Level ${Math.floor(cur)} / ${target}`;
@@ -78,7 +79,8 @@ function objectiveProgressText(o){
 
 function renderObjectiveChips(g){
   const pulse=0.65+0.35*(0.5+0.5*Math.sin((g.time||0)*4));
-  return (g.objectives||[]).map((o,i)=>{
+  const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives||[]);
+  return objectives.map((o,i)=>{
     const pct=getObjectiveProgress(o)*100;
     const done=!!o.completed;
     const priority=!done && i===0;
