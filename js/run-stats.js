@@ -68,26 +68,96 @@ function finalizeRunStats(g,cause,title){
   return s;
 }
 
-function getObjectiveProgress(o){ if(typeof normaliseObjective==='function' && o) o=normaliseObjective(o); const target=o?.targetAmount ?? o?.target ?? 0; const cur=o?.currentAmount ?? o?.current ?? 0; return target>0 ? clamp(cur/target,0,1) : 0; }
+function objectiveUiNormalise(o){
+  if(typeof normaliseObjective==='function' && o) return normaliseObjective(o);
+  const objectiveType = (o?.objectiveType === 'secondary' || o?.objectiveType === 'pressure' || o?.objectiveType === 'primary') ? o.objectiveType : 'primary';
+  return {
+    ...(o || {}),
+    objectiveType,
+    optional: o?.optional != null ? !!o.optional : objectiveType !== 'primary',
+    displayName: o?.displayName || o?.name || o?.desc || o?.description || o?.id || 'Objective',
+    description: o?.description || o?.desc || '',
+    targetAmount: o?.targetAmount ?? o?.target ?? 1,
+    currentAmount: o?.currentAmount ?? o?.current ?? 0,
+    completed: !!o?.completed,
+    failed: !!o?.failed,
+    reward: o?.reward || null,
+    hiddenUntilStarted: !!o?.hiddenUntilStarted,
+    showProgress: o?.showProgress != null ? !!o.showProgress : true
+  };
+}
+
+function objectiveEscapeHtml(value){
+  return String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function objectiveUiType(o){
+  const type=o?.objectiveType;
+  return (type==='secondary' || type==='pressure' || type==='primary') ? type : 'primary';
+}
+
+function objectiveTypeLabel(o){
+  const type=objectiveUiType(o);
+  if(type==='secondary') return 'BONUS';
+  if(type==='pressure') return 'RISK';
+  return 'PRIMARY';
+}
+
+function objectiveHasReward(o){
+  if(!o?.reward) return false;
+  if(typeof o.reward !== 'object') return true;
+  return Object.values(o.reward).some(v=>{
+    if(typeof v === 'number') return v !== 0;
+    if(v && typeof v === 'object') return Object.values(v).some(n=>(+n||0)!==0);
+    return !!v;
+  });
+}
+
+function getObjectiveProgress(o){
+  o=objectiveUiNormalise(o);
+  const target=+o.targetAmount || 0;
+  const cur=+o.currentAmount || 0;
+  return target>0 ? clamp(cur/target,0,1) : (o.completed ? 1 : 0);
+}
+
 function objectiveProgressText(o){
-  if(typeof normaliseObjective==='function' && o) o=normaliseObjective(o);
-  const target=o?.targetAmount ?? o?.target ?? 0; const cur=o?.currentAmount ?? o?.current ?? 0;
-  if(!target) return o?.completed ? 'Complete' : 'Active';
+  o=objectiveUiNormalise(o);
+  if(o.failed) return 'Failed';
+  if(o.completed) return 'Complete';
+  if(!o.showProgress) return 'Active';
+  const target=+o.targetAmount || 0;
+  const cur=+o.currentAmount || 0;
+  if(!target) return 'Active';
   if((o.id||'').includes('level')) return `Level ${Math.floor(cur)} / ${target}`;
   return `${Math.floor(cur)} / ${target}`;
 }
 
 function renderObjectiveChips(g){
   const pulse=0.65+0.35*(0.5+0.5*Math.sin((g.time||0)*4));
-  const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives||[]);
+  const objectives = (typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives||[]))
+    .map(objectiveUiNormalise)
+    .filter(o=>!o.hiddenUntilStarted || o.completed || o.failed || (+o.currentAmount||0)>0);
+
   return objectives.map((o,i)=>{
     const pct=getObjectiveProgress(o)*100;
     const done=!!o.completed;
-    const priority=!done && i===0;
-    const style=done?'':`style="--pulse:${pulse.toFixed(3)}"`;
-    return `<div class="objectiveRow ${done?'done':'active'} ${priority?'priority':''}" ${style}>
-      <div class="objectiveTop"><span>${done?'✓':'◆'} ${o.displayName}</span><b>${objectiveProgressText(o)}</b></div>
-      <div class="objectiveBar"><i style="width:${pct.toFixed(1)}%"></i></div>
+    const failed=!!o.failed;
+    const type=objectiveUiType(o);
+    const priority=!done && !failed && type==='primary' && i===objectives.findIndex(x=>objectiveUiType(x)==='primary' && !x.completed && !x.failed);
+    const stateClass=failed ? 'failed' : (done ? 'done' : 'active');
+    const style=(done || failed)?'':`style="--pulse:${pulse.toFixed(3)}"`;
+    const title=o.description ? ` title="${objectiveEscapeHtml(o.description)}"` : '';
+    const icon=failed ? '✕' : (done ? '✓' : '◆');
+    const rewardBadge=(type==='secondary' && objectiveHasReward(o)) ? '<em class="objectiveRewardBadge">+ Bonus</em>' : '';
+    const progressHtml=o.showProgress
+      ? `<div class="objectiveBar"><i style="width:${pct.toFixed(1)}%"></i></div>`
+      : '';
+    return `<div class="objectiveRow objective-${type} ${stateClass} ${priority?'priority':''}" ${style}${title}>
+      <div class="objectiveTop">
+        <span class="objectiveName"><span class="objectiveTypeBadge">${objectiveTypeLabel(o)}</span><i>${icon}</i> ${objectiveEscapeHtml(o.displayName)}${rewardBadge}</span>
+        <b>${objectiveEscapeHtml(objectiveProgressText(o))}</b>
+      </div>
+      ${progressHtml}
     </div>`;
   }).join('');
 }

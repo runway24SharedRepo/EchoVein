@@ -2,6 +2,28 @@
 
 /* HUD updates, menus, rendering, drawing helpers, and game-over/start flows. */
 
+function renderFallbackObjectiveChips(objectives){
+  const escape=value=>String(value ?? '').replace(/[&<>\"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch]));
+  const labelFor=o=>{
+    const type=(o?.objectiveType==='secondary'||o?.objectiveType==='pressure'||o?.objectiveType==='primary') ? o.objectiveType : 'primary';
+    return type==='secondary' ? 'BONUS' : (type==='pressure' ? 'RISK' : 'PRIMARY');
+  };
+  return (objectives||[]).map(raw=>{
+    const o=(typeof normaliseObjective==='function') ? normaliseObjective(raw) : raw;
+    const type=(o?.objectiveType==='secondary'||o?.objectiveType==='pressure'||o?.objectiveType==='primary') ? o.objectiveType : 'primary';
+    const state=o?.failed ? 'failed' : (o?.completed ? 'done' : 'active');
+    const target=+(o?.targetAmount ?? o?.target ?? 0) || 0;
+    const cur=+(o?.currentAmount ?? o?.current ?? 0) || 0;
+    const pct=target>0 ? clamp(cur/target*100,0,100) : (o?.completed ? 100 : 0);
+    const progress=o?.failed ? 'Failed' : (o?.completed ? 'Complete' : (target>0 ? `${Math.floor(cur)} / ${target}` : 'Active'));
+    const title=o?.description ? ` title="${escape(o.description)}"` : '';
+    return `<div class="objectiveRow objective-${type} ${state}"${title}>
+      <div class="objectiveTop"><span class="objectiveName"><span class="objectiveTypeBadge">${labelFor(o)}</span><i>${o?.failed?'✕':(o?.completed?'✓':'◆')}</i> ${escape(o?.displayName||o?.id||'Objective')}</span><b>${escape(progress)}</b></div>
+      <div class="objectiveBar"><i style="width:${pct.toFixed(1)}%"></i></div>
+    </div>`;
+  }).join('');
+}
+
 function updateUI(g){
   const p=g.player;
   const mm=Math.floor(g.time/60), ss=Math.floor(g.time%60);
@@ -44,7 +66,7 @@ function updateUI(g){
     ? `<div class="chip ${perfState===PERF_STATES.CRITICAL?'danger':''}"><span>Swarm Stabiliser</span><b>${perfState.replace('PERF_','')}</b></div>`
     : '';
   const objectiveList = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
-  const objectiveChips=(typeof renderObjectiveChips==='function') ? renderObjectiveChips(g) : objectiveList.map(o=>`<div class="chip objective ${o.completed?'done':''}"><span>${o.displayName}</span><b>${Math.floor(o.currentAmount)}/${o.targetAmount}</b></div>`).join('');
+  const objectiveChips=(typeof renderObjectiveChips==='function') ? renderObjectiveChips(g) : renderFallbackObjectiveChips(objectiveList);
   const bossChip=g.bossDefeated ? '<div class="chip unlocked"><span>Sector Boss</span><b>DEFEATED</b></div>' : (g.bossSpawned ? '<div class="chip unlocked"><span>Sector Boss</span><b>ACTIVE</b></div>' : '<div class="chip locked"><span>Sector Boss</span><b>LOCKED</b></div>');
   const extractionChip=g.extraction ? `<div class="chip danger"><span>Extraction</span><b>${Math.max(0,g.extractionTimer).toFixed(1)}s</b></div>` : '';
   const missionChip=`<div class="chip"><span>Mission ${g.missionIndex}</span><b>Run ${g.runIndex}/${RUNS_PER_MISSION}</b></div>`;
