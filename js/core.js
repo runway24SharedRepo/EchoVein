@@ -544,6 +544,97 @@ function menuInputClock(){
   return performance.now()/1000;
 }
 
+
+function isScrollableElement(el){
+  return !!el && (el.scrollHeight - el.clientHeight > 2 || el.scrollWidth - el.clientWidth > 2);
+}
+
+function firstScrollableElement(candidates){
+  for(const el of candidates){
+    if(isScrollableElement(el)) return el;
+  }
+  return candidates.find(Boolean) || null;
+}
+
+function activeOverlayScrollPanel(target=null){
+  /*
+    Centralised overlay scroll target selection.
+
+    The previous wheel hotfix allowed scrolling only when the mouse pointer was
+    exactly over #menuContent/#classCards/#upgradeCards. In practice players
+    often wheel over the modal title, button row, card gap, or padding. The
+    browser then prevented the wheel and nothing moved. This helper maps any
+    wheel/stick input on an open overlay to the most appropriate internal
+    scroll panel.
+  */
+  const targetEl = target instanceof Element ? target : null;
+  const direct = targetEl?.closest?.(
+    '#menuContent, #classCards, #upgradeCards, #runStatsBody, ' +
+    '.debugPanel, .spriteTestPanel, .runStatsModal, .upgradeCategorySection'
+  );
+  if(direct && isScrollableElement(direct)) return direct;
+
+  if(ui.upgradeOverlay?.classList?.contains('show')){
+    return firstScrollableElement([ui.upgradeCards, ui.upgradeOverlay?.querySelector('.modal')]);
+  }
+
+  const statsOverlay = document.getElementById('runStatsOverlay');
+  if(statsOverlay?.classList?.contains('show')){
+    return firstScrollableElement([document.getElementById('runStatsBody'), statsOverlay.querySelector('.runStatsModal'), statsOverlay.querySelector('.modal')]);
+  }
+
+  const gameOverOverlay = document.getElementById('gameOverOverlay');
+  if(gameOverOverlay?.classList?.contains('show')){
+    return firstScrollableElement([gameOverOverlay.querySelector('.modal')]);
+  }
+
+  if(ui.startOverlay?.classList?.contains('show')){
+    const menuContent = document.getElementById('menuContent');
+    const classCards = document.getElementById('classCards');
+    const modal = ui.startOverlay.querySelector('.modal');
+    return firstScrollableElement([menuContent, classCards, modal]);
+  }
+
+  return null;
+}
+
+function scrollOverlayPanelBy(panel, deltaX=0, deltaY=0){
+  if(!panel) return false;
+
+  const beforeTop = panel.scrollTop;
+  const beforeLeft = panel.scrollLeft;
+
+  if(deltaY) panel.scrollTop += deltaY;
+  if(deltaX) panel.scrollLeft += deltaX;
+
+  return Math.abs(panel.scrollTop-beforeTop)>0.5 || Math.abs(panel.scrollLeft-beforeLeft)>0.5;
+}
+
+function scrollActiveOverlayWithGamepad(dt, targetPanel=null){
+  const panel = targetPanel || activeOverlayScrollPanel();
+  if(!panel) return false;
+
+  const x = gamepadState.leftX || 0;
+  const y = gamepadState.leftY || 0;
+  const dead = GAMEPAD.LEFT_DEADZONE ?? 0.35;
+  let dx = Math.abs(x)>dead ? x : 0;
+  let dy = Math.abs(y)>dead ? y : 0;
+
+  /* Also support controllers that expose D-pad as axes 6/7. */
+  const axes = gamepadState.axes || [];
+  if(!dx && Math.abs(axes[6] || 0)>dead) dx = axes[6];
+  if(!dy && Math.abs(axes[7] || 0)>dead) dy = axes[7];
+
+  /* D-pad buttons provide digital scroll when held. */
+  if(!dx) dx = (gamepadHeld(GAMEPAD.DPAD_RIGHT)?1:0) - (gamepadHeld(GAMEPAD.DPAD_LEFT)?1:0);
+  if(!dy) dy = (gamepadHeld(GAMEPAD.DPAD_DOWN)?1:0) - (gamepadHeld(GAMEPAD.DPAD_UP)?1:0);
+
+  if(!dx && !dy) return false;
+
+  const speed = 720; // pixels/sec at full stick deflection
+  return scrollOverlayPanelBy(panel, dx*speed*dt, dy*speed*dt);
+}
+
 function visibleMenuGamepadElements(){
   // Determine which overlay is active: startOverlay (main menus), gameOverOverlay (run failed), or runStatsOverlay (mission summary)
   const startActive = ui.startOverlay?.classList?.contains('show');
@@ -645,6 +736,10 @@ function updateMenuGamepadInput(dt){
     menuGamepadState.lastMoveTime = t;
     selectionChanged = true;
   }
+
+  // Let the left stick/D-pad scroll tall menu panels continuously while still
+  // keeping button/card selection available for confirm with A/X.
+  scrollActiveOverlayWithGamepad(dt);
 
   refreshMenuGamepadSelection(elements, {
     scrollSelected: selectionChanged

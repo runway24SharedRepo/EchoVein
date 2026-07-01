@@ -68,24 +68,64 @@ function isInsideAllowedScrollArea(target){
 
   return !!target.closest(
     '#menuContent, #classCards, #upgradeCards, #runStatsBody, ' +
-    '.debugPanel, .spriteTestPanel, .runStatsModal'
+    '.debugPanel, .spriteTestPanel, .runStatsModal, .upgradeCategorySection'
   );
+}
+
+function wheelPixels(e, panel){
+  let dx = e.deltaX || 0;
+  let dy = e.deltaY || 0;
+
+  // deltaMode: 0=pixels, 1=lines, 2=pages
+  if(e.deltaMode === 1){ dx *= 16; dy *= 16; }
+  else if(e.deltaMode === 2){
+    const page = panel?.clientHeight || 600;
+    dx *= page;
+    dy *= page;
+  }
+
+  return {dx,dy};
+}
+
+function routeOverlayWheel(e){
+  const panel = typeof activeOverlayScrollPanel === 'function'
+    ? activeOverlayScrollPanel(e.target)
+    : null;
+
+  if(!panel) return false;
+
+  const {dx,dy} = wheelPixels(e,panel);
+
+  // If the target is a horizontally scrollable upgrade table and the wheel is
+  // mostly vertical, use Shift+wheel or natural horizontal trackpad movement for
+  // horizontal scroll; otherwise vertical wheel scrolls the active panel.
+  const horizontalTarget = e.target instanceof Element
+    ? e.target.closest('.upgradeCategorySection')
+    : null;
+
+  if(horizontalTarget && (e.shiftKey || Math.abs(dx)>Math.abs(dy))){
+    scrollOverlayPanelBy(horizontalTarget, dx || dy, 0);
+  } else {
+    scrollOverlayPanelBy(panel, dx, dy);
+  }
+
+  return true;
 }
 
 window.addEventListener('wheel', e => {
   /*
-    During menus, allow wheel only inside our scrollable panels.
-    Everywhere else, prevent the itch iframe/browser page from bouncing.
+    During menus, always route the mouse wheel to the active internal scroll
+    panel. Do not require the pointer to be exactly over the scroll panel;
+    otherwise wheeling over the title/padding/buttons feels like the menu is
+    broken. We still prevent the outer itch iframe/browser page from bouncing.
   */
   if(isOverlayOpenForScrollLock()){
-    if(isInsideAllowedScrollArea(e.target)) return;
+    routeOverlayWheel(e);
     e.preventDefault();
     return;
   }
 
-  /*
-    During gameplay, prevent the browser/itch page from scrolling.
-  */
+  /* During gameplay, prevent the browser/itch page from scrolling. */
   if(game?.state === 'playing'){
     e.preventDefault();
   }
@@ -93,6 +133,8 @@ window.addEventListener('wheel', e => {
 
 window.addEventListener('touchmove', e => {
   if(isOverlayOpenForScrollLock()){
+    // CSS touch-action: pan-y allows native touch scroll inside panels; this is
+    // only a safety net for touches outside those panels.
     if(isInsideAllowedScrollArea(e.target)) return;
     e.preventDefault();
     return;

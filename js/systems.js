@@ -2724,6 +2724,7 @@ function updateUpgradeMenuGamepad(g,dt){
   state.selectedIndex=clamp(state.selectedIndex ?? 0,0,cards.length-1);
 
   const nav=getGamepadLeftNav();
+  let selectionChanged=false;
   if(!state.navWasActive && !nav.active){
     state.lastMoveTime=-999;
   }
@@ -2731,10 +2732,14 @@ function updateUpgradeMenuGamepad(g,dt){
     const step=(nav.x>0 || nav.y>0) ? 1 : -1;
     state.selectedIndex=(state.selectedIndex + step + cards.length) % cards.length;
     state.lastMoveTime=t;
+    selectionChanged=true;
   }
   state.navWasActive=nav.active;
 
-  refreshUpgradeSelection(g);
+  // Continuous left-stick/D-pad scrolling for tall upgrade menus.
+  scrollActiveOverlayWithGamepad(dt, ui.upgradeCards);
+
+  refreshUpgradeSelection(g,{scrollSelected:selectionChanged});
 
   // A confirms menu choices. X also confirms because X is the requested
   // left-click equivalent, but in gameplay A remains the trap button.
@@ -2743,15 +2748,19 @@ function updateUpgradeMenuGamepad(g,dt){
   }
 }
 
-function refreshUpgradeSelection(g){
+function refreshUpgradeSelection(g,options={}){
   const state=g.upgradeMenuState;
   const cards=[...ui.upgradeCards.querySelectorAll('.card[data-upgrade-index]')];
+  const scrollSelected=!!options.scrollSelected;
   for(const card of cards){
     const idx=Number(card.dataset.upgradeIndex);
     card.classList.toggle('selected', idx===state.selectedIndex);
     card.setAttribute('aria-selected', idx===state.selectedIndex ? 'true' : 'false');
   }
   const card=cards.find(c=>Number(c.dataset.upgradeIndex)===state.selectedIndex) || cards[state.selectedIndex];
+  if(card && scrollSelected){
+    try{ card.scrollIntoView({block:'nearest', inline:'nearest', behavior:'auto'}); }catch(_){}
+  }
   if(card && document.activeElement!==card){
     try{ card.focus({preventScroll:true}); }catch(_){ card.focus(); }
   }
