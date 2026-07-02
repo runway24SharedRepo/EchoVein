@@ -1,0 +1,60 @@
+{
+  "name": "echovein",
+  "productName": "EchoVein",
+  "version": "1.0.0",
+  "description": "EchoVein - a 2D top-down extraction-mining roguelike.",
+  "author": "King Peng Studio",
+  "private": true,
+  "main": "electron/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "start:dev": "electron . --dev",
+    "pack:win": "electron-builder --win --dir",
+    "dist:win": "electron-builder --win nsis portable"
+  },
+  "devDependencies": {
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.kingpengstudio.echovein",
+    "productName": "EchoVein",
+    "copyright": "Copyright © 2026 King Peng Studio",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.html",
+      "css/**/*",
+      "js/**/*",
+      "assets/**/*",
+      "electron/**/*",
+      "README.md",
+      "PROJECT_CONTEXT.md",
+      "PROJECT_ROADMAP.md",
+      "REPO_CONTEXT.md"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "EchoVein"
+    }
+  }
+}

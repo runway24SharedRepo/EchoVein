@@ -1,0 +1,78 @@
+# EchoVein / Electron / Node ignores
+
+# Node dependencies
+
+node_modules/
+
+# Electron / electron-builder output
+
+dist/
+build/
+out/
+release/
+releases/
+
+# Electron Builder cache/output
+
+.electron/
+.electron-builder/
+electron-builder-cache/
+
+# Windows build artifacts
+
+*.exe
+*.msi
+*.blockmap
+*.nupkg
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+
+# Packed archives generated during release
+
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.rar
+
+# Logs
+
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Runtime/cache/temp files
+
+.cache/
+tmp/
+temp/
+*.tmp
+
+# OS/editor files
+
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# Optional: local environment/config overrides
+
+.env
+.env.local
+
+# Keep source Electron files tracked:
+
+# package.json
+
+# package-lock.json
+
+# electron/main.cjs
+
+# electron/preload.cjs
+
+# README_WINDOWS_ELECTRON.md
