@@ -19,10 +19,14 @@ addEventListener('keydown',e=>{
   const pressureOpen = awaitingPressureChoice || document.getElementById('pressureObjectiveOverlay')?.classList?.contains('show');
   if(pressureOpen){
     if(['Enter','Space','KeyA','KeyY'].includes(e.code)){
+      e.preventDefault();
+      e.stopPropagation();
       if(typeof choosePressureObjectiveOffer === 'function') choosePressureObjectiveOffer(true,e);
       return;
     }
     if(['Escape','Backspace','KeyB','KeyN'].includes(e.code)){
+      e.preventDefault();
+      e.stopPropagation();
       if(typeof choosePressureObjectiveOffer === 'function') choosePressureObjectiveOffer(false,e);
       return;
     }

@@ -935,6 +935,8 @@ function updateMenuGamepadInput(dt){
   // "Leave it buried", instead of only looking for Back/Cancel labels.
   if(pressureActive && gamepadPressed(GAMEPAD.B)){
     if(typeof choosePressureObjectiveOffer === 'function') choosePressureObjectiveOffer(false);
+    // Keep the gamepad focus cache in sync with the now-closed modal.
+    if(typeof refreshMenuGamepadSelection === 'function') refreshMenuGamepadSelection([]);
     return true;
   }
 

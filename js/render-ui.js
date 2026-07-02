@@ -135,14 +135,19 @@ function bindPressureObjectiveOverlayEvents(overlay){
   overlay.addEventListener('pointerup',delegatedChoice,true);
   overlay.addEventListener('touchend',delegatedChoice,{capture:true,passive:false});
 
-  // Final defensive listener: if any other listener stops propagation before the
-  // button onclick fires, document capture still resolves the modal.
-  document.addEventListener('click',e=>{
+  // Final defensive listeners: if any other listener stops propagation before the
+  // button onclick fires, document capture still resolves the modal. Pointer and
+  // touch fallbacks are intentionally included because some game wrappers and
+  // mobile browsers suppress the synthetic click after touch/pointer input.
+  const documentChoiceFallback=e=>{
     if(!overlay.classList.contains('show')) return;
     const el=pressureObjectiveChoiceElement(e.target);
     if(!el || !overlay.contains(el)) return;
     resolvePressureObjectiveChoiceFromEvent(e,el.dataset.pressureChoice === 'accept');
-  },true);
+  };
+  document.addEventListener('click',documentChoiceFallback,true);
+  document.addEventListener('pointerup',documentChoiceFallback,true);
+  document.addEventListener('touchend',documentChoiceFallback,{capture:true,passive:false});
 }
 
 function ensurePressureObjectiveOverlay(){

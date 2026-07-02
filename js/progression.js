@@ -329,7 +329,14 @@ function canOfferPressureObjective(g){
   const st=ensurePressureObjectiveState(g);
   if(!g || !st || g.state!=='playing') return false;
   if(g.bossSpawned || g.extraction || g.runResolved) return false;
+
+  // Safety: never queue or replace a pressure signal while the modal layer is
+  // already open or being resolved. This protects the hard-close path from an
+  // immediate same-frame re-open if DOM state and pressureSystem state drift.
+  if(typeof awaitingPressureChoice !== 'undefined' && awaitingPressureChoice) return false;
+  if(st.modalOpen) return false;
   if(st.offer) return false;
+
   if(st.offersSeen >= (st.maxOffers || PRESSURE_OBJECTIVE_CONFIG.maxOffersPerRun)) return false;
   const active=(st.activeIds || []).some(id=>normaliseObjectives(g).some(o=>o.id===id && !o.completed && !o.failed));
   if(active) return false;
