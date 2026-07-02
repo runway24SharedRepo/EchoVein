@@ -1857,3 +1857,94 @@ body.mobilePortrait .modal::before {
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+
+/* ==============================
+   Pressure Objectives v1
+   ============================== */
+.pressureObjectiveOverlay {
+  z-index: 10000;
+  pointer-events: auto;
+  touch-action: none;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(180,107,255,0.18), transparent 34%),
+    radial-gradient(circle at 50% 50%, rgba(15,22,36,0.62), rgba(0,0,0,0.84));
+}
+
+.pressureObjectiveOverlay:not(.show) {
+  display: none !important;
+  pointer-events: none !important;
+}
+
+.pressureObjectiveModal {
+  width: min(720px, calc(100vw - 32px));
+  pointer-events: auto;
+  touch-action: manipulation;
+  border-color: rgba(180,107,255,0.42);
+  box-shadow: 0 0 44px rgba(180,107,255,0.20), 0 18px 80px rgba(0,0,0,0.75);
+}
+.pressureObjectiveHeader {
+  display:flex;
+  gap:14px;
+  align-items:center;
+  margin-bottom:12px;
+}
+.pressureObjectiveHeader > span {
+  width:54px;
+  height:54px;
+  border-radius:18px;
+  display:grid;
+  place-items:center;
+  font-size:30px;
+  background:rgba(180,107,255,0.18);
+  border:1px solid rgba(180,107,255,0.45);
+  box-shadow:0 0 24px rgba(180,107,255,0.20);
+}
+.pressureObjectiveBody {
+  flex:1 1 auto;
+  min-height:0;
+  overflow:auto;
+}
+.pressureObjectiveCard {
+  border:1px solid rgba(180,107,255,0.34);
+  background:rgba(180,107,255,0.09);
+  border-radius:16px;
+  padding:14px;
+}
+.pressureObjectiveCard strong {
+  display:block;
+  color:#ff66d9;
+  font-size:18px;
+  margin-bottom:6px;
+}
+.pressureObjectiveGrid {
+  display:grid;
+  grid-template-columns:minmax(90px,0.36fr) 1fr;
+  gap:8px 12px;
+  margin-top:12px;
+  font-size:13px;
+}
+.pressureObjectiveGrid span {
+  color:var(--muted);
+}
+.pressureObjectiveGrid b {
+  color:var(--text);
+  font-weight:900;
+}
+.pressureObjectiveChoices button {
+  min-width: 170px;
+  min-height: 48px;
+  pointer-events: auto;
+  touch-action: manipulation;
+  cursor: pointer;
+}
+.pressureObjectiveChoices button:first-child {
+  border-color:rgba(255,102,217,0.55);
+  background:linear-gradient(180deg, rgba(255,102,217,0.24), rgba(180,107,255,0.14));
+}
+.pressureObjectiveChoices button:last-child {
+  background:rgba(255,255,255,0.06);
+}
+@media (max-width: 680px) {
+  .pressureObjectiveHeader { align-items:flex-start; }
+  .pressureObjectiveGrid { grid-template-columns:1fr; }
+}

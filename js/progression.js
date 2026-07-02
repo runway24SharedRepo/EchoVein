@@ -92,13 +92,13 @@ function allPrimaryObjectivesComplete(g){
 
 
 /*
- * Secondary objective reward helpers — Stronger Mission Variety validation pass
+ * Optional objective reward helpers — Stronger Mission Variety validation pass
  *
- * Secondary objectives live inside g.objectives and are optional. They are
- * paid out only after successful extraction/run completion, never during boss
- * spawning, and never when incomplete or failed. Rewards are written directly
- * to the persistent profile so they cannot accidentally be banked twice by
- * bankRunRewards().
+ * Secondary objectives and accepted pressure objectives live inside g.objectives
+ * and are optional. They are paid out only after successful extraction/run
+ * completion, never during boss spawning, and never when incomplete or failed.
+ * Rewards are written directly to the persistent profile so they cannot
+ * accidentally be banked twice by bankRunRewards().
  */
 function rewardResourceToProfileKey(resourceId){
   const map={ gild:'gildShards', echo:'echoQuartz', voltarite:'voltarite' };
@@ -183,19 +183,301 @@ function applyCompletedSecondaryObjectiveRewards(g){
   const rewards=ensureRewardTracking(g);
   const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g?.objectives || []);
   for(const objective of objectives){
-    if(!objective || objective.objectiveType!=='secondary') continue;
+    if(!objective || (objective.objectiveType!=='secondary' && objective.objectiveType!=='pressure')) continue;
     if(!objective.completed || objective.failed || !objective.reward || objective.rewardClaimed) continue;
-    const entry=applyObjectiveRewardToProfile(g,objective.reward,objective.displayName || objective.id || 'Bonus objective');
+    const sourceLabel=objective.displayName || objective.id || (objective.objectiveType==='pressure' ? 'Risk objective' : 'Bonus objective');
+    const entry=applyObjectiveRewardToProfile(g,objective.reward,sourceLabel);
     objective.rewardClaimed=true;
     if(!entry) continue;
     entry.objectiveId=objective.id;
-    entry.objectiveType='secondary';
+    entry.objectiveType=objective.objectiveType;
     rewards.push(entry);
     if(g.runStats) g.runStats.secondaryObjectiveRewards=rewards;
     const text=rewardEntryToText(entry);
-    if(g.log && Array.isArray(g.log)) g.log.unshift(`✅ Bonus objective rewarded: ${entry.source}${text ? ` — ${text}` : ''}`);
+    const prefix=objective.objectiveType==='pressure' ? '⚠️ Risk objective rewarded' : '✅ Bonus objective rewarded';
+    if(g.log && Array.isArray(g.log)) g.log.unshift(`${prefix}: ${entry.source}${text ? ` — ${text}` : ''}`);
   }
   return rewards;
+}
+
+
+/*
+ * Pressure Objectives v1
+ *
+ * These are optional in-run risk/reward contracts. They are deliberately
+ * lightweight: a timed RISK objective is offered during the run, the player can
+ * accept or ignore it, accepting immediately raises Hollow Pressure, and the
+ * objective pays out only on successful extraction if completed.
+ */
+const PRESSURE_OBJECTIVE_CONFIG = {
+  firstOfferTime: 75,
+  repeatOfferDelay: 130,
+  maxOffersPerRun: 2,
+  maxActive: 1
+};
+
+function ensurePressureObjectiveState(g){
+  if(!g) return null;
+  const st = g.pressureSystem || {};
+  g.pressureSystem = {
+    offersSeen: Number.isFinite(+st.offersSeen) ? +st.offersSeen : 0,
+    maxOffers: Number.isFinite(+st.maxOffers) ? +st.maxOffers : PRESSURE_OBJECTIVE_CONFIG.maxOffersPerRun,
+    nextOfferTime: Number.isFinite(+st.nextOfferTime) ? +st.nextOfferTime : PRESSURE_OBJECTIVE_CONFIG.firstOfferTime,
+    offer: st.offer || null,
+    modalOpen: !!st.modalOpen,
+    lastModalCloseReason: st.lastModalCloseReason || '',
+    lastDeclinedAt: Number.isFinite(+st.lastDeclinedAt) ? +st.lastDeclinedAt : -9999,
+    activeIds: Array.isArray(st.activeIds) ? st.activeIds : [],
+    completed: Number.isFinite(+st.completed) ? +st.completed : 0,
+    failed: Number.isFinite(+st.failed) ? +st.failed : 0
+  };
+  return g.pressureSystem;
+}
+
+function pressureObjectiveResourceName(resourceId){
+  return MINERALS?.[resourceId]?.displayName || resourceId || 'ore';
+}
+
+function pressureObjectiveRareResource(g){
+  const pool=['voltarite','aetherQuartz','crysalith','emberglass'];
+  return pool[Math.abs(Math.floor((g?.missionIndex||1)+(g?.runIndex||1)+(g?.time||0))) % pool.length];
+}
+
+function buildPressureObjectiveOffer(g){
+  const rareRes=pressureObjectiveRareResource(g);
+  const rareName=pressureObjectiveResourceName(rareRes);
+  const templates=[
+    {
+      templateId:'blood_echo',
+      icon:'⚔️',
+      title:'Blood Echo Surge',
+      riskText:'Hollow Pressure rises immediately and a hostile surge answers the signal.',
+      acceptText:'Accept combat risk',
+      ignoreText:'Ignore signal',
+      burstType:'swarmer',
+      burstCount:8,
+      pressureIncrease:1,
+      objective:createObjective({
+        id:`pressure_blood_echo_${Math.floor(g.time||0)}`,
+        type:'killEnemyType',
+        objectiveType:'pressure',
+        optional:true,
+        displayName:'⚠️ Blood Echo Surge',
+        description:'RISK objective. Kill enemies before the signal collapses. The reward is granted only if you extract successfully.',
+        targetAmount:18,
+        currentAmount:0,
+        reward:{ xp:35, resources:{ voltarite:4 } },
+        params:{ enemyType:'any', timeLimit:90, timeRemaining:90, templateId:'blood_echo' },
+        tags:['pressure','combat','risk']
+      })
+    },
+    {
+      templateId:'unstable_vein',
+      icon:'⛏️',
+      title:'Unstable Vein Bloom',
+      riskText:'The cave becomes louder. Hollow Pressure rises while you chase unstable rare ore.',
+      acceptText:'Overmine the vein',
+      ignoreText:'Leave it buried',
+      burstType:'grunt',
+      burstCount:6,
+      pressureIncrease:1,
+      objective:createObjective({
+        id:`pressure_unstable_vein_${Math.floor(g.time||0)}`,
+        type:'collectResourceTag',
+        objectiveType:'pressure',
+        optional:true,
+        displayName:`⚠️ Extract unstable ${rareName}`,
+        description:'RISK objective. Collect rare ore before the vein collapses. Reward is paid after successful extraction.',
+        targetAmount:12,
+        currentAmount:0,
+        reward:{ xp:30, resources:{ gild:35, [rareRes]:2 } },
+        params:{ resourceId:rareRes, tag:'rareOre', timeLimit:120, timeRemaining:120, templateId:'unstable_vein' },
+        tags:['pressure','harvest','rareOre','risk',rareRes]
+      })
+    },
+    {
+      templateId:'overbreak',
+      icon:'🪨',
+      title:'Fracture Overbreak',
+      riskText:'Breaking the surrounding rock amplifies enemy response and raises Hollow Pressure.',
+      acceptText:'Force the fracture',
+      ignoreText:'Stabilise and move on',
+      burstType:'exploder',
+      burstCount:4,
+      pressureIncrease:1,
+      objective:createObjective({
+        id:`pressure_overbreak_${Math.floor(g.time||0)}`,
+        type:'mineBlocks',
+        objectiveType:'pressure',
+        optional:true,
+        displayName:'⚠️ Force a fracture overbreak',
+        description:'RISK objective. Mine blocks quickly before the fracture cools. Reward is paid after successful extraction.',
+        targetAmount:24,
+        currentAmount:0,
+        reward:{ xp:25, resources:{ gild:45 } },
+        params:{ timeLimit:105, timeRemaining:105, templateId:'overbreak' },
+        tags:['pressure','mining','risk']
+      })
+    }
+  ];
+  const missionBias = g?.missionType === 'harvest' ? 'unstable_vein' : (g?.missionType === 'hunt' ? 'blood_echo' : null);
+  if(missionBias && Math.random()<0.55) return templates.find(t=>t.templateId===missionBias) || templates[0];
+  return templates[Math.floor(Math.random()*templates.length)] || templates[0];
+}
+
+function canOfferPressureObjective(g){
+  const st=ensurePressureObjectiveState(g);
+  if(!g || !st || g.state!=='playing') return false;
+  if(g.bossSpawned || g.extraction || g.runResolved) return false;
+  if(st.offer) return false;
+  if(st.offersSeen >= (st.maxOffers || PRESSURE_OBJECTIVE_CONFIG.maxOffersPerRun)) return false;
+  const active=(st.activeIds || []).some(id=>normaliseObjectives(g).some(o=>o.id===id && !o.completed && !o.failed));
+  if(active) return false;
+  return (g.time || 0) >= (st.nextOfferTime || PRESSURE_OBJECTIVE_CONFIG.firstOfferTime);
+}
+
+function queuePressureObjectiveOffer(g){
+  const st=ensurePressureObjectiveState(g);
+  if(!st || !canOfferPressureObjective(g)) return null;
+  const offer=buildPressureObjectiveOffer(g);
+  st.offer=offer;
+  st.offersSeen++;
+  st.nextOfferTime=(g.time || 0)+PRESSURE_OBJECTIVE_CONFIG.repeatOfferDelay;
+  if(typeof showPressureObjectiveOffer === 'function') showPressureObjectiveOffer(g,offer);
+  else log(g,`Risk signal detected: ${offer.title}`);
+  return offer;
+}
+
+function applyPressureObjectiveRisk(g,offer){
+  if(!g || !offer) return;
+  const inc=Math.max(0,Math.floor(Number(offer.pressureIncrease)||0));
+  if(inc>0){
+    g.hollowPressure=(g.hollowPressure || 0)+inc;
+    g.pressureFlash=2.8;
+  }
+  const count=Math.max(0,Math.floor(Number(offer.burstCount)||0));
+  if(count>0 && typeof spawnBurst === 'function'){
+    const type=offer.burstType || 'swarmer';
+    const adjusted=typeof performanceAdjustedCount === 'function' ? performanceAdjustedCount(g,count,true) : count;
+    if(adjusted>0 && (typeof canSpawnNormalEnemy !== 'function' || canSpawnNormalEnemy(g,type,adjusted))) spawnBurst(g,adjusted,type);
+  }
+  if(typeof log === 'function') log(g,`Risk accepted: ${offer.title}. Hollow Pressure +${inc}.`);
+  if(typeof sfx === 'function') sfx('wave',1.0);
+}
+
+function acceptPressureObjectiveOffer(g,fallbackOffer=null){
+  const st=ensurePressureObjectiveState(g);
+  const offer=st?.offer || fallbackOffer;
+
+  // Button hotfix: accepting must never leave the overlay stuck open.  If the
+  // offer has gone stale, close the modal and allow gameplay to resume.
+  if(!g || !offer || !offer.objective){
+    if(st){ st.offer=null; st.modalOpen=false; }
+    if(typeof hardClosePressureObjectiveOffer === 'function') hardClosePressureObjectiveOffer('accept_stale');
+    else if(typeof hidePressureObjectiveOffer === 'function') hidePressureObjectiveOffer();
+    return false;
+  }
+
+  try {
+    const objective=normaliseObjective(offer.objective);
+    objective.acceptedAt=g.time || 0;
+    objective.params = { ...(objective.params || {}) };
+    objective.params.timeRemaining = Number(objective.params.timeRemaining ?? objective.params.timeLimit ?? 90);
+    objective.params.timeLimit = Number(objective.params.timeLimit ?? objective.params.timeRemaining ?? 90);
+    g.objectives=normaliseObjectives(g);
+    if(!g.objectives.some(o=>o.id===objective.id)) g.objectives.push(objective);
+    st.activeIds=[...(st.activeIds || []).filter(id=>id!==objective.id), objective.id];
+    st.offer=null;
+    applyPressureObjectiveRisk(g,offer);
+    if(typeof hidePressureObjectiveOffer === 'function') hidePressureObjectiveOffer();
+    return true;
+  } catch(err){
+    console.error('Failed to accept pressure objective:', err);
+    if(st) st.offer=null;
+    if(typeof log === 'function') log(g,'Risk signal malfunction cleared.');
+    if(typeof hidePressureObjectiveOffer === 'function') hidePressureObjectiveOffer();
+    return false;
+  }
+}
+
+function declinePressureObjectiveOffer(g,fallbackOffer=null){
+  /*
+   * Declining a pressure offer is a pure modal dismissal: no objective is added,
+   * no risk is applied, and boss/extraction flow is unaffected. This path is
+   * deliberately stronger than a normal UI hide because the run is paused while
+   * the modal is open.
+   */
+  let offer=fallbackOffer;
+  try {
+    const st=g ? ensurePressureObjectiveState(g) : null;
+    offer=st?.offer || offer;
+    if(st){
+      st.offer=null;
+      st.modalOpen=false;
+      st.lastModalCloseReason='declined';
+      st.lastDeclinedAt=g?.time || 0;
+      // Prevent the same frame / next update from immediately presenting a new
+      // signal after the player explicitly ignored this one.
+      st.nextOfferTime=Math.max(Number(st.nextOfferTime)||0,(g?.time || 0)+PRESSURE_OBJECTIVE_CONFIG.repeatOfferDelay);
+    }
+    if(offer && g && typeof log === 'function') log(g,`Risk signal ignored: ${offer.title}.`);
+  } catch(err){
+    console.warn('Pressure objective decline recovered:', err);
+    try {
+      if(g?.pressureSystem){
+        g.pressureSystem.offer=null;
+        g.pressureSystem.modalOpen=false;
+        g.pressureSystem.nextOfferTime=(g.time || 0)+PRESSURE_OBJECTIVE_CONFIG.repeatOfferDelay;
+      }
+    } catch(_) {}
+  }
+  try {
+    if(typeof hardClosePressureObjectiveOffer === 'function') hardClosePressureObjectiveOffer('declined');
+    else if(typeof hidePressureObjectiveOffer === 'function') hidePressureObjectiveOffer();
+  } catch(_) { awaitingPressureChoice=false; }
+  return true;
+}
+
+function failPressureObjective(g,o,reason){
+  if(!g || !o || o.completed || o.failed) return;
+  o.failed=true;
+  o.description=o.description || reason || 'Pressure objective failed.';
+  const st=ensurePressureObjectiveState(g);
+  if(st){
+    st.failed=(st.failed || 0)+1;
+    st.activeIds=(st.activeIds || []).filter(id=>id!==o.id);
+  }
+  if(g.runStats) g.runStats.objectivesFailed=(g.runStats.objectivesFailed||0)+1;
+  if(typeof log === 'function') log(g,`Risk failed: ${o.displayName || o.id}.`);
+  if(typeof floating === 'function' && g.player) floating(g,g.player.x,g.player.y-42,'Risk failed','#ff5b5b');
+}
+
+function updatePressureObjectiveTimers(g,dt){
+  const st=ensurePressureObjectiveState(g);
+  if(!st) return;
+  const objectives=normaliseObjectives(g).filter(o=>o.objectiveType==='pressure');
+  for(const o of objectives){
+    if(!o || o.failed) continue;
+    if(o.completed){
+      if(!o.pressureCompletionLogged){
+        o.pressureCompletionLogged=true;
+        st.completed=(st.completed || 0)+1;
+        st.activeIds=(st.activeIds || []).filter(id=>id!==o.id);
+        if(typeof log === 'function') log(g,`Risk complete: ${o.displayName || o.id}. Extract to claim reward.`);
+      }
+      continue;
+    }
+    o.params = (o.params && typeof o.params==='object') ? o.params : {};
+    if(o.params.timeRemaining == null) continue;
+    o.params.timeRemaining=Math.max(0,Number(o.params.timeRemaining)-dt);
+    if(o.params.timeRemaining<=0) failPressureObjective(g,o,'The risk timer expired.');
+  }
+}
+
+function updatePressureObjectiveSystem(g,dt){
+  ensurePressureObjectiveState(g);
+  updatePressureObjectiveTimers(g,dt);
+  if(canOfferPressureObjective(g)) queuePressureObjectiveOffer(g);
 }
 
 /*
@@ -1693,8 +1975,8 @@ function completeRun(g){
   g.runResolved=true;
   bankRunRewards(g);
 
-  // New objective-system bonuses: completed secondary objectives are optional
-  // and never participate in boss spawning, but they pay out on extraction.
+  // New objective-system bonuses: completed secondary and accepted pressure
+  // objectives are optional and never participate in boss spawning, but they pay out on extraction.
   if(typeof applyCompletedSecondaryObjectiveRewards === 'function') applyCompletedSecondaryObjectiveRewards(g);
 
   // Legacy mission bonus checks remain supported for older mission logic. They

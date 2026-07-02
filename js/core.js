@@ -435,6 +435,7 @@ let lastTime = performance.now();
 let game = null;
 let paused = false;
 let awaitingUpgrade = false;
+let awaitingPressureChoice = false;
 let shake = 0;
 let logTimeout = 0;
 
@@ -802,6 +803,11 @@ function activeOverlayScrollPanel(target=null){
     return firstScrollableElement([gameOverOverlay.querySelector('.modal')]);
   }
 
+  const pressureOverlay = document.getElementById('pressureObjectiveOverlay');
+  if(pressureOverlay?.classList?.contains('show')){
+    return firstScrollableElement([pressureOverlay.querySelector('.modal')]);
+  }
+
   if(ui.startOverlay?.classList?.contains('show')){
     const menuContent = document.getElementById('menuContent');
     const classCards = document.getElementById('classCards');
@@ -854,12 +860,14 @@ function visibleMenuGamepadElements(){
   const startActive = ui.startOverlay?.classList?.contains('show');
   const gameOverActive = document.getElementById('gameOverOverlay')?.classList?.contains('show');
   const statsActive = document.getElementById('runStatsOverlay')?.classList?.contains('show');
-  if(!startActive && !gameOverActive && !statsActive) return [];
+  const pressureActive = document.getElementById('pressureObjectiveOverlay')?.classList?.contains('show');
+  if(!startActive && !gameOverActive && !statsActive && !pressureActive) return [];
 
   let container = null;
   if(startActive) container = ui.startOverlay;
   else if(gameOverActive) container = document.getElementById('gameOverOverlay');
   else if(statsActive) container = document.getElementById('runStatsOverlay');
+  else if(pressureActive) container = document.getElementById('pressureObjectiveOverlay');
   const selectors = [
     '#menuButtons button',
     '#classCards .card[data-class-id]',
@@ -919,7 +927,17 @@ function updateMenuGamepadInput(dt){
   const startActive = ui.startOverlay?.classList?.contains('show');
   const gameOverActive = document.getElementById('gameOverOverlay')?.classList?.contains('show');
   const statsActive = document.getElementById('runStatsOverlay')?.classList?.contains('show');
-  if(!startActive && !gameOverActive && !statsActive) return false;
+  const pressureActive = document.getElementById('pressureObjectiveOverlay')?.classList?.contains('show');
+  if(!startActive && !gameOverActive && !statsActive && !pressureActive) return false;
+
+  // Pressure objective choices are modal and freeze gameplay. Let B reliably
+  // decline even when the visible button text is mission-specific, such as
+  // "Leave it buried", instead of only looking for Back/Cancel labels.
+  if(pressureActive && gamepadPressed(GAMEPAD.B)){
+    if(typeof choosePressureObjectiveOffer === 'function') choosePressureObjectiveOffer(false);
+    return true;
+  }
+
   const elements=visibleMenuGamepadElements();
   if(!elements.length) return false;
   const signature=elements.map(el=>el.textContent || el.dataset.classId || el.id || el.tagName).join('|');

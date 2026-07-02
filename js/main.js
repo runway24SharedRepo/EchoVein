@@ -16,8 +16,19 @@ requestAnimationFrame(loop);
 
 addEventListener('keydown',e=>{
   resumeAudio();
+  const pressureOpen = awaitingPressureChoice || document.getElementById('pressureObjectiveOverlay')?.classList?.contains('show');
+  if(pressureOpen){
+    if(['Enter','Space','KeyA','KeyY'].includes(e.code)){
+      if(typeof choosePressureObjectiveOffer === 'function') choosePressureObjectiveOffer(true,e);
+      return;
+    }
+    if(['Escape','Backspace','KeyB','KeyN'].includes(e.code)){
+      if(typeof choosePressureObjectiveOffer === 'function') choosePressureObjectiveOffer(false,e);
+      return;
+    }
+  }
   keys.add(e.code);
-  if(e.code==='Space' && game && game.state==='playing' && !awaitingUpgrade){
+  if(e.code==='Space' && game && game.state==='playing' && !awaitingUpgrade && !awaitingPressureChoice){
     triggerDash(game,'keyboard');
     e.preventDefault();
   }
@@ -59,16 +70,17 @@ function isOverlayOpenForScrollLock(){
   const upgradeOpen = ui.upgradeOverlay?.classList?.contains('show');
   const gameOverOpen = ui.gameOverOverlay?.classList?.contains('show');
   const statsOpen = document.getElementById('runStatsOverlay')?.classList?.contains('show');
+  const pressureOpen = document.getElementById('pressureObjectiveOverlay')?.classList?.contains('show');
 
-  return !!(startOpen || upgradeOpen || gameOverOpen || statsOpen);
+  return !!(startOpen || upgradeOpen || gameOverOpen || statsOpen || pressureOpen);
 }
 
 function isInsideAllowedScrollArea(target){
   if(!(target instanceof Element)) return false;
 
   return !!target.closest(
-    '#menuContent, #classCards, #upgradeCards, #runStatsBody, ' +
-    '.debugPanel, .spriteTestPanel, .runStatsModal, .upgradeCategorySection'
+    '#menuContent, #classCards, #upgradeCards, #runStatsBody, #pressureObjectiveChoices, ' +
+    '.debugPanel, .spriteTestPanel, .runStatsModal, .upgradeCategorySection, .pressureObjectiveModal'
   );
 }
 

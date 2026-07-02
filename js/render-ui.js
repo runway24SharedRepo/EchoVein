@@ -2,6 +2,215 @@
 
 /* HUD updates, menus, rendering, drawing helpers, and game-over/start flows. */
 
+
+function pressureObjectiveEscape(value){
+  return String(value ?? '').replace(/[&<>"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+}
+
+function pressureObjectiveRewardText(reward){
+  if(!reward || typeof reward!=='object') return 'Bonus reward on extraction';
+  const parts=[];
+  const xp=Math.floor(Number(reward.xp || reward.operatorXp || reward.operatorXP || 0));
+  if(xp>0) parts.push(`+${xp} Operator XP`);
+  const resources=(reward.resources && typeof reward.resources==='object') ? reward.resources : {};
+  for(const [id,raw] of Object.entries(resources)){
+    const amount=Math.floor(Number(raw)||0);
+    if(amount<=0) continue;
+    parts.push(`+${amount} ${MINERALS?.[id]?.displayName || id}`);
+  }
+  return parts.join(' · ') || 'Bonus reward on extraction';
+}
+
+function pressureObjectiveCurrentOffer(){
+  const overlay=document.getElementById('pressureObjectiveOverlay');
+  return game?.pressureSystem?.offer || overlay?._pressureOffer || null;
+}
+
+function pressureObjectiveChoiceElement(target){
+  /*
+   * Avoid instanceof Element here. Some wrappers/iframes can create DOM nodes
+   * from a different realm, which makes instanceof checks unreliable. A manual
+   * parent walk is safer and keeps the Ignore/Decline button working.
+   */
+  let node=target;
+  while(node && node !== document){
+    if(node.dataset && node.dataset.pressureChoice) return node;
+    node=node.parentElement || node.parentNode;
+  }
+  return null;
+}
+
+function hardClosePressureObjectiveOffer(reason='closed'){
+  /*
+   * Absolute escape hatch for the pressure modal. This does not accept a risk,
+   * does not fail an objective, and does not touch boss/extraction progression.
+   * It exists because the game loop is paused while awaitingPressureChoice=true;
+   * leaving the overlay visible soft-locks the run.
+   */
+  awaitingPressureChoice=false;
+  try {
+    if(game?.pressureSystem){
+      game.pressureSystem.offer=null;
+      game.pressureSystem.modalOpen=false;
+      game.pressureSystem.lastModalCloseReason=reason;
+    }
+  } catch(_) {}
+  const overlay=document.getElementById('pressureObjectiveOverlay');
+  if(overlay){
+    overlay._pressureOffer=null;
+    overlay.classList.remove('show');
+    overlay.setAttribute('aria-hidden','true');
+    overlay.style.display='none';
+    overlay.style.pointerEvents='none';
+  }
+  if(typeof refreshMenuGamepadSelection === 'function') refreshMenuGamepadSelection([]);
+  if(typeof updateUI === 'function' && game) updateUI(game);
+}
+
+function resolvePressureObjectiveChoiceFromEvent(e,accept){
+  /*
+   * Pressure modal input is intentionally redundant. Some browsers/game wrappers
+   * suppress synthetic click after pointer/touch handling, so buttons resolve on
+   * click, pointerup, touchend, and delegated capture handlers.
+   */
+  if(e){
+    e.preventDefault?.();
+    e.stopPropagation?.();
+    e.stopImmediatePropagation?.();
+  }
+  return choosePressureObjectiveOffer(accept,e);
+}
+
+function choosePressureObjectiveOffer(accept,e=null){
+  if(e){
+    e.preventDefault?.();
+    e.stopPropagation?.();
+    e.stopImmediatePropagation?.();
+  }
+  try { resumeAudio(); } catch(_) {}
+
+  const offer=pressureObjectiveCurrentOffer();
+  let handled=false;
+  try {
+    if(accept && typeof acceptPressureObjectiveOffer === 'function') handled=!!acceptPressureObjectiveOffer(game,offer);
+    else if(!accept && typeof declinePressureObjectiveOffer === 'function') handled=!!declinePressureObjectiveOffer(game,offer);
+  } catch(err){
+    console.error('Pressure objective choice failed:', err);
+    handled=false;
+  }
+
+  // Decline must always close, even if the stored offer is stale or missing.
+  // Accept also closes if the offer cannot be accepted, to avoid soft-locks.
+  if(!handled){
+    hardClosePressureObjectiveOffer(accept ? 'accept_recovered' : 'declined_recovered');
+    if(typeof log === 'function' && game) log(game, accept ? 'Risk signal cleared.' : 'Risk signal ignored.');
+  }
+  return handled;
+}
+
+function bindPressureObjectiveButton(button,accept){
+  if(!button) return;
+  button.dataset.pressureChoice=accept ? 'accept' : 'decline';
+  button.onclick=e=>resolvePressureObjectiveChoiceFromEvent(e,accept);
+  button.onpointerup=e=>resolvePressureObjectiveChoiceFromEvent(e,accept);
+  button.ontouchend=e=>resolvePressureObjectiveChoiceFromEvent(e,accept);
+}
+
+function bindPressureObjectiveOverlayEvents(overlay){
+  if(!overlay || overlay.dataset.boundPressureObjective === '1') return;
+  overlay.dataset.boundPressureObjective = '1';
+
+  const modal=overlay.querySelector('.pressureObjectiveModal');
+  modal?.addEventListener('pointerdown',e=>e.stopPropagation());
+  modal?.addEventListener('mousedown',e=>e.stopPropagation());
+  modal?.addEventListener('touchstart',e=>e.stopPropagation(),{passive:true});
+
+  const delegatedChoice=e=>{
+    const el=pressureObjectiveChoiceElement(e.target);
+    if(!el) return;
+    resolvePressureObjectiveChoiceFromEvent(e,el.dataset.pressureChoice === 'accept');
+  };
+
+  overlay.addEventListener('click',delegatedChoice,true);
+  overlay.addEventListener('pointerup',delegatedChoice,true);
+  overlay.addEventListener('touchend',delegatedChoice,{capture:true,passive:false});
+
+  // Final defensive listener: if any other listener stops propagation before the
+  // button onclick fires, document capture still resolves the modal.
+  document.addEventListener('click',e=>{
+    if(!overlay.classList.contains('show')) return;
+    const el=pressureObjectiveChoiceElement(e.target);
+    if(!el || !overlay.contains(el)) return;
+    resolvePressureObjectiveChoiceFromEvent(e,el.dataset.pressureChoice === 'accept');
+  },true);
+}
+
+function ensurePressureObjectiveOverlay(){
+  let overlay=document.getElementById('pressureObjectiveOverlay');
+  if(!overlay){
+    overlay=document.createElement('div');
+    overlay.id='pressureObjectiveOverlay';
+    overlay.className='overlay pressureObjectiveOverlay';
+    overlay.innerHTML=`<div class="modal pressureObjectiveModal" role="dialog" aria-modal="true" aria-labelledby="pressureObjectiveTitle">
+      <div class="pressureObjectiveHeader"><span id="pressureObjectiveIcon">⚠️</span><div><h1 id="pressureObjectiveTitle">Risk Signal</h1><p id="pressureObjectiveSubtitle" class="subtitle">Optional pressure objective detected.</p></div></div>
+      <div id="pressureObjectiveBody" class="pressureObjectiveBody"></div>
+      <div id="pressureObjectiveChoices" class="buttonRow pressureObjectiveChoices">
+        <button id="pressureObjectiveAcceptBtn" type="button" data-pressure-choice="accept">Accept Risk</button>
+        <button id="pressureObjectiveDeclineBtn" type="button" data-pressure-choice="decline">Ignore</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+  }
+  bindPressureObjectiveOverlayEvents(overlay);
+  return overlay;
+}
+
+function showPressureObjectiveOffer(g,offer){
+  if(!g || !offer) return;
+  const overlay=ensurePressureObjectiveOverlay();
+  overlay._pressureOffer=offer;
+  awaitingPressureChoice=true;
+  overlay.style.display='flex';
+  overlay.style.pointerEvents='auto';
+  overlay.removeAttribute('aria-hidden');
+  if(g.pressureSystem) g.pressureSystem.modalOpen=true;
+  const objective=offer.objective || {};
+  overlay.querySelector('#pressureObjectiveIcon').textContent=offer.icon || '⚠️';
+  overlay.querySelector('#pressureObjectiveTitle').textContent=offer.title || 'Risk Signal';
+  overlay.querySelector('#pressureObjectiveSubtitle').textContent='Optional RISK objective — accept for danger now, claim reward only after extraction.';
+  const target=Math.floor(Number(objective.targetAmount)||0);
+  const timeLimit=Math.floor(Number(objective.params?.timeLimit || objective.params?.timeRemaining || 0));
+  const reward=pressureObjectiveRewardText(objective.reward);
+  overlay.querySelector('#pressureObjectiveBody').innerHTML=`
+    <div class="pressureObjectiveCard">
+      <strong>${pressureObjectiveEscape(objective.displayName || offer.title || 'Pressure objective')}</strong>
+      <p>${pressureObjectiveEscape(objective.description || 'Complete this optional risk before it expires.')}</p>
+      <div class="pressureObjectiveGrid">
+        <span>Target</span><b>${target ? pressureObjectiveEscape(target) : 'Special'}</b>
+        <span>Time limit</span><b>${timeLimit ? pressureObjectiveEscape(formatDuration(timeLimit)) : 'No timer'}</b>
+        <span>Risk</span><b>${pressureObjectiveEscape(offer.riskText || 'Hollow Pressure rises')}</b>
+        <span>Reward</span><b>${pressureObjectiveEscape(reward)}</b>
+      </div>
+    </div>`;
+  const accept=overlay.querySelector('#pressureObjectiveAcceptBtn');
+  const decline=overlay.querySelector('#pressureObjectiveDeclineBtn');
+  if(accept){
+    accept.textContent=offer.acceptText || 'Accept Risk';
+    bindPressureObjectiveButton(accept,true);
+  }
+  if(decline){
+    decline.textContent=offer.ignoreText || 'Ignore';
+    bindPressureObjectiveButton(decline,false);
+  }
+  overlay.classList.add('show');
+  setTimeout(()=>{ try{ accept?.focus({preventScroll:true}); }catch(_){ accept?.focus(); } },0);
+  if(typeof refreshMenuGamepadSelection === 'function') refreshMenuGamepadSelection();
+}
+
+function hidePressureObjectiveOffer(){
+  hardClosePressureObjectiveOffer('hide');
+}
+
 function renderFallbackObjectiveChips(objectives){
   const escape=value=>String(value ?? '').replace(/[&<>\"']/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#39;'}[ch]));
   const labelFor=o=>{
@@ -160,21 +369,34 @@ function updateRightPanelVisibility(g){
   const p = g.player;
   const cam = g.camera;
 
-  // Project player world position to screen coordinates
+  // Project player world position into logical canvas coordinates first.
   const screenX = p.x - cam.x;
   const screenY = p.y - cam.y;
 
-  // Get right panel bounding box with 25px buffer
+  /*
+   * The HUD is a DOM layer in browser/client pixels, while the game world is
+   * rendered in the fixed 1600x900 logical viewport. Convert logical canvas
+   * coordinates through VIEW.left/top/scale before comparing with
+   * getBoundingClientRect(). Without this conversion the right mission panel
+   * may never fade on scaled monitors, itch.io embeds, or windowed views.
+   */
+  const clientX = (typeof VIEW !== 'undefined' && Number.isFinite(VIEW.scale))
+    ? (VIEW.left + screenX * VIEW.scale)
+    : screenX;
+  const clientY = (typeof VIEW !== 'undefined' && Number.isFinite(VIEW.scale))
+    ? (VIEW.top + screenY * VIEW.scale)
+    : screenY;
+
+  // Get right panel bounding box with a buffer so the fade starts early.
   const rect = ui.rightbar.getBoundingClientRect();
-  const buffer = 25;
+  const buffer = 32;
   const panelLeft = rect.left - buffer;
   const panelRight = rect.right + buffer;
   const panelTop = rect.top - buffer;
   const panelBottom = rect.bottom + buffer;
 
-  // Check overlap
-  const overlaps = screenX >= panelLeft && screenX <= panelRight &&
-                   screenY >= panelTop && screenY <= panelBottom;
+  const overlaps = clientX >= panelLeft && clientX <= panelRight &&
+                   clientY >= panelTop && clientY <= panelBottom;
 
   ui.rightbar.classList.toggle('faded', overlaps);
 }

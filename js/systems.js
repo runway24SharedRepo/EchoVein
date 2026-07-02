@@ -215,7 +215,7 @@ function updatePerformanceDebugPanel(g){
 
 
 function update(g,dt){
-  if(g.state !== 'playing' || paused || awaitingUpgrade) return;
+  if(g.state !== 'playing' || paused || awaitingUpgrade || awaitingPressureChoice) return;
   g.time += dt;
     // ── Boss Name Display Timer (runs independently of boss life) ──
   if(g.bossNameDisplay && g.bossNameDisplay.timer > 0){
@@ -226,6 +226,8 @@ function update(g,dt){
   }
   updatePerformanceBudgets(g,dt);
   updateHollowPressure(g,dt);
+  if(typeof updatePressureObjectiveSystem === 'function') updatePressureObjectiveSystem(g,dt);
+  if(awaitingPressureChoice){ updateUI(g); return; }
   updateChargingWaveScheduler(g,dt);
   shake = Math.max(0, shake - dt*18);
   logTimeout = Math.max(0, logTimeout-dt);
@@ -597,7 +599,8 @@ function mineTile(g,p,tx,ty,dt){
       : null;
     g.tiles[i]=TILE_EMPTY;
     if(g.runStats) g.runStats.blocksMined=(g.runStats.blocksMined||0)+1;
-    addObjectiveProgress(g,'mine_blocks',1);
+    if(typeof progressMineBlockObjectives === 'function') progressMineBlockObjectives(g,1);
+    else addObjectiveProgress(g,'mine_blocks',1);
     g.tileHp[i]=0;
     g.navigationVersion++;
     for(const e of g.enemies){
@@ -1678,6 +1681,16 @@ function addObjectiveProgressTracked(g,id,amount,progressed){
   if(typeof addObjectiveProgress === 'function') addObjectiveProgress(g,id,amount);
   if(progressed) progressed.add(id);
   return true;
+}
+
+function progressMineBlockObjectives(g,amount=1){
+  if(!g || !amount) return;
+  const objectives = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
+  const progressed=new Set();
+  for(const o of objectives){
+    if(!o || o.completed || o.failed) continue;
+    if(o.type==='mineBlocks' || o.id==='mine_blocks') addObjectiveProgressTracked(g,o.id,amount,progressed);
+  }
 }
 
 function resourceObjectiveTags(resourceId){
@@ -2902,7 +2915,7 @@ function updateArcConnection(g,dt){
 
 
 function handlePrimaryActionAt(g,worldX,worldY,source='input'){
-  if(!g || g.state!=='playing' || awaitingUpgrade) return false;
+  if(!g || g.state!=='playing' || awaitingUpgrade || awaitingPressureChoice) return false;
   mouse.x=clamp(worldX-g.camera.x,0,viewW());
   mouse.y=clamp(worldY-g.camera.y,0,viewH());
   mouse.used=true;
@@ -2925,7 +2938,7 @@ function handlePrimaryActionAt(g,worldX,worldY,source='input'){
 }
 
 function handleSecondaryActionAt(g,worldX,worldY,source='input'){
-  if(!g || g.state!=='playing' || awaitingUpgrade) return false;
+  if(!g || g.state!=='playing' || awaitingUpgrade || awaitingPressureChoice) return false;
   mouse.x=clamp(worldX-g.camera.x,0,viewW());
   mouse.y=clamp(worldY-g.camera.y,0,viewH());
   mouse.used=true;
@@ -2948,7 +2961,8 @@ function updateGamepadInput(dt){
   // startOverlay (main menus), gameOverOverlay (run failed), runStatsOverlay (mission summary)
   const gameOverActive = document.getElementById('gameOverOverlay')?.classList?.contains('show');
   const statsActive = document.getElementById('runStatsOverlay')?.classList?.contains('show');
-  if((ui.startOverlay?.classList?.contains('show') || gameOverActive || statsActive) && !awaitingUpgrade){
+  const pressureActive = document.getElementById('pressureObjectiveOverlay')?.classList?.contains('show');
+  if((ui.startOverlay?.classList?.contains('show') || gameOverActive || statsActive || pressureActive) && !awaitingUpgrade){
     updateMenuGamepadInput(dt);
     return;
   }
@@ -2962,7 +2976,7 @@ function updateGamepadInput(dt){
     updateUpgradeMenuGamepad(game,dt);
     return;
   }
-  if(game.state!=='playing') return;
+  if(game.state!=='playing' || awaitingPressureChoice) return;
   if(gamepadPressed(GAMEPAD.Y)) triggerDash(game,'gamepad');
 
   // A was already used by the player as the trap button. Keep A mapped to the

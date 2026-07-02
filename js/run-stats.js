@@ -127,9 +127,12 @@ function objectiveProgressText(o){
   if(!o.showProgress) return 'Active';
   const target=+o.targetAmount || 0;
   const cur=+o.currentAmount || 0;
-  if(!target) return 'Active';
-  if((o.id||'').includes('level')) return `Level ${Math.floor(cur)} / ${target}`;
-  return `${Math.floor(cur)} / ${target}`;
+  const timer = o.objectiveType==='pressure' && o.params && o.params.timeRemaining != null
+    ? ` · ${formatDuration(o.params.timeRemaining)}`
+    : '';
+  if(!target) return `Active${timer}`;
+  if((o.id||'').includes('level')) return `Level ${Math.floor(cur)} / ${target}${timer}`;
+  return `${Math.floor(cur)} / ${target}${timer}`;
 }
 
 function renderObjectiveChips(g){
@@ -148,7 +151,7 @@ function renderObjectiveChips(g){
     const style=(done || failed)?'':`style="--pulse:${pulse.toFixed(3)}"`;
     const title=o.description ? ` title="${objectiveEscapeHtml(o.description)}"` : '';
     const icon=failed ? '✕' : (done ? '✓' : '◆');
-    const rewardBadge=(type==='secondary' && objectiveHasReward(o)) ? '<em class="objectiveRewardBadge">+ Bonus</em>' : '';
+    const rewardBadge=(type==='secondary' && objectiveHasReward(o)) ? '<em class="objectiveRewardBadge">+ Bonus</em>' : ((type==='pressure' && objectiveHasReward(o)) ? '<em class="objectiveRewardBadge">Risk Reward</em>' : '');
     const progressHtml=o.showProgress
       ? `<div class="objectiveBar"><i style="width:${pct.toFixed(1)}%"></i></div>`
       : '';
@@ -199,7 +202,7 @@ function runStatsSummaryHtml(g){
       ['Wave blocks broken',s.chargingWaveBlocksBroken||s.blocksBrokenByChargingWaves||0]
     ] : [])
   ].map(([k,v])=>`<div class="statCard"><span>${k}</span><b>${v}</b></div>`).join('');
-  return `<div class="runStatsSummary"><div class="statCards">${cards}</div><h3>Resource Breakdown</h3><div class="resourceBreakdown">${resRows}</div><h3>Bonus Objective Rewards</h3><div class="bonusRewardBreakdown">${rewardRows}</div></div>`;
+  return `<div class="runStatsSummary"><div class="statCards">${cards}</div><h3>Resource Breakdown</h3><div class="resourceBreakdown">${resRows}</div><h3>Bonus / Risk Objective Rewards</h3><div class="bonusRewardBreakdown">${rewardRows}</div></div>`;
 }
 
 function drawRunStatsChart(canvas,g,key='enemiesKilled'){
