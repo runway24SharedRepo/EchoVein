@@ -289,12 +289,17 @@ function updatePlayer(g,dt){
   if(keys.has('KeyA')||keys.has('ArrowLeft')) dx--;
   if(keys.has('KeyD')||keys.has('ArrowRight')) dx++;
   const pad = gamepadVector();
+  const joy = typeof virtualJoystickVector === 'function' ? virtualJoystickVector() : {active:false,dx:0,dy:0};
   if(pad.active){
     dx = pad.dx;
     dy = pad.dy;
+  } else if(joy.active){
+    dx = joy.dx;
+    dy = joy.dy;
   } else {
     const l=len(dx,dy); dx/=l; dy/=l;
   }
+  if(typeof applyMobileRuntimeInputPolicy === 'function') applyMobileRuntimeInputPolicy(g);
   const hasInput = !!(dx||dy);
   if(hasInput){ p.lastDx=dx; p.lastDy=dy; }
 
@@ -2782,15 +2787,17 @@ function manualAimActive(g){
 }
 
 function mouseTargetActive(g){
+  if(typeof mobileRuntimeActive === 'function' && mobileRuntimeActive()) return false;
   return getFogSettings().manualMouseControlEnabled && manualAimActive(g);
 }
 
 function mouseManualFireActive(g){
+  if(typeof mobileRuntimeActive === 'function' && mobileRuntimeActive()) return false;
   return mouseTargetActive(g) && (mouse.down || (g.controllerCursor?.primaryHoldTimer || 0)>0);
 }
 
 function arcMouseAutoDisabled(g){
-  return manualAimActive(g);
+  return !(typeof mobileRuntimeActive === 'function' && mobileRuntimeActive()) && manualAimActive(g);
 }
 
 function targetEnemy(g,range,mouseBiasRadius=180){

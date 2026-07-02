@@ -752,7 +752,8 @@ const SYNERGIES = [
     apply:g=>{
       g.player.trapDamageMul*=1.60;
       g.player.vampire=(g.player.vampire||0)+15;
-      g.player.mouseTargeting=true;
+      if(!(typeof mobileRuntimeActive === 'function' && mobileRuntimeActive())) g.player.mouseTargeting=true;
+      if(typeof applyMobileRuntimeInputPolicy === 'function') applyMobileRuntimeInputPolicy(g);
     }
   },
   {
@@ -1919,6 +1920,7 @@ function showSettingsMenu(){
   setMenu('Settings','Tune visibility and accessibility options. Changes apply immediately and are saved locally.');
 
   const settings=getFogSettings();
+  const manualMouseLocked = typeof mobileRuntimeActive === 'function' && mobileRuntimeActive();
   const panel=document.createElement('div');
   panel.className='settingsPanel';
 
@@ -1931,10 +1933,10 @@ function showSettingsMenu(){
   panel.appendChild(fogRow);
 
   const mouseRow=document.createElement('label');
-  mouseRow.className='settingsRow';
+  mouseRow.className='settingsRow' + (manualMouseLocked ? ' disabled mobileLockedSetting' : '');
   mouseRow.innerHTML=`
-    <span><b>Enable manual mouse control</b><small>Allow mouse-guided targeting and related upgrades.</small></span>
-    <input id="manualMouseToggle" type="checkbox" ${settings.manualMouseControlEnabled?'checked':''}>
+    <span><b>Enable manual mouse control</b><small>${manualMouseLocked ? 'Disabled on mobile. Mobile uses joystick movement and auto/movement-direction aiming.' : 'Allow mouse-guided targeting and related upgrades.'}</small></span>
+    <input id="manualMouseToggle" type="checkbox" ${settings.manualMouseControlEnabled?'checked':''} ${manualMouseLocked?'disabled aria-disabled="true"':''}>
   `;
   panel.appendChild(mouseRow);
 
@@ -1961,10 +1963,13 @@ function showSettingsMenu(){
   document.getElementById('fogToggle').addEventListener('change',ev=>{
     setFogOfWarEnabled(ev.target.checked);
   });
-  document.getElementById('manualMouseToggle').addEventListener('change',ev=>{
-    setManualMouseControlEnabled(ev.target.checked);
-    showSettingsMenu();
-  });
+  const manualMouseToggle=document.getElementById('manualMouseToggle');
+  if(manualMouseToggle && !manualMouseLocked){
+    manualMouseToggle.addEventListener('change',ev=>{
+      setManualMouseControlEnabled(ev.target.checked);
+      showSettingsMenu();
+    });
+  }
   addMenuButton('Back',showMainMenu);
 }
 

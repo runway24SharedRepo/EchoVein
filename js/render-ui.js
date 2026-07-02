@@ -44,6 +44,9 @@ function updateUI(g){
   const trapChip = g.player.canUseTraps ? `<div class="chip"><span>Pathfinder Trap Kit</span><b>${g.player.trapCd<=0?'READY':'CD '+g.player.trapCd.toFixed(1)+'s'}</b></div>` : '';
   const accChip = `<div class="chip"><span>Weapon Accuracy</span><b>${Math.round((g.player.accuracy ?? 0.35)*100)}%</b></div>`;
   const cursorChip = (g.player.mouseTargeting || g.controllerCursor?.active) ? `<div class="chip"><span>Targeting Cursor</span><b>${manualAimActive(g)?'MANUAL':'AUTO'}</b></div>` : '';
+  const mobileChip = (typeof mobileRuntimeActive === 'function' && mobileRuntimeActive())
+    ? `<div class="chip"><span>Mobile Controls</span><b>JOYSTICK</b></div>`
+    : '';
   const arc = g.arcConnection;
   const arcChip = arc?.unlocked
     ? `<div class="chip"><span>Arc Connection</span><b>${arc.selectedEnemies.length}/${arcConnectionMaxTargets(g)}</b></div>`
@@ -53,7 +56,7 @@ function updateUI(g){
   ? `<div class="chip"><span>❤️ Field Reclaimer</span><b>${g.player.vampire} HP (${g.player.vampCounter}/18 kills)</b></div>`
   : '';
   // Prepend operator chip to weapon list
-  ui.weaponList.innerHTML=operatorChip + g.weapons.map(w=>{
+  ui.weaponList.innerHTML=operatorChip + mobileChip + g.weapons.map(w=>{
     const spriteId=WEAPON_DATA[w.id]?.spriteId;
     const icon=spriteId ? `<img class="weaponIcon" src="${SPRITES[spriteId]}" alt="">` : '';
     return `<div class="chip"><span>${icon}${weaponName(w.id)}</span><b>Mk ${w.level}</b></div>`;
@@ -138,6 +141,7 @@ function render(g){
   drawControllerDebugOverlay(g);
   drawTileScaleInfoOverlay(g);
   drawAccuracyCone(g);
+  drawMobileOverlays(g);
   if(paused) drawPause();
 }
 
@@ -701,6 +705,83 @@ function drawChargingWaveWorldDebug(g){
     ctx.strokeStyle='rgba(255,112,56,0.38)';
     for(const t of targets){ ctx.beginPath(); ctx.arc(t.x,t.y,3.4,0,Math.PI*2); ctx.fill(); }
   }
+  ctx.restore();
+}
+
+function drawMobileOverlays(g){
+  drawVirtualJoystick(g);
+  drawRotateLandscapeHint(g);
+}
+
+function drawVirtualJoystick(g){
+  if(!(typeof mobileRuntimeActive === 'function' && mobileRuntimeActive())) return;
+  if(!g || g.state !== 'playing' || awaitingUpgrade) return;
+  if(typeof isOverlayOpenForScrollLock === 'function' && isOverlayOpenForScrollLock()) return;
+  const joy = typeof virtualJoystick !== 'undefined' ? virtualJoystick : null;
+  if(!joy?.enabled) return;
+
+  const home = typeof virtualJoystickHome === 'function' ? virtualJoystickHome() : {x:126,y:viewH()-126};
+  const baseX = joy.active ? joy.baseX : home.x;
+  const baseY = joy.active ? joy.baseY : home.y;
+  const knobX = joy.active ? joy.knobX : home.x;
+  const knobY = joy.active ? joy.knobY : home.y;
+  const r = MOBILE_JOYSTICK_CONFIG?.radius || 78;
+  const kr = MOBILE_JOYSTICK_CONFIG?.knobRadius || 34;
+  const pulse = 0.5 + 0.5*Math.sin((g.time||0)*4);
+
+  ctx.save();
+  ctx.globalAlpha = joy.active ? 0.92 : 0.55;
+  ctx.shadowColor = '#42d6ff';
+  ctx.shadowBlur = joy.active ? 18 : 8;
+  ctx.fillStyle = 'rgba(7,12,20,0.42)';
+  ctx.strokeStyle = `rgba(66,214,255,${joy.active ? 0.66 : 0.36})`;
+  ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.arc(baseX,baseY,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.strokeStyle = `rgba(255,255,255,${0.12+0.08*pulse})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.arc(baseX,baseY,r*0.55,0,Math.PI*2); ctx.stroke();
+
+  if(joy.active && joy.magnitude > 0.02){
+    ctx.strokeStyle = 'rgba(93,255,154,0.55)';
+    ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(baseX,baseY); ctx.lineTo(knobX,knobY); ctx.stroke();
+  }
+
+  ctx.shadowBlur = joy.active ? 20 : 10;
+  ctx.fillStyle = joy.active ? 'rgba(93,255,154,0.78)' : 'rgba(66,214,255,0.42)';
+  ctx.strokeStyle = 'rgba(255,255,255,0.72)';
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.arc(knobX,knobY,kr,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(238,243,255,0.78)';
+  ctx.font = '900 12px Segoe UI, Arial';
+  ctx.textAlign = 'center';
+  ctx.fillText('MOVE',baseX,baseY+r+24);
+  ctx.restore();
+}
+
+function drawRotateLandscapeHint(g){
+  if(!(typeof isPortraitMobileRuntime === 'function' && isPortraitMobileRuntime())) return;
+  if(Math.max(window.innerWidth || 0, window.innerHeight || 0) > 920 && Math.min(window.innerWidth || 0, window.innerHeight || 0) > 700) return;
+  ctx.save();
+  ctx.fillStyle='rgba(7,9,13,0.72)';
+  ctx.fillRect(0,0,viewW(),viewH());
+  ctx.strokeStyle='rgba(255,204,77,0.5)';
+  ctx.fillStyle='rgba(14,18,28,0.95)';
+  const w=Math.min(760,viewW()-80), h=190;
+  const x=(viewW()-w)/2, y=(viewH()-h)/2;
+  ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect(x,y,w,h,22); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#ffcc4d';
+  ctx.font='900 34px Segoe UI, Arial';
+  ctx.textAlign='center';
+  ctx.fillText('Rotate to landscape',viewW()/2,y+74);
+  ctx.fillStyle='#eef3ff';
+  ctx.font='700 17px Segoe UI, Arial';
+  ctx.fillText('EchoVein uses a 1600×900 tactical viewport.',viewW()/2,y+116);
+  ctx.fillStyle='rgba(149,162,186,0.95)';
+  ctx.font='700 14px Segoe UI, Arial';
+  ctx.fillText('The game remains playable, but landscape gives more room for the joystick and HUD.',viewW()/2,y+148);
   ctx.restore();
 }
 

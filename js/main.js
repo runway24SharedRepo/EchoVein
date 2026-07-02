@@ -145,7 +145,46 @@ window.addEventListener('touchmove', e => {
   }
 }, { passive:false });
 
-addEventListener('blur',()=>{ mouse.down=false; });
+function eachChangedTouch(e, fn){
+  const touches = e.changedTouches || [];
+  for(let i=0;i<touches.length;i++){
+    if(fn(touches[i])) return true;
+  }
+  return false;
+}
+
+function handleVirtualJoystickTouchStart(e){
+  if(isOverlayOpenForScrollLock()) return;
+  if(typeof startVirtualJoystickTouch !== 'function') return;
+  if(eachChangedTouch(e, touch => startVirtualJoystickTouch(touch))){
+    resumeAudio();
+    e.preventDefault();
+  }
+}
+
+function handleVirtualJoystickTouchMove(e){
+  if(typeof moveVirtualJoystickTouch !== 'function') return;
+  if(eachChangedTouch(e, touch => moveVirtualJoystickTouch(touch))){
+    e.preventDefault();
+  }
+}
+
+function handleVirtualJoystickTouchEnd(e){
+  if(typeof endVirtualJoystickTouch !== 'function') return;
+  if(eachChangedTouch(e, touch => endVirtualJoystickTouch(touch))){
+    e.preventDefault();
+  }
+}
+
+window.addEventListener('touchstart', handleVirtualJoystickTouchStart, { passive:false });
+window.addEventListener('touchmove', handleVirtualJoystickTouchMove, { passive:false });
+window.addEventListener('touchend', handleVirtualJoystickTouchEnd, { passive:false });
+window.addEventListener('touchcancel', handleVirtualJoystickTouchEnd, { passive:false });
+
+addEventListener('blur',()=>{
+  mouse.down=false;
+  if(typeof resetVirtualJoystick === 'function') resetVirtualJoystick();
+});
 
 addEventListener('gamepadconnected',e=>{
   gamepadState.padIndex=e.gamepad.index;

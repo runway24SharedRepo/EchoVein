@@ -179,6 +179,204 @@ const DEFAULT_SETTINGS = {
 };
 let gameSettings = loadSettings();
 
+/*
+ * Mobile controls hotfix
+ *
+ * Keep the existing 1600x900 logical viewport intact. Mobile support is layered
+ * on top through runtime detection, an optional virtual joystick, and an
+ * effective input policy that disables manual mouse targeting only while the
+ * game is running on a touch-first/mobile device. Saved desktop settings are
+ * not deleted or rewritten.
+ */
+const MOBILE_JOYSTICK_CONFIG = {
+  radius: 78,
+  knobRadius: 34,
+  deadzone: 0.16,
+  edgeInset: 118,
+  startZoneW: 0.48,
+  startZoneH: 0.55
+};
+
+const mobileRuntimeState = {
+  isMobile: false,
+  isPortrait: false,
+  lastAimDx: 1,
+  lastAimDy: 0,
+  lastRefresh: 0
+};
+
+const virtualJoystick = {
+  enabled: false,
+  active: false,
+  touchId: null,
+  baseX: 0,
+  baseY: 0,
+  knobX: 0,
+  knobY: 0,
+  vectorX: 0,
+  vectorY: 0,
+  magnitude: 0,
+  deadzone: MOBILE_JOYSTICK_CONFIG.deadzone
+};
+
+function safeMatchMedia(query){
+  try{ return typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(query).matches : false; }
+  catch(err){ return false; }
+}
+
+function isMobileRuntime(){
+  const nav = typeof navigator !== 'undefined' ? navigator : {};
+  const ua = String(nav.userAgent || '');
+  const touchPoints = Number(nav.maxTouchPoints || nav.msMaxTouchPoints || 0);
+  const coarsePointer = safeMatchMedia('(pointer: coarse)');
+  const noHover = safeMatchMedia('(hover: none)');
+  const uaMobile = /Android|iPhone|iPad|iPod/i.test(ua);
+  const smallViewport = Math.min(window.innerWidth || VIEW_CONFIG.baseW, window.innerHeight || VIEW_CONFIG.baseH) <= 820;
+
+  // Require touch or a known mobile UA, then strengthen with coarse/no-hover or
+  // small viewport. This avoids enabling mobile mode on desktop browsers just
+  // because the window is narrow.
+  return !!((touchPoints > 0 || uaMobile) && (coarsePointer || noHover || uaMobile || smallViewport));
+}
+
+function isPortraitMobileRuntime(){
+  if(!mobileRuntimeState.isMobile && !isMobileRuntime()) return false;
+  const orientationPortrait = safeMatchMedia('(orientation: portrait)');
+  return orientationPortrait || (window.innerHeight || 0) > (window.innerWidth || 0);
+}
+
+function updateMobileRuntimeClasses(){
+  if(!document?.body) return;
+  document.body.classList.toggle('mobileRuntime', !!mobileRuntimeState.isMobile);
+  document.body.classList.toggle('mobilePortrait', !!mobileRuntimeState.isPortrait);
+}
+
+function refreshMobileRuntimeState(){
+  mobileRuntimeState.isMobile = isMobileRuntime();
+  mobileRuntimeState.isPortrait = isPortraitMobileRuntime();
+  virtualJoystick.enabled = !!mobileRuntimeState.isMobile;
+  if(!virtualJoystick.enabled) resetVirtualJoystick();
+  updateMobileRuntimeClasses();
+  applyMobileRuntimeInputPolicy();
+  mobileRuntimeState.lastRefresh = performance.now();
+  return mobileRuntimeState;
+}
+
+function mobileRuntimeActive(){
+  return !!mobileRuntimeState.isMobile;
+}
+
+function applyMobileRuntimeInputPolicy(g=game){
+  if(!mobileRuntimeActive()) return;
+  // Runtime-only lock. Do not erase the saved desktop preference.
+  if(g?.player) g.player.mouseTargeting = false;
+  mouse.used = false;
+  mouse.down = false;
+  mouse._physicalDown = false;
+}
+
+function clientToViewPoint(clientX, clientY){
+  const rect = canvas.getBoundingClientRect();
+  const x = (clientX - rect.left) * (VIEW.w / Math.max(1, rect.width));
+  const y = (clientY - rect.top) * (VIEW.h / Math.max(1, rect.height));
+  return { x: clamp(x, 0, VIEW.w), y: clamp(y, 0, VIEW.h) };
+}
+
+function virtualJoystickHome(){
+  const inset = MOBILE_JOYSTICK_CONFIG.edgeInset;
+  return { x: inset, y: viewH() - inset };
+}
+
+function isVirtualJoystickStartPoint(pt){
+  if(!pt) return false;
+  return pt.x <= viewW()*MOBILE_JOYSTICK_CONFIG.startZoneW && pt.y >= viewH()*(1-MOBILE_JOYSTICK_CONFIG.startZoneH);
+}
+
+function updateVirtualJoystickVector(pt){
+  const radius = MOBILE_JOYSTICK_CONFIG.radius;
+  const rawX = pt.x - virtualJoystick.baseX;
+  const rawY = pt.y - virtualJoystick.baseY;
+  const rawMag = Math.hypot(rawX, rawY);
+  const clampedMag = Math.min(radius, rawMag);
+  const nx = rawMag > 0.0001 ? rawX / rawMag : 0;
+  const ny = rawMag > 0.0001 ? rawY / rawMag : 0;
+  virtualJoystick.knobX = virtualJoystick.baseX + nx*clampedMag;
+  virtualJoystick.knobY = virtualJoystick.baseY + ny*clampedMag;
+
+  const normalMag = clamp(rawMag / radius, 0, 1);
+  const scaled = normalMag <= virtualJoystick.deadzone
+    ? 0
+    : clamp((normalMag - virtualJoystick.deadzone) / (1 - virtualJoystick.deadzone), 0, 1);
+  virtualJoystick.vectorX = nx * scaled;
+  virtualJoystick.vectorY = ny * scaled;
+  virtualJoystick.magnitude = scaled;
+
+  if(scaled > 0.05){
+    mobileRuntimeState.lastAimDx = virtualJoystick.vectorX / Math.max(0.001, scaled);
+    mobileRuntimeState.lastAimDy = virtualJoystick.vectorY / Math.max(0.001, scaled);
+  }
+}
+
+function resetVirtualJoystick(){
+  virtualJoystick.active = false;
+  virtualJoystick.touchId = null;
+  const home = virtualJoystickHome();
+  virtualJoystick.baseX = home.x;
+  virtualJoystick.baseY = home.y;
+  virtualJoystick.knobX = home.x;
+  virtualJoystick.knobY = home.y;
+  virtualJoystick.vectorX = 0;
+  virtualJoystick.vectorY = 0;
+  virtualJoystick.magnitude = 0;
+}
+
+function startVirtualJoystickTouch(touch){
+  if(!mobileRuntimeActive() || !virtualJoystick.enabled || !game || game.state !== 'playing' || awaitingUpgrade) return false;
+  const pt = clientToViewPoint(touch.clientX, touch.clientY);
+  if(!isVirtualJoystickStartPoint(pt)) return false;
+  const home = virtualJoystickHome();
+  virtualJoystick.active = true;
+  virtualJoystick.touchId = touch.identifier;
+  virtualJoystick.baseX = home.x;
+  virtualJoystick.baseY = home.y;
+  virtualJoystick.knobX = home.x;
+  virtualJoystick.knobY = home.y;
+  updateVirtualJoystickVector(pt);
+  applyMobileRuntimeInputPolicy(game);
+  return true;
+}
+
+function moveVirtualJoystickTouch(touch){
+  if(!virtualJoystick.active || touch.identifier !== virtualJoystick.touchId) return false;
+  updateVirtualJoystickVector(clientToViewPoint(touch.clientX, touch.clientY));
+  applyMobileRuntimeInputPolicy(game);
+  return true;
+}
+
+function endVirtualJoystickTouch(touch){
+  if(!virtualJoystick.active || touch.identifier !== virtualJoystick.touchId) return false;
+  resetVirtualJoystick();
+  return true;
+}
+
+function virtualJoystickVector(){
+  if(!mobileRuntimeActive() || !virtualJoystick.enabled || virtualJoystick.magnitude <= 0) return { dx:0, dy:0, active:false, magnitude:0 };
+  return { dx:virtualJoystick.vectorX, dy:virtualJoystick.vectorY, active:true, magnitude:virtualJoystick.magnitude };
+}
+
+function mobileAimWorld(g){
+  const p = g?.player;
+  if(!p) return { x:0, y:0 };
+  const joy = virtualJoystickVector();
+  let dx = joy.active ? joy.dx : (p.lastDx || mobileRuntimeState.lastAimDx || 1);
+  let dy = joy.active ? joy.dy : (p.lastDy || mobileRuntimeState.lastAimDy || 0);
+  const l = len(dx,dy);
+  dx /= l; dy /= l;
+  mobileRuntimeState.lastAimDx = dx;
+  mobileRuntimeState.lastAimDy = dy;
+  return { x:p.x + dx*640, y:p.y + dy*640 };
+}
+
 function normalizeSettings(settings){
   return {...DEFAULT_SETTINGS, ...(settings || {})};
 }
@@ -199,7 +397,11 @@ function saveSettings(){
 }
 
 function getFogSettings(){
-  return normalizeSettings(gameSettings);
+  const settings = normalizeSettings(gameSettings);
+  // Effective runtime policy: mobile disables manual mouse targeting without
+  // deleting the user's saved desktop preference.
+  if(mobileRuntimeActive()) settings.manualMouseControlEnabled = false;
+  return settings;
 }
 
 function setFogOfWarEnabled(enabled){
@@ -208,6 +410,9 @@ function setFogOfWarEnabled(enabled){
 }
 
 function setManualMouseControlEnabled(enabled){
+  // On mobile, the setting is locked off at runtime. Do not overwrite the saved
+  // desktop preference just because the user opened settings on a phone.
+  if(mobileRuntimeActive()) return;
   gameSettings.manualMouseControlEnabled = !!enabled;
   saveSettings();
 }
@@ -451,6 +656,7 @@ function getGamepadLeftNav(){
 }
 
 function currentManualAimActive(g){
+  if(mobileRuntimeActive()) return false;
   if(!g || !mouse.used) return false;
   if(!getFogSettings().manualMouseControlEnabled) return false;
   const realNow = performance.now()/1000;
@@ -460,6 +666,14 @@ function currentManualAimActive(g){
 }
 
 function activeAimWorld(g){
+  if(mobileRuntimeActive() && g?.player){
+    const realNow = performance.now()/1000;
+    const c = g?.controllerCursor;
+    if(c?.active && ((g.time - c.lastMoveTime < 2) || (realNow - (c.lastMoveRealTime ?? -999) < 2))){
+      return {x:c.worldX, y:c.worldY};
+    }
+    return mobileAimWorld(g);
+  }
   const realNow = performance.now()/1000;
   const c = g?.controllerCursor;
   if(c?.active && ((g.time - c.lastMoveTime < 2) || (realNow - (c.lastMoveRealTime ?? -999) < 2))){
@@ -790,7 +1004,10 @@ function resizeCanvas(){
   canvas.style.top = VIEW.top + 'px';
 
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  refreshMobileRuntimeState();
 }
 
 window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 80));
+resetVirtualJoystick();
 resizeCanvas();

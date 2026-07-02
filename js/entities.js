@@ -365,6 +365,7 @@ function makeGame(cls){
     runIndex:saveProfile?.runIndex || 1,
     missionType:null,
     missionDifficulty:saveProfile ? missionDifficulty(saveProfile.missionIndex) : missionDifficulty(1),
+    isMobileRuntime: typeof mobileRuntimeActive === 'function' ? mobileRuntimeActive() : false,
     // Mission-specific world hook state. These are deliberately simple data
     // containers so old saves/runs that do not include them can be initialised
     // safely by initialiseMissionWorldHooks().
@@ -423,5 +424,8 @@ function makeGame(cls){
     g.player.dashCd = -1;
     log(g, 'Pathfinder Trap Kit ready. Press E to place seismic traps.');
   }
+  if(typeof refreshMobileRuntimeState === 'function') refreshMobileRuntimeState();
+  g.isMobileRuntime = typeof mobileRuntimeActive === 'function' ? mobileRuntimeActive() : false;
+  if(typeof applyMobileRuntimeInputPolicy === 'function') applyMobileRuntimeInputPolicy(g);
   return g;
 }
