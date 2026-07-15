@@ -399,6 +399,11 @@ function makeGame(cls){
     resources:{ gild:0, voltarite:0, echo:0, ferriteBark:0, luminaSpores:0, aetherQuartz:0, crysalith:0, emberglass:0 },
     time:0, kills:0, level:1, xp:0, xpNeed:28, gold:0, nitra:0,
     hollowPressure:0, nextPressureTime:120, pressureFlash:0,
+    hollowPressureState:{ value:0, lastValue:0, tierId:'low', lastTierId:'low', lastSourceTime:0, lastWarningTime:-9999, sourceTotals:{}, decayEnabled:true },
+    // Resonance is local cave feedback layered on top of the run-level Hollow
+    // Pressure meter. Old saves that do not contain this object are initialised
+    // safely by ensureResonanceSystem().
+    resonanceSystem:{ zones:[], nextZoneId:1, nextSurgeId:1, lastActivityTime:-9999, lastSurgeTime:-9999, totalAdded:0, sourceTotals:{} },
     pressureSystem:{ offersSeen:0, maxOffers:2, nextOfferTime:75, offer:null, activeIds:[], completed:0, failed:0 },
     chargingWave:{ enabled:true, active:false, warningActive:false, warningTimer:0, warningDuration:2.0, pendingOptions:null, incomingDirection:0, lastSpawnTime:-9999, nextAllowedTime:90, checkTimer:rand(5,10), cooldown:150, activeEnemyIds:[], lastSpawnCenter:null, lastFormationTargets:[], lastSkipReason:'Not checked yet', forceNextCheck:false, nextWaveId:1 },
     spawnTimer:2.2, eliteTimer:90, nextWave:55,

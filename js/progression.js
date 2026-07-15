@@ -201,6 +201,364 @@ function applyCompletedSecondaryObjectiveRewards(g){
 }
 
 
+
+/*
+ * Hollow Pressure System v1
+ *
+ * g.hollowPressure is kept as a legacy integer tier because existing enemy
+ * spawning, enemy damage, bullet cadence and performance budgeting already read
+ * it as a small difficulty scalar. The new meter lives in
+ * g.hollowPressureState.value from 0..100, then derives g.hollowPressure from
+ * the current tier. This keeps old saves and old balancing assumptions safe.
+ */
+const HOLLOW_PRESSURE_CONFIG = {
+  max: 100,
+  passiveRisePerSecond: 0.075,
+  lowActivityDecayPerSecond: 0.010,
+  decayGraceSeconds: 24,
+  miningBlock: 0.030,
+  miningResource: 0.070,
+  miningRareResource: 0.160,
+  miningMissionTarget: 0.850,
+  pressureRiskUnit: 12,
+  pressureFailure: 7,
+  warningCooldown: 8,
+  tiers: [
+    { id:'low',      label:'LOW',      min:0,  legacy:0, color:'#5dff9a', description:'The cave is listening, but quiet.' },
+    { id:'rising',   label:'RISING',   min:30, legacy:1, color:'#ffcc4d', description:'Enemy response is increasing.' },
+    { id:'high',     label:'HIGH',     min:60, legacy:2, color:'#ff9d4d', description:'The Hollowborn are reacting aggressively.' },
+    { id:'critical', label:'CRITICAL', min:85, legacy:3, color:'#ff5b5b', description:'The vein is screaming. Swarms and elites escalate.' }
+  ]
+};
+
+function clampHollowPressureValue(value){
+  return clamp(Number(value) || 0, 0, HOLLOW_PRESSURE_CONFIG.max);
+}
+
+function getHollowPressureTierForValue(value){
+  const v=clampHollowPressureValue(value);
+  let tier=HOLLOW_PRESSURE_CONFIG.tiers[0];
+  for(const t of HOLLOW_PRESSURE_CONFIG.tiers){
+    if(v>=t.min) tier=t;
+  }
+  return tier;
+}
+
+function ensureHollowPressureState(g){
+  if(!g) return null;
+  const legacyLevel=clamp(Math.floor(Number(g.hollowPressure)||0),0,3);
+  const seededValue=legacyLevel>0 ? legacyLevel*30 : 0;
+  const state=(g.hollowPressureState && typeof g.hollowPressureState==='object') ? g.hollowPressureState : {};
+  state.value=clampHollowPressureValue(state.value ?? seededValue);
+  state.lastValue=clampHollowPressureValue(state.lastValue ?? state.value);
+  const tier=getHollowPressureTierForValue(state.value);
+  state.tierId=state.tierId || tier.id;
+  state.lastTierId=state.lastTierId || state.tierId;
+  state.lastSourceTime=Number(state.lastSourceTime ?? g.time ?? 0);
+  state.lastWarningTime=Number(state.lastWarningTime ?? -9999);
+  state.sourceTotals=(state.sourceTotals && typeof state.sourceTotals==='object') ? state.sourceTotals : {};
+  state.decayEnabled=state.decayEnabled !== false;
+  g.hollowPressureState=state;
+  syncLegacyHollowPressure(g);
+  return state;
+}
+
+function syncLegacyHollowPressure(g){
+  if(!g) return 0;
+  const state=g.hollowPressureState || ensureHollowPressureState(g);
+  const tier=getHollowPressureTierForValue(state?.value || 0);
+  g.hollowPressure=tier.legacy;
+  if(state){
+    state.tierId=tier.id;
+    state.tierLabel=tier.label;
+    state.tierColor=tier.color;
+  }
+  return g.hollowPressure || 0;
+}
+
+function getHollowPressureValue(g){
+  return ensureHollowPressureState(g)?.value || 0;
+}
+
+function getHollowPressureTier(g){
+  const state=ensureHollowPressureState(g);
+  return getHollowPressureTierForValue(state?.value || 0);
+}
+
+function getHollowPressureLabel(g){
+  return getHollowPressureTier(g).label;
+}
+
+function addHollowPressure(g,amount,source='unknown',options={}){
+  const state=ensureHollowPressureState(g);
+  if(!state || !amount) return state?.value || 0;
+  const oldValue=state.value;
+  const delta=Number(amount) || 0;
+  state.value=clampHollowPressureValue(state.value + delta);
+  state.lastValue=oldValue;
+  state.lastSourceTime=g?.time || 0;
+  state.lastSource=source;
+  state.sourceTotals[source]=(state.sourceTotals[source] || 0) + Math.max(0,delta);
+  syncLegacyHollowPressure(g);
+  if(delta>0){
+    g.pressureFlash=Math.max(g.pressureFlash || 0, options.flash ?? 1.2);
+    if(options.log && typeof log==='function') log(g,options.log);
+  }
+  return state.value;
+}
+
+function addHollowPressureFromMining(g,{resourceId=null, missionHarvestTarget=false, amount=1}={}){
+  if(!g) return 0;
+  let inc=HOLLOW_PRESSURE_CONFIG.miningBlock;
+  if(resourceId) inc += HOLLOW_PRESSURE_CONFIG.miningResource;
+  if(resourceId && !['gild','voltarite','echo'].includes(resourceId)) inc += HOLLOW_PRESSURE_CONFIG.miningRareResource;
+  if(missionHarvestTarget) inc += HOLLOW_PRESSURE_CONFIG.miningMissionTarget;
+  inc *= Math.max(1, Number(amount) || 1);
+  return addHollowPressure(g,inc,missionHarvestTarget?'missionHarvestTarget':'mining');
+}
+
+function formatHollowPressure(g){
+  const state=ensureHollowPressureState(g);
+  const tier=getHollowPressureTier(g);
+  return {
+    value: state?.value || 0,
+    percent: Math.round(state?.value || 0),
+    label: tier.label,
+    id: tier.id,
+    color: tier.color,
+    description: tier.description,
+    legacyLevel: g?.hollowPressure || 0
+  };
+}
+
+
+/*
+ * Resonance System v1
+ *
+ * Hollow Pressure is the run-level danger meter. Resonance is the local,
+ * physical cave response: repeated mining or risky extraction activity creates
+ * pulsing resonance pockets in the world. These pockets are intentionally
+ * lightweight for v1. They warn the player, contribute small pressure bursts,
+ * and occasionally call a modest enemy response without blocking objectives,
+ * boss spawning, or extraction.
+ */
+const RESONANCE_CONFIG = {
+  maxZones: 8,
+  mergeDistance: 260,
+  baseRadius: 190,
+  maxRadius: 360,
+  lifetime: 95,
+  baseDecayPerSecond: 0.20,
+  quietDecayPerSecond: 0.42,
+  quietAfterSeconds: 16,
+  miningBlock: 0.45,
+  miningResource: 0.95,
+  miningRareResource: 1.65,
+  miningMissionTarget: 4.25,
+  pressureObjectiveAccepted: 6.0,
+  pressureObjectiveFailed: 7.5,
+  surgeCooldown: 24,
+  tiers: [
+    { id:'quiet',    label:'QUIET',    min:0,  color:'#42d6ff', description:'Residual cave vibration only.' },
+    { id:'active',   label:'ACTIVE',   min:18, color:'#b46bff', description:'Local resonance is building.' },
+    { id:'unstable', label:'UNSTABLE', min:44, color:'#ffcc4d', description:'The vein is amplifying nearby disturbance.' },
+    { id:'rupture',  label:'RUPTURE',  min:72, color:'#ff5b5b', description:'The cave may answer with a hostile surge.' }
+  ]
+};
+
+function getResonanceTierForIntensity(intensity){
+  const v=clamp(Number(intensity)||0,0,100);
+  let tier=RESONANCE_CONFIG.tiers[0];
+  for(const t of RESONANCE_CONFIG.tiers){
+    if(v>=t.min) tier=t;
+  }
+  return tier;
+}
+
+function ensureResonanceSystem(g){
+  if(!g) return null;
+  const old=g.resonanceSystem || {};
+  const zones=Array.isArray(old.zones) ? old.zones : [];
+  g.resonanceSystem={
+    zones,
+    nextZoneId:Number.isFinite(+old.nextZoneId) ? +old.nextZoneId : 1,
+    nextSurgeId:Number.isFinite(+old.nextSurgeId) ? +old.nextSurgeId : 1,
+    lastActivityTime:Number.isFinite(+old.lastActivityTime) ? +old.lastActivityTime : -9999,
+    lastSurgeTime:Number.isFinite(+old.lastSurgeTime) ? +old.lastSurgeTime : -9999,
+    totalAdded:Number.isFinite(+old.totalAdded) ? +old.totalAdded : 0,
+    sourceTotals:(old.sourceTotals && typeof old.sourceTotals==='object') ? old.sourceTotals : {}
+  };
+  for(const z of g.resonanceSystem.zones){
+    if(!z) continue;
+    z.id=z.id || `resonance_${g.resonanceSystem.nextZoneId++}`;
+    z.x=Number(z.x)||0;
+    z.y=Number(z.y)||0;
+    z.radius=clamp(Number(z.radius)||RESONANCE_CONFIG.baseRadius,80,RESONANCE_CONFIG.maxRadius);
+    z.intensity=clamp(Number(z.intensity)||0,0,100);
+    z.lifetime=Number.isFinite(+z.lifetime) ? +z.lifetime : RESONANCE_CONFIG.lifetime;
+    z.lastActivityTime=Number.isFinite(+z.lastActivityTime) ? +z.lastActivityTime : (g.time||0);
+    z.surgeCooldown=Math.max(0,Number(z.surgeCooldown)||0);
+    z.source=z.source || 'unknown';
+    z.resourceId=z.resourceId || null;
+    const tier=getResonanceTierForIntensity(z.intensity);
+    z.tierId=z.tierId || tier.id;
+    z.lastTierId=z.lastTierId || z.tierId;
+  }
+  return g.resonanceSystem;
+}
+
+function findNearestResonanceZone(g,x,y){
+  const st=ensureResonanceSystem(g);
+  if(!st) return null;
+  let best=null, bestD=Infinity;
+  for(const z of st.zones){
+    if(!z) continue;
+    const d=Math.hypot((z.x||0)-x,(z.y||0)-y);
+    const merge=Math.max(RESONANCE_CONFIG.mergeDistance,(z.radius||0)*0.85);
+    if(d<merge && d<bestD){ best=z; bestD=d; }
+  }
+  return best;
+}
+
+function trimResonanceZones(g){
+  const st=ensureResonanceSystem(g);
+  if(!st) return;
+  st.zones=st.zones.filter(z=>z && z.intensity>0.5 && z.lifetime>0);
+  if(st.zones.length>RESONANCE_CONFIG.maxZones){
+    st.zones.sort((a,b)=>(b.intensity||0)-(a.intensity||0));
+    st.zones.length=RESONANCE_CONFIG.maxZones;
+  }
+}
+
+function addResonance(g,{x=0,y=0,amount=1,source='unknown',resourceId=null,missionHarvestTarget=false,radius=null}={}){
+  const st=ensureResonanceSystem(g);
+  if(!st || !amount) return null;
+  x=Number(x)||0; y=Number(y)||0;
+  const delta=Math.max(0,Number(amount)||0);
+  let z=findNearestResonanceZone(g,x,y);
+  if(!z){
+    z={
+      id:`resonance_${st.nextZoneId++}`,
+      x,y,
+      radius:clamp(Number(radius)||RESONANCE_CONFIG.baseRadius,80,RESONANCE_CONFIG.maxRadius),
+      intensity:0,
+      lifetime:RESONANCE_CONFIG.lifetime,
+      lastActivityTime:g.time||0,
+      surgeCooldown:RESONANCE_CONFIG.surgeCooldown*0.55,
+      source,
+      resourceId,
+      missionHarvestTarget:!!missionHarvestTarget,
+      tierId:'quiet',
+      lastTierId:'quiet',
+      pulse:Math.random()*Math.PI*2
+    };
+    st.zones.push(z);
+  } else {
+    // Blend the centre so repeated mining creates a local field rather than a
+    // noisy stack of separate markers.
+    const w=clamp(delta/18,0.04,0.35);
+    z.x=lerp(z.x,x,w);
+    z.y=lerp(z.y,y,w);
+    z.radius=clamp(Math.max(z.radius||RESONANCE_CONFIG.baseRadius, (Number(radius)||RESONANCE_CONFIG.baseRadius)+delta*2.5),80,RESONANCE_CONFIG.maxRadius);
+  }
+
+  const oldTier=z.tierId || getResonanceTierForIntensity(z.intensity).id;
+  z.intensity=clamp((Number(z.intensity)||0)+delta,0,100);
+  z.lifetime=Math.max(z.lifetime||0,RESONANCE_CONFIG.lifetime);
+  z.lastActivityTime=g.time||0;
+  z.source=source;
+  z.resourceId=resourceId || z.resourceId || null;
+  z.missionHarvestTarget=!!(z.missionHarvestTarget || missionHarvestTarget);
+  const tier=getResonanceTierForIntensity(z.intensity);
+  z.tierId=tier.id;
+  st.lastActivityTime=g.time||0;
+  st.totalAdded+=delta;
+  st.sourceTotals[source]=(st.sourceTotals[source]||0)+delta;
+
+  if(tier.id!==oldTier && tier.id!=='quiet'){
+    z.lastTierId=oldTier;
+    if(typeof log === 'function') log(g,`Resonance ${tier.label}: ${tier.description}`);
+    if(typeof floating === 'function') floating(g,z.x,z.y-28,`Resonance ${tier.label}`,tier.color);
+    g.pressureFlash=Math.max(g.pressureFlash||0,1.0);
+  }
+  trimResonanceZones(g);
+  return z;
+}
+
+function addResonanceFromMining(g,{x=0,y=0,resourceId=null,missionHarvestTarget=false,amount=1}={}){
+  if(!g) return null;
+  let inc=RESONANCE_CONFIG.miningBlock;
+  if(resourceId) inc+=RESONANCE_CONFIG.miningResource;
+  if(resourceId && !['gild','voltarite','echo'].includes(resourceId)) inc+=RESONANCE_CONFIG.miningRareResource;
+  if(missionHarvestTarget) inc+=RESONANCE_CONFIG.miningMissionTarget;
+  inc*=Math.max(1,Number(amount)||1);
+  return addResonance(g,{x,y,amount:inc,source:missionHarvestTarget?'missionHarvestTarget':'mining',resourceId,missionHarvestTarget});
+}
+
+function triggerResonanceSurge(g,z){
+  if(!g || !z) return false;
+  const tier=getResonanceTierForIntensity(z.intensity||0);
+  if(tier.id!=='rupture' && tier.id!=='unstable') return false;
+  const st=ensureResonanceSystem(g);
+  const now=g.time||0;
+  const count=tier.id==='rupture' ? 5 : 3;
+  const enemyType=tier.id==='rupture' ? 'swarmer' : 'grunt';
+  const adjusted=typeof performanceAdjustedCount === 'function' ? performanceAdjustedCount(g,count,true) : count;
+  if(adjusted>0 && typeof spawnBurst === 'function' && (typeof canSpawnNormalEnemy !== 'function' || canSpawnNormalEnemy(g,enemyType,adjusted))){
+    spawnBurst(g,adjusted,enemyType);
+  }
+  if(typeof addHollowPressure === 'function') addHollowPressure(g,tier.id==='rupture'?2.8:1.4,'resonanceSurge',{flash:1.4});
+  if(typeof log === 'function') log(g,`Resonance surge: ${tier.label} pocket answered the disturbance.`);
+  if(typeof sfx === 'function') sfx('wave',0.82);
+  if(typeof floating === 'function') floating(g,z.x,z.y-34,'Resonance surge',tier.color);
+  z.intensity=Math.max(0,(z.intensity||0)-(tier.id==='rupture'?22:14));
+  z.surgeCooldown=RESONANCE_CONFIG.surgeCooldown + rand(4,10);
+  if(st) st.lastSurgeTime=now;
+  return true;
+}
+
+function updateResonanceSystem(g,dt){
+  const st=ensureResonanceSystem(g);
+  if(!st || !dt) return;
+  const now=g.time||0;
+  for(const z of st.zones){
+    if(!z) continue;
+    const quietFor=now-(z.lastActivityTime||0);
+    const decay=quietFor>RESONANCE_CONFIG.quietAfterSeconds ? RESONANCE_CONFIG.quietDecayPerSecond : RESONANCE_CONFIG.baseDecayPerSecond;
+    z.intensity=clamp((Number(z.intensity)||0)-decay*dt,0,100);
+    z.lifetime=(Number(z.lifetime)||0)-dt;
+    z.surgeCooldown=Math.max(0,(Number(z.surgeCooldown)||0)-dt);
+    const tier=getResonanceTierForIntensity(z.intensity);
+    z.tierId=tier.id;
+    z.tierLabel=tier.label;
+    z.tierColor=tier.color;
+    if(z.surgeCooldown<=0 && z.intensity>=RESONANCE_CONFIG.tiers.find(t=>t.id==='unstable').min){
+      triggerResonanceSurge(g,z);
+    }
+  }
+  trimResonanceZones(g);
+}
+
+function formatResonance(g){
+  const st=ensureResonanceSystem(g);
+  const zones=st?.zones || [];
+  let max=0, tier=RESONANCE_CONFIG.tiers[0];
+  for(const z of zones){
+    if((z?.intensity||0)>max){
+      max=z.intensity||0;
+      tier=getResonanceTierForIntensity(max);
+    }
+  }
+  return {
+    activeZones:zones.length,
+    intensity:Math.round(max),
+    label:tier.label,
+    id:tier.id,
+    color:tier.color,
+    description:tier.description
+  };
+}
+
 /*
  * Pressure Objectives v1
  *
@@ -359,8 +717,15 @@ function applyPressureObjectiveRisk(g,offer){
   if(!g || !offer) return;
   const inc=Math.max(0,Math.floor(Number(offer.pressureIncrease)||0));
   if(inc>0){
-    g.hollowPressure=(g.hollowPressure || 0)+inc;
-    g.pressureFlash=2.8;
+    // Pressure Objectives express risk in legacy tier units. Convert each unit
+    // into meter pressure so the visible Hollow Pressure bar and old enemy
+    // scaling stay synchronised.
+    if(typeof addHollowPressure === 'function') addHollowPressure(g,inc*HOLLOW_PRESSURE_CONFIG.pressureRiskUnit,`pressureObjective:${offer.templateId || offer.title || 'risk'}`,{flash:2.8});
+    else { g.hollowPressure=(g.hollowPressure || 0)+inc; g.pressureFlash=2.8; }
+    if(typeof addResonance === 'function'){
+      const rx=g.player?.x || WORLD_W/2, ry=g.player?.y || WORLD_H/2;
+      addResonance(g,{x:rx,y:ry,amount:RESONANCE_CONFIG.pressureObjectiveAccepted*inc,source:`pressureObjective:${offer.templateId || 'risk'}`});
+    }
   }
   const count=Math.max(0,Math.floor(Number(offer.burstCount)||0));
   if(count>0 && typeof spawnBurst === 'function'){
@@ -455,7 +820,9 @@ function failPressureObjective(g,o,reason){
     st.activeIds=(st.activeIds || []).filter(id=>id!==o.id);
   }
   if(g.runStats) g.runStats.objectivesFailed=(g.runStats.objectivesFailed||0)+1;
-  if(typeof log === 'function') log(g,`Risk failed: ${o.displayName || o.id}.`);
+  if(typeof addHollowPressure === 'function') addHollowPressure(g,HOLLOW_PRESSURE_CONFIG.pressureFailure,'pressureObjectiveFailure',{flash:1.8});
+  if(typeof addResonance === 'function' && g.player) addResonance(g,{x:g.player.x,y:g.player.y,amount:RESONANCE_CONFIG.pressureObjectiveFailed,source:'pressureObjectiveFailure'});
+  if(typeof log === 'function') log(g,`Risk failed: ${o.displayName || o.id}. Hollow Pressure rises.`);
   if(typeof floating === 'function' && g.player) floating(g,g.player.x,g.player.y-42,'Risk failed','#ff5b5b');
 }
 

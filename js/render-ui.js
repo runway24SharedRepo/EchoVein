@@ -277,7 +277,12 @@ function updateUI(g){
   }).join('') + trapChip + accChip + cursorChip + arcChip;
   const resourceChips = RUN_RESOURCE_IDS.filter(id=>id!=='gild' && id!=='voltarite' && id!=='echo' && (g.resources?.[id] || 0)>0)
     .map(id=>`<div class="chip"><span>${MINERALS[id].displayName}</span><b>${g.resources[id]}</b></div>`).join('');
-  const pressureChip=`<div class="chip ${g.pressureFlash>0?'danger':''}"><span>Hollow Pressure</span><b>${g.hollowPressure || 0}</b></div>`;
+  const hpInfo = (typeof formatHollowPressure === 'function') ? formatHollowPressure(g) : {percent:Math.min(100,(g.hollowPressure||0)*30),label:String(g.hollowPressure||0),id:'legacy',color:'#b46bff',description:'Legacy Hollow Pressure'};
+  const pressureChip=`<div class="chip hollowPressureChip hollowPressure-${hpInfo.id} ${g.pressureFlash>0?'danger':''}" title="${pressureObjectiveEscape ? pressureObjectiveEscape(hpInfo.description || '') : ''}"><span>Hollow Pressure <em>${hpInfo.label}</em><i><u style="width:${clamp(hpInfo.percent,0,100)}%"></u></i></span><b>${hpInfo.percent}%</b></div>`;
+  const resInfo = (typeof formatResonance === 'function') ? formatResonance(g) : {activeZones:0,intensity:0,label:'QUIET',id:'quiet',description:'No local resonance'};
+  const resonanceChip = (resInfo.activeZones>0 || resInfo.intensity>0)
+    ? `<div class="chip resonanceChip resonance-${resInfo.id}" title="${pressureObjectiveEscape ? pressureObjectiveEscape(resInfo.description || '') : ''}"><span>Local Resonance <em>${resInfo.label}</em><i><u style="width:${clamp(resInfo.intensity,0,100)}%"></u></i></span><b>${resInfo.activeZones} zone${resInfo.activeZones===1?'':'s'}</b></div>`
+    : '';
   const perfState=g.performance?.state || '';
   const perfChip=(perfState && perfState!==PERF_STATES.HEALTHY)
     ? `<div class="chip ${perfState===PERF_STATES.CRITICAL?'danger':''}"><span>Swarm Stabiliser</span><b>${perfState.replace('PERF_','')}</b></div>`
@@ -297,7 +302,7 @@ function updateUI(g){
       missionTypeChip=`<div class="chip" style="border-color:${c};color:${c}"><span>${mt.icon} ${mt.name}</span><b>+${Math.round((mt.rewardModifier-1)*100)}%</b></div>`;
     }
   }
-  ui.logList.innerHTML=missionTypeChip + missionChip + pressureChip + perfChip + resourceChips + objectiveChips + bossChip + extractionChip + g.log.slice(0,3).map((m,i)=>`<div class="chip"><span>${m}</span><b>${i===0?'NEW':''}</b></div>`).join('');
+  ui.logList.innerHTML=missionTypeChip + missionChip + pressureChip + resonanceChip + perfChip + resourceChips + objectiveChips + bossChip + extractionChip + g.log.slice(0,3).map((m,i)=>`<div class="chip"><span>${m}</span><b>${i===0?'NEW':''}</b></div>`).join('');
 }
 
 function render(g){
@@ -311,6 +316,7 @@ function render(g){
   const sx=(shake>0?rand(-shake,shake):0), sy=(shake>0?rand(-shake,shake):0);
   ctx.save(); ctx.translate(-cam.x+sx,-cam.y+sy);
   drawTiles(g,cam);
+  drawResonanceZones(g);
   drawLavaDebugZones(g,cam);
   drawTraps(g);
   drawMissionWorldHooks(g);
@@ -810,6 +816,45 @@ function drawEnemies(g){
 }
 
 
+
+
+function drawResonanceZones(g){
+  const zones=Array.isArray(g?.resonanceSystem?.zones) ? g.resonanceSystem.zones : [];
+  if(!zones.length) return;
+  ctx.save();
+  for(const z of zones){
+    if(!z || (z.intensity||0)<=0.5) continue;
+    const tier=typeof getResonanceTierForIntensity === 'function'
+      ? getResonanceTierForIntensity(z.intensity || 0)
+      : {id:'active',label:'ACTIVE',color:'#b46bff'};
+    const pulse=0.5+0.5*Math.sin((g.time||0)*4.8+(z.pulse||0));
+    const intensity=clamp((z.intensity||0)/100,0,1);
+    const r=(z.radius||190)*(0.82+0.28*intensity)+pulse*12;
+    ctx.translate(z.x,z.y);
+    ctx.globalAlpha=0.34+0.42*intensity;
+    ctx.shadowColor=tier.color;
+    ctx.shadowBlur=20+28*intensity;
+    ctx.strokeStyle=tier.color;
+    ctx.lineWidth=2+3*intensity;
+    ctx.setLineDash([12,8]);
+    ctx.beginPath(); ctx.arc(0,0,r,0,Math.PI*2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=tier.id==='rupture' ? 'rgba(255,91,91,0.10)' : tier.id==='unstable' ? 'rgba(255,204,77,0.08)' : 'rgba(180,107,255,0.07)';
+    ctx.beginPath(); ctx.arc(0,0,r*0.72,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=0.75+0.20*pulse;
+    ctx.fillStyle=tier.color;
+    ctx.beginPath(); ctx.arc(0,0,5+intensity*7+pulse*3,0,Math.PI*2); ctx.fill();
+    if(intensity>0.25){
+      ctx.shadowBlur=0;
+      ctx.fillStyle='rgba(238,243,255,0.88)';
+      ctx.font='900 11px Segoe UI, Arial';
+      ctx.textAlign='center';
+      ctx.fillText(`RESONANCE ${tier.label}`,0,-r-10);
+    }
+    ctx.translate(-z.x,-z.y);
+  }
+  ctx.restore();
+}
 
 function drawMissionWorldHooks(g){
   drawSurveyMissionPoi(g);

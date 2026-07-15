@@ -1858,6 +1858,122 @@ body.mobilePortrait .modal::before {
   text-transform: uppercase;
 }
 
+
+
+/* ==============================
+   Hollow Pressure System v1 HUD
+   ============================== */
+.hollowPressureChip {
+  border-color: rgba(180,107,255,0.34);
+  background: rgba(180,107,255,0.08);
+  align-items: stretch;
+}
+.hollowPressureChip span {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.hollowPressureChip span em {
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #fff;
+}
+.hollowPressureChip span i {
+  display: block;
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.10);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+.hollowPressureChip span i u {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #5dff9a, #ffcc4d, #ff5b5b);
+  text-decoration: none;
+  transition: width 160ms ease;
+}
+.hollowPressureChip.hollowPressure-low {
+  border-color: rgba(93,255,154,0.42);
+  background: rgba(93,255,154,0.06);
+}
+.hollowPressureChip.hollowPressure-rising {
+  border-color: rgba(255,204,77,0.52);
+  background: rgba(255,204,77,0.09);
+}
+.hollowPressureChip.hollowPressure-high {
+  border-color: rgba(255,157,77,0.62);
+  background: rgba(255,157,77,0.11);
+}
+.hollowPressureChip.hollowPressure-critical,
+.hollowPressureChip.danger {
+  border-color: rgba(255,91,91,0.75);
+  background: rgba(255,91,91,0.13);
+  box-shadow: 0 0 18px rgba(255,91,91,0.18);
+}
+.hollowPressureChip.hollowPressure-critical span em { color: #ffb5b5; }
+
+
+/* ==============================
+   Resonance System v1 HUD
+   ============================== */
+.resonanceChip {
+  border-color: rgba(180,107,255,0.42);
+  background: rgba(180,107,255,0.08);
+  align-items: stretch;
+}
+.resonanceChip span {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.resonanceChip span em {
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #e8d8ff;
+}
+.resonanceChip span i {
+  display: block;
+  width: 100%;
+  height: 5px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.10);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+}
+.resonanceChip span i u {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #42d6ff, #b46bff, #ffcc4d, #ff5b5b);
+  text-decoration: none;
+  transition: width 160ms ease;
+}
+.resonanceChip.resonance-quiet {
+  border-color: rgba(66,214,255,0.34);
+  background: rgba(66,214,255,0.06);
+}
+.resonanceChip.resonance-active {
+  border-color: rgba(180,107,255,0.52);
+  background: rgba(180,107,255,0.10);
+}
+.resonanceChip.resonance-unstable {
+  border-color: rgba(255,204,77,0.62);
+  background: rgba(255,204,77,0.11);
+}
+.resonanceChip.resonance-rupture {
+  border-color: rgba(255,91,91,0.75);
+  background: rgba(255,91,91,0.13);
+  box-shadow: 0 0 18px rgba(255,91,91,0.16);
+}
+.resonanceChip.resonance-rupture span em { color: #ffb5b5; }
+
 /* ==============================
    Pressure Objectives v1
    ============================== */

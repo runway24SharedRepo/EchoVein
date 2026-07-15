@@ -226,6 +226,7 @@ function update(g,dt){
   }
   updatePerformanceBudgets(g,dt);
   updateHollowPressure(g,dt);
+  if(typeof updateResonanceSystem === 'function') updateResonanceSystem(g,dt);
   if(typeof updatePressureObjectiveSystem === 'function') updatePressureObjectiveSystem(g,dt);
   if(awaitingPressureChoice){ updateUI(g); return; }
   updateChargingWaveScheduler(g,dt);
@@ -264,15 +265,38 @@ function update(g,dt){
 }
 
 function updateHollowPressure(g,dt){
-  const old=g.hollowPressure || 0;
-  const newLevel=Math.floor(g.time/120);
-  if(newLevel>old){
-    g.hollowPressure=newLevel;
-    g.pressureFlash=2.4;
-    log(g, `Hollow Pressure Rising: ${newLevel}`);
-    sfx('wave',0.95);
-    const burst=performanceAdjustedCount(g,Math.min(4+newLevel*2,18),true);
-    if(burst>0 && canSpawnNormalEnemy(g,newLevel>2?'grunt':'swarmer',burst)) spawnBurst(g,burst,newLevel>2?'grunt':'swarmer');
+  /*
+   * Hollow Pressure v1 uses a visible 0..100 meter while keeping the legacy
+   * g.hollowPressure integer tier for existing enemy/spawn balancing code.
+   * The meter rises slowly with time and faster through mining / risk actions.
+   */
+  if(typeof ensureHollowPressureState !== 'function') return;
+  const state=ensureHollowPressureState(g);
+  if(!state) return;
+  const oldTier=state.tierId;
+
+  if(!g.bossDefeated && !g.extraction){
+    addHollowPressure(g,HOLLOW_PRESSURE_CONFIG.passiveRisePerSecond*dt,'time');
+  }
+
+  const quietFor=(g.time || 0) - (state.lastSourceTime || 0);
+  if(state.decayEnabled && quietFor>HOLLOW_PRESSURE_CONFIG.decayGraceSeconds && state.value>0){
+    state.value=clamp(state.value-HOLLOW_PRESSURE_CONFIG.lowActivityDecayPerSecond*dt,0,HOLLOW_PRESSURE_CONFIG.max);
+    syncLegacyHollowPressure(g);
+  }
+
+  const tier=getHollowPressureTier(g);
+  if(tier.id!==oldTier){
+    state.lastTierId=oldTier;
+    state.tierId=tier.id;
+    g.pressureFlash=2.6;
+    if(typeof log === 'function') log(g, `Hollow Pressure ${tier.label}: ${tier.description}`);
+    if(typeof sfx === 'function') sfx('wave',0.95);
+    if(tier.legacy>0){
+      const burst=performanceAdjustedCount(g,Math.min(4+tier.legacy*3,18),true);
+      const type=tier.legacy>=2?'grunt':'swarmer';
+      if(burst>0 && canSpawnNormalEnemy(g,type,burst)) spawnBurst(g,burst,type);
+    }
   }
   g.pressureFlash=Math.max(0,(g.pressureFlash || 0)-dt);
 }
@@ -611,6 +635,8 @@ function mineTile(g,p,tx,ty,dt){
     for(let k=0;k<10;k++) addParticle(g, cx, cy, rand(-120,120), rand(-120,120), '#8b735e', rand(0.28,0.6), rand(2,6));
     if(Math.random()<0.04) dropPickup(g, cx, cy, 'health', 15);
     const resourceId=resourceIdForTile(t);
+    if(typeof addHollowPressureFromMining === 'function') addHollowPressureFromMining(g,{resourceId, missionHarvestTarget:!!missionHarvestTarget});
+    if(typeof addResonanceFromMining === 'function') addResonanceFromMining(g,{x:cx,y:cy,resourceId, missionHarvestTarget:!!missionHarvestTarget});
     if(resourceId){
       const amount=resourceAmountForTile(t);
       if(resourceId==='echo'){
