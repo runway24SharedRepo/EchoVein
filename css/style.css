@@ -2064,3 +2064,59 @@ body.mobilePortrait .modal::before {
   .pressureObjectiveHeader { align-items:flex-start; }
   .pressureObjectiveGrid { grid-template-columns:1fr; }
 }
+
+/* ── Updated How to Play Mission Cards ───────────────────────────── */
+.helpMissionCard {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-left: 4px solid rgba(255,255,255,0.18);
+  border-radius: 12px;
+  padding: 12px 14px;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.helpMissionCard:hover {
+  transform: translateY(-2px);
+  border-color: rgba(66,214,255,0.40);
+  background: rgba(255,255,255,0.06);
+}
+.helpMissionCard h4 {
+  margin: 4px 0 6px;
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--text);
+}
+.helpMissionCard p {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--muted);
+  margin: 0;
+}
+.helpMissionIcon {
+  font-size: 28px;
+  display: inline-block;
+  line-height: 1;
+}
+.helpMissionCard .tag,
+.helpList .tag {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 10px;
+  background: var(--cyan);
+  color: #08111a;
+  font-weight: 900;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.helpMissionHunt { border-left-color: #ff5b5b; }
+.helpMissionSurvey { border-left-color: #42d6ff; }
+.helpMissionHarvest { border-left-color: #ffcc4d; }
+.helpMissionHoldout { border-left-color: #b46bff; }
+.helpList {
+  color: var(--muted);
+  line-height: 1.6;
+  padding-left: 18px;
+  margin: 8px 0 0;
+}
+.helpList li {
+  margin: 5px 0;
+}

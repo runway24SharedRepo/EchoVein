@@ -250,59 +250,109 @@ function updateUI(g){
   ui.heatLabel.textContent=p.heat>=p.maxHeat?'TOOL OVERHEATED':'TOOL HEAT';
   ui.level.textContent=g.level;
   ui.depth.textContent=Math.floor(g.time*1.6)+' m';
-  ui.gold.textContent=g.gold; ui.nitra.textContent=g.nitra; ui.kills.textContent=g.kills;
-  // Phase 1.5: Operator level chip
-  const cls = CLASSES.find(c => c.id === g.player.classId);
-  const opData = saveProfile?.operatorData?.[g.player.classId];
-  const operatorChip = opData ? `<div class="chip"><span>✦ ${cls?.name || g.player.classId} Lv.${opData.level}</span><b>${Math.floor(opData.xp)}/${opData.xpToNext}</b></div>` : '';
-  const trapChip = g.player.canUseTraps ? `<div class="chip"><span>Pathfinder Trap Kit</span><b>${g.player.trapCd<=0?'READY':'CD '+g.player.trapCd.toFixed(1)+'s'}</b></div>` : '';
-  const accChip = `<div class="chip"><span>Weapon Accuracy</span><b>${Math.round((g.player.accuracy ?? 0.35)*100)}%</b></div>`;
-  const cursorChip = (g.player.mouseTargeting || g.controllerCursor?.active) ? `<div class="chip"><span>Targeting Cursor</span><b>${manualAimActive(g)?'MANUAL':'AUTO'}</b></div>` : '';
-  const mobileChip = (typeof mobileRuntimeActive === 'function' && mobileRuntimeActive())
-    ? `<div class="chip"><span>Mobile Controls</span><b>JOYSTICK</b></div>`
-    : '';
-  const arc = g.arcConnection;
-  const arcChip = arc?.unlocked
-    ? `<div class="chip"><span>Arc Connection</span><b>${arc.selectedEnemies.length}/${arcConnectionMaxTargets(g)}</b></div>`
-    : "";
-  // ── NEW ── Vampire stack value chip
-  const vampireChip = (g.player.vampire > 0)
-  ? `<div class="chip"><span>❤️ Field Reclaimer</span><b>${g.player.vampire} HP (${g.player.vampCounter}/18 kills)</b></div>`
-  : '';
-  // Prepend operator chip to weapon list
-  ui.weaponList.innerHTML=operatorChip + mobileChip + g.weapons.map(w=>{
-    const spriteId=WEAPON_DATA[w.id]?.spriteId;
-    const icon=spriteId ? `<img class="weaponIcon" src="${SPRITES[spriteId]}" alt="">` : '';
-    return `<div class="chip"><span>${icon}${weaponName(w.id)}</span><b>Mk ${w.level}</b></div>`;
-  }).join('') + trapChip + accChip + cursorChip + arcChip;
-  const resourceChips = RUN_RESOURCE_IDS.filter(id=>id!=='gild' && id!=='voltarite' && id!=='echo' && (g.resources?.[id] || 0)>0)
-    .map(id=>`<div class="chip"><span>${MINERALS[id].displayName}</span><b>${g.resources[id]}</b></div>`).join('');
-  const hpInfo = (typeof formatHollowPressure === 'function') ? formatHollowPressure(g) : {percent:Math.min(100,(g.hollowPressure||0)*30),label:String(g.hollowPressure||0),id:'legacy',color:'#b46bff',description:'Legacy Hollow Pressure'};
-  const pressureChip=`<div class="chip hollowPressureChip hollowPressure-${hpInfo.id} ${g.pressureFlash>0?'danger':''}" title="${pressureObjectiveEscape ? pressureObjectiveEscape(hpInfo.description || '') : ''}"><span>Hollow Pressure <em>${hpInfo.label}</em><i><u style="width:${clamp(hpInfo.percent,0,100)}%"></u></i></span><b>${hpInfo.percent}%</b></div>`;
-  const resInfo = (typeof formatResonance === 'function') ? formatResonance(g) : {activeZones:0,intensity:0,label:'QUIET',id:'quiet',description:'No local resonance'};
-  const resonanceChip = (resInfo.activeZones>0 || resInfo.intensity>0)
-    ? `<div class="chip resonanceChip resonance-${resInfo.id}" title="${pressureObjectiveEscape ? pressureObjectiveEscape(resInfo.description || '') : ''}"><span>Local Resonance <em>${resInfo.label}</em><i><u style="width:${clamp(resInfo.intensity,0,100)}%"></u></i></span><b>${resInfo.activeZones} zone${resInfo.activeZones===1?'':'s'}</b></div>`
-    : '';
-  const perfState=g.performance?.state || '';
-  const perfChip=(perfState && perfState!==PERF_STATES.HEALTHY)
-    ? `<div class="chip ${perfState===PERF_STATES.CRITICAL?'danger':''}"><span>Swarm Stabiliser</span><b>${perfState.replace('PERF_','')}</b></div>`
-    : '';
-  const objectiveList = typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
-  const objectiveChips=(typeof renderObjectiveChips==='function') ? renderObjectiveChips(g) : renderFallbackObjectiveChips(objectiveList);
-  const bossChip=g.bossDefeated ? '<div class="chip unlocked"><span>Sector Boss</span><b>DEFEATED</b></div>' : (g.bossSpawned ? '<div class="chip unlocked"><span>Sector Boss</span><b>ACTIVE</b></div>' : '<div class="chip locked"><span>Sector Boss</span><b>LOCKED</b></div>');
-  const extractionChip=g.extraction ? `<div class="chip danger"><span>Extraction</span><b>${Math.max(0,g.extractionTimer).toFixed(1)}s</b></div>` : '';
-  const missionChip=`<div class="chip"><span>Mission ${g.missionIndex}</span><b>Run ${g.runIndex}/${RUNS_PER_MISSION}</b></div>`;
-  // Phase 1.2: mission-type chip.
+  ui.gold.textContent=g.gold;
+  ui.nitra.textContent=g.nitra;
+  ui.kills.textContent=g.kills;
+
+  // ═══════════════════════════════════════════════════════════════════
+  // MISSION STATUS HIDDEN STATE — right-side panel simplified to reduce
+  // cognitive load. The code below intentionally displays only mission-
+  // critical information in the Mission Status panel:
+  //   1) mission type
+  //   2) Hollow Pressure
+  //   3) Local Resonance
+  //   4) primary/bonus/risk objectives
+  // Restore hidden chips later by reintroducing the sections listed below.
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ── Previously: Operator level chip ──────────────────────────────
+  // const cls = CLASSES.find(c => c.id === g.player.classId);
+  // const opData = saveProfile?.operatorData?.[g.player.classId];
+  // const operatorChip = opData ? `<div class="chip"><span>✦ ${cls?.name || g.player.classId} Lv.${opData.level}</span><b>${Math.floor(opData.xp)}/${opData.xpToNext}</b></div>` : '';
+
+  // ── Previously: Trap kit chip ─────────────────────────────────────
+  // const trapChip = g.player.canUseTraps ? `<div class="chip"><span>Pathfinder Trap Kit</span><b>${g.player.trapCd<=0?'READY':'CD '+g.player.trapCd.toFixed(1)+'s'}</b></div>` : '';
+
+  // ── Previously: Accuracy chip ─────────────────────────────────────
+  // const accChip = `<div class="chip"><span>Weapon Accuracy</span><b>${Math.round((g.player.accuracy ?? 0.35)*100)}%</b></div>`;
+
+  // ── Previously: Targeting cursor chip ─────────────────────────────
+  // const cursorChip = (g.player.mouseTargeting || g.controllerCursor?.active) ? `<div class="chip"><span>Targeting Cursor</span><b>${manualAimActive(g)?'MANUAL':'AUTO'}</b></div>` : '';
+
+  // ── Previously: Mobile controls chip ──────────────────────────────
+  // const mobileChip = (typeof mobileRuntimeActive === 'function' && mobileRuntimeActive()) ? `<div class="chip"><span>Mobile Controls</span><b>JOYSTICK</b></div>` : '';
+
+  // ── Previously: Arc Connection chip ───────────────────────────────
+  // const arc = g.arcConnection;
+  // const arcChip = arc?.unlocked ? `<div class="chip"><span>Arc Connection</span><b>${arc.selectedEnemies.length}/${arcConnectionMaxTargets(g)}</b></div>` : '';
+
+  // ── Previously: Vampire chip ──────────────────────────────────────
+  // const vampireChip = (g.player.vampire > 0) ? `<div class="chip"><span>❤️ Field Reclaimer</span><b>${g.player.vampire} HP (${g.player.vampCounter}/18 kills)</b></div>` : '';
+
+  // ── Previously: Weapons list ──────────────────────────────────────
+  // const weaponChips = g.weapons.map(w => `<div class="chip"><span>${weaponName(w.id)}</span><b>Mk ${w.level}</b></div>`).join('');
+
+  // ── Previously: Resource chips ────────────────────────────────────
+  // const resourceChips = RUN_RESOURCE_IDS.filter(id => id !== 'gild' && id !== 'voltarite' && id !== 'echo' && (g.resources?.[id] || 0) > 0).map(...).join('');
+
+  // ── Previously: Performance state chip ────────────────────────────
+  // const perfChip = (perfState && perfState !== PERF_STATES.HEALTHY) ? `<div class="chip">...</div>` : '';
+
+  // ── Previously: Boss status chip ──────────────────────────────────
+  // const bossChip = g.bossDefeated ? '<div class="chip unlocked">...</div>' : (g.bossSpawned ? '<div class="chip unlocked">...</div>' : '<div class="chip locked">...</div>');
+
+  // ── Previously: Extraction chip ───────────────────────────────────
+  // const extractionChip = g.extraction ? `<div class="chip danger"><span>Extraction</span><b>${Math.max(0,g.extractionTimer).toFixed(1)}s</b></div>` : '';
+
+  // ── Previously: Mission index/run chip ────────────────────────────
+  // const missionChip = `<div class="chip"><span>Mission ${g.missionIndex}</span><b>Run ${g.runIndex}/${RUNS_PER_MISSION}</b></div>`;
+
+  // ── Previously: Log messages ──────────────────────────────────────
+  // const logChips = g.log.slice(0,3).map((m,i)=>`<div class="chip"><span>${m}</span><b>${i===0?'NEW':''}</b></div>`).join('');
+
+  // ── Mission Type Chip ─────────────────────────────────────────────
   let missionTypeChip='';
   if(g.missionType && typeof MISSION_TYPES !== 'undefined'){
     const mt=MISSION_TYPES.find(m=>m.id===g.missionType);
     if(mt){
       const colors={hunt:'#ff5b5b',survey:'#42d6ff',harvest:'#ffcc4d',holdout:'#b46bff'};
       const c=colors[mt.id]||'#95a2ba';
-      missionTypeChip=`<div class="chip" style="border-color:${c};color:${c}"><span>${mt.icon} ${mt.name}</span><b>+${Math.round((mt.rewardModifier-1)*100)}%</b></div>`;
+      const rewardPct=Math.round(((mt.rewardModifier || 1)-1)*100);
+      missionTypeChip=`<div class="chip" style="border-color:${c};color:${c}" title="Current mission type"><span>${mt.icon} ${mt.name}</span><b>${rewardPct>=0?'+':''}${rewardPct}%</b></div>`;
     }
   }
-  ui.logList.innerHTML=missionTypeChip + missionChip + pressureChip + resonanceChip + perfChip + resourceChips + objectiveChips + bossChip + extractionChip + g.log.slice(0,3).map((m,i)=>`<div class="chip"><span>${m}</span><b>${i===0?'NEW':''}</b></div>`).join('');
+
+  // ── Hollow Pressure Chip ──────────────────────────────────────────
+  const hpInfo=(typeof formatHollowPressure === 'function')
+    ? formatHollowPressure(g)
+    : {percent:Math.min(100,(g.hollowPressure||0)*30),label:String(g.hollowPressure||0),id:'legacy',color:'#b46bff',description:'Legacy Hollow Pressure'};
+  const pressureTitle=pressureObjectiveEscape ? pressureObjectiveEscape(hpInfo.description || '') : '';
+  const pressurePct=clamp(Number(hpInfo.percent)||0,0,100);
+  const pressureChip=`<div class="chip hollowPressureChip hollowPressure-${hpInfo.id} ${g.pressureFlash>0?'danger':''}" title="${pressureTitle}"><span>Hollow Pressure <em>${pressureObjectiveEscape ? pressureObjectiveEscape(hpInfo.label || 'LOW') : (hpInfo.label || 'LOW')}</em><i><u style="width:${pressurePct}%"></u></i></span><b>${Math.round(pressurePct)}%</b></div>`;
+
+  // ── Local Resonance Chip ──────────────────────────────────────────
+  const resInfo=(typeof formatResonance === 'function')
+    ? formatResonance(g)
+    : {activeZones:0,intensity:0,label:'QUIET',id:'quiet',description:'No local resonance'};
+  const resonanceIntensity=clamp(Number(resInfo.intensity)||0,0,100);
+  const resonanceChip=(resInfo.activeZones>0 || resonanceIntensity>0)
+    ? `<div class="chip resonanceChip resonance-${resInfo.id}" title="${pressureObjectiveEscape ? pressureObjectiveEscape(resInfo.description || '') : ''}"><span>Local Resonance <em>${pressureObjectiveEscape ? pressureObjectiveEscape(resInfo.label || 'QUIET') : (resInfo.label || 'QUIET')}</em><i><u style="width:${resonanceIntensity}%"></u></i></span><b>${resInfo.activeZones} zone${resInfo.activeZones===1?'':'s'}</b></div>`
+    : '';
+
+  // ── Objective Chips ───────────────────────────────────────────────
+  const objectiveList=typeof normaliseObjectives === 'function' ? normaliseObjectives(g) : (g.objectives || []);
+  const objectiveChips=(typeof renderObjectiveChips === 'function') ? renderObjectiveChips(g) : renderFallbackObjectiveChips(objectiveList);
+
+  // ── Assemble simplified Mission Status panel ─────────────────────
+  // weaponList is the top section of the existing Mission Status panel.
+  // It now intentionally carries mission-critical information instead of
+  // weapon/operator/resource clutter. Gameplay data is unchanged; only the
+  // quick-status presentation is simplified.
+  ui.weaponList.innerHTML=missionTypeChip + pressureChip + resonanceChip + objectiveChips;
+
+  // The lower log section is intentionally empty in the simplified state.
+  // Restore logChips here later if mission log messages should return.
+  ui.logList.innerHTML='';
 }
 
 function render(g){

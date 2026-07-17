@@ -3014,15 +3014,40 @@ function showHelpMenu() {
   const container = document.createElement('div');
   container.className = 'helpContent';
 
-  // Goal
-  const goal = document.createElement('section');
-  goal.className = 'helpSection';
-  goal.innerHTML = `
-    <h3>🎯 Your Goal</h3>
-    <p>Descend into the procedurally generated caves of the Echo Vein. Mine valuable resources (<strong>Gild Shards</strong>, <strong>Voltarite</strong>, <strong>Echo Shards</strong>, and rare ores), fight off the Hollowborn, complete your mission objectives, defeat the Sector Boss, and <strong>reach the extraction craft</strong> to bank your haul.</p>
-    <p>Every run makes you stronger through permanent upgrades, operator prestige, and milestone rewards.</p>
+  // ── Mission Types ────────────────────────────────────────────────
+  const missionSection = document.createElement('section');
+  missionSection.className = 'helpSection';
+  missionSection.innerHTML = `
+    <h3>🎯 Mission Types</h3>
+    <p>Before each run, choose a mission type. Each changes your primary objective, the physical mission hook in the cave, and the final reward multiplier.</p>
+    <div class="helpGrid">
+      <div class="helpMissionCard helpMissionHunt">
+        <span class="helpMissionIcon">🗡️</span>
+        <h4>Hunt</h4>
+        <p>Eliminate marked elite Hollowborn targets. Combat priority — mining is optional, but fighting well is not.</p>
+        <span class="tag">+15% rewards</span>
+      </div>
+      <div class="helpMissionCard helpMissionSurvey">
+        <span class="helpMissionIcon">🔍</span>
+        <h4>Survey</h4>
+        <p>Scan Echo Relics and reveal the cave. Exploration, positioning, and fog-of-war management matter most.</p>
+        <span class="tag">+10% rewards</span>
+      </div>
+      <div class="helpMissionCard helpMissionHarvest">
+        <span class="helpMissionIcon">⛏️</span>
+        <h4>Harvest</h4>
+        <p>Mine marked rare-resource veins and secure a focused quota. Greed, routing, and extraction timing define the run.</p>
+        <span class="tag">+20% rewards</span>
+      </div>
+      <div class="helpMissionCard helpMissionHoldout">
+        <span class="helpMissionIcon">🛡️</span>
+        <h4>Holdout</h4>
+        <p>Defend a drill/beacon until the timer completes. Area control, endurance, and swarm management define the run.</p>
+        <span class="tag">+25% rewards</span>
+      </div>
+    </div>
   `;
-  container.appendChild(goal);
+  container.appendChild(missionSection);
 
   // Operators
   const ops = document.createElement('section');
@@ -3075,7 +3100,7 @@ function showHelpMenu() {
   `;
   container.appendChild(controls);
 
-  // Mechanics
+  // Core Mechanics
   const mechanics = document.createElement('section');
   mechanics.className = 'helpSection';
   mechanics.innerHTML = `
@@ -3084,7 +3109,7 @@ function showHelpMenu() {
       <div class="mechCard">
         <span class="mechIcon">⛏️</span>
         <h4>Mining & Heat</h4>
-        <p>Mine tiles by walking into them. Your tool generates <strong>Heat</strong> – let it cool or overheat and lose efficiency. Upgrade your tool to mine faster.</p>
+        <p>Mine tiles by walking into them. Your tool generates <strong>Heat</strong> — let it cool or overheat and lose efficiency. Upgrade your tool to mine faster.</p>
       </div>
       <div class="mechCard">
         <span class="mechIcon">💎</span>
@@ -3093,17 +3118,87 @@ function showHelpMenu() {
       </div>
       <div class="mechCard">
         <span class="mechIcon">⭐</span>
-        <h4>Operator Prestige</h4>
-        <p>Reach <strong>Level 20</strong> with an operator to Prestige. Reset to Level 1 and earn <strong>permanent stacking bonuses</strong> (HP, damage, speed, mining, heat capacity).</p>
+        <h4>Operator Prestige & Meta</h4>
+        <p>Reach <strong>Level 20</strong> with an operator to <strong>Prestige</strong>. Reset to Level 1 and earn permanent stacking bonuses: HP, damage, speed, mining, and heat capacity.</p>
+        <p><strong>Milestones</strong> are permanent achievements with rewards that apply to future runs.</p>
+        <p><strong>Synergies</strong> unlock when you collect specific upgrade combos during a run, creating permanent bonus effects.</p>
       </div>
       <div class="mechCard">
         <span class="mechIcon">🚀</span>
         <h4>Extraction</h4>
-        <p>Complete your mission objectives, defeat the boss, then reach the extraction craft before the timer runs out. <strong>Success = banked resources</strong>.</p>
+        <p>Complete all <strong>primary objectives</strong> to spawn the Sector Boss. Defeat the boss, then reach the extraction craft before the timer runs out.</p>
+        <p><strong>Success = banked resources.</strong> Optional objectives — <strong>BONUS</strong> and <strong>RISK</strong> — do <em>not</em> block boss spawning.</p>
       </div>
     </div>
   `;
   container.appendChild(mechanics);
+
+  // ── Hollow Pressure & Resonance ─────────────────────────────────
+  const pressureSection = document.createElement('section');
+  pressureSection.className = 'helpSection';
+  pressureSection.innerHTML = `
+    <h3>📊 Hollow Pressure &amp; Local Resonance</h3>
+    <div class="mechanicsGrid">
+      <div class="mechCard">
+        <span class="mechIcon">📈</span>
+        <h4>Hollow Pressure</h4>
+        <p>A run-level danger meter from <strong>0–100%</strong>. Mining, time in the cave, marked veins, and accepted risk actions increase it.</p>
+        <p><strong>LOW</strong> → <strong>RISING</strong> → <strong>HIGH</strong> → <strong>CRITICAL</strong>. Higher tiers mean stronger enemy response, more pressure, and more dangerous cave conditions. Pressure decays slowly when you stay quiet.</p>
+      </div>
+      <div class="mechCard">
+        <span class="mechIcon">🌀</span>
+        <h4>Local Resonance</h4>
+        <p>Mining creates physical <em>resonance zones</em> in the cave. Repeated activity grows those zones from <strong>ACTIVE</strong> to <strong>UNSTABLE</strong> and <strong>RUPTURE</strong>.</p>
+        <p>Unstable zones can trigger a <strong>Surge</strong>: a local enemy burst, screen feedback, and a Hollow Pressure spike. Look for pulsing labelled rings in the world.</p>
+      </div>
+    </div>
+  `;
+  container.appendChild(pressureSection);
+
+  // ── Pressure Objectives ──────────────────────────────────────────
+  const riskSection = document.createElement('section');
+  riskSection.className = 'helpSection';
+  riskSection.innerHTML = `
+    <h3>⚠️ Pressure Objectives (Risk / Reward)</h3>
+    <p>During a run, the cave may offer a <strong>Risk Signal</strong>: a timed optional objective with extra reward and extra danger.</p>
+    <ul class="helpList">
+      <li><strong>Accept</strong> — adds a <strong>RISK</strong> objective to your HUD, raises Hollow Pressure, and can trigger a small enemy burst.</li>
+      <li><strong>Ignore</strong> — closes the popup immediately with <strong>no penalty</strong>, <strong>no reward</strong>, and <strong>no objective</strong>.</li>
+      <li>Risk rewards are paid only if you complete the objective and extract successfully.</li>
+      <li>Rewards can include Operator XP and resources such as Gild, Voltarite, and rare ores.</li>
+    </ul>
+  `;
+  container.appendChild(riskSection);
+
+  // ── Objectives & Boss Flow ───────────────────────────────────────
+  const objectiveSection = document.createElement('section');
+  objectiveSection.className = 'helpSection';
+  objectiveSection.innerHTML = `
+    <h3>📌 Objectives, Boss & Extraction Flow</h3>
+    <div class="mechanicsGrid">
+      <div class="mechCard">
+        <span class="mechIcon">🎯</span>
+        <h4>PRIMARY</h4>
+        <p>Required objectives. Complete all PRIMARY goals to spawn the Sector Boss.</p>
+      </div>
+      <div class="mechCard">
+        <span class="mechIcon">💠</span>
+        <h4>BONUS</h4>
+        <p>Optional objectives. Completing them grants extra rewards after successful extraction.</p>
+      </div>
+      <div class="mechCard">
+        <span class="mechIcon">⚠️</span>
+        <h4>RISK</h4>
+        <p>Optional pressure objectives. They add danger and timed goals, but never block boss spawning.</p>
+      </div>
+      <div class="mechCard">
+        <span class="mechIcon">👹</span>
+        <h4>Sector Boss</h4>
+        <p>Each mission type has a boss phase. Complete primary objectives, defeat the boss, then extract before the timer expires.</p>
+      </div>
+    </div>
+  `;
+  container.appendChild(objectiveSection);
 
   ui.menuContent.appendChild(container);
   addMenuButton('Back', showMainMenu);
