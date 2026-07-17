@@ -354,6 +354,7 @@ function render(g){
   // Auto-hide right panel if the player is underneath it
   updateRightPanelVisibility(g);
   drawFogOfWar(g,cam,sx,sy);
+  drawScreenFlash(g);
   drawVignette();
   drawChargingWaveScreenOverlay(g);
   drawFogDebugOverlay(g,cam,sx,sy);
@@ -830,7 +831,12 @@ function drawResonanceZones(g){
     const pulse=0.5+0.5*Math.sin((g.time||0)*4.8+(z.pulse||0));
     const intensity=clamp((z.intensity||0)/100,0,1);
     const r=(z.radius||190)*(0.82+0.28*intensity)+pulse*12;
-    ctx.translate(z.x,z.y);
+    const x=Number(z.x)||0;
+    const y=Number(z.y)||0;
+
+    // Zone field: pulsing ring + subtle filled core.
+    ctx.save();
+    ctx.translate(x,y);
     ctx.globalAlpha=0.34+0.42*intensity;
     ctx.shadowColor=tier.color;
     ctx.shadowBlur=20+28*intensity;
@@ -844,15 +850,61 @@ function drawResonanceZones(g){
     ctx.globalAlpha=0.75+0.20*pulse;
     ctx.fillStyle=tier.color;
     ctx.beginPath(); ctx.arc(0,0,5+intensity*7+pulse*3,0,Math.PI*2); ctx.fill();
-    if(intensity>0.25){
-      ctx.shadowBlur=0;
-      ctx.fillStyle='rgba(238,243,255,0.88)';
+    ctx.restore();
+
+    // Readability pass: labelled card connected to the zone centre.
+    // Only active zones get labels so very faint residue remains unobtrusive.
+    if((z.intensity||0)>5){
+      ctx.save();
+      const labelText=`RESONANCE ${tier.label}`;
+      const labelX=x;
+      const labelY=y-r-28-10*intensity;
+      ctx.globalAlpha=0.6+0.2*pulse;
+      ctx.setLineDash([4,6]);
+      ctx.strokeStyle=tier.color;
+      ctx.lineWidth=1.5;
+      ctx.beginPath();
+      ctx.moveTo(x,y);
+      ctx.lineTo(labelX,labelY+12);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.globalAlpha=0.96;
       ctx.font='900 11px Segoe UI, Arial';
+      const metrics=ctx.measureText(labelText);
+      const pad=8;
+      const w=metrics.width+pad*2;
+      const h=22;
+      const lx=labelX-w/2;
+      const ly=labelY-h/2;
+      ctx.shadowBlur=10;
+      ctx.shadowColor='rgba(0,0,0,0.6)';
+      ctx.fillStyle='rgba(7,12,20,0.80)';
+      ctx.strokeStyle=tier.color;
+      ctx.lineWidth=1.5;
+      ctx.beginPath();
+      if(typeof ctx.roundRect === 'function') ctx.roundRect(lx,ly,w,h,6);
+      else { ctx.rect(lx,ly,w,h); }
+      ctx.fill();
+      ctx.stroke();
+      ctx.shadowBlur=0;
+      ctx.fillStyle=tier.color;
       ctx.textAlign='center';
-      ctx.fillText(`RESONANCE ${tier.label}`,0,-r-10);
+      ctx.textBaseline='middle';
+      ctx.fillText(labelText,labelX,ly+h/2);
+      ctx.restore();
     }
-    ctx.translate(-z.x,-z.y);
   }
+  ctx.restore();
+}
+
+function drawScreenFlash(g){
+  const flash=g?.screenFlash;
+  if(!flash || !(flash.alpha>0)) return;
+  ctx.save();
+  ctx.globalAlpha=clamp(flash.alpha,0,0.75);
+  ctx.fillStyle=flash.color || '#ffffff';
+  ctx.fillRect(0,0,viewW(),viewH());
   ctx.restore();
 }
 

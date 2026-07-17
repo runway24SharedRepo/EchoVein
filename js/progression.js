@@ -508,6 +508,21 @@ function triggerResonanceSurge(g,z){
     spawnBurst(g,adjusted,enemyType);
   }
   if(typeof addHollowPressure === 'function') addHollowPressure(g,tier.id==='rupture'?2.8:1.4,'resonanceSurge',{flash:1.4});
+  // Surge feedback is visual-only: it warns the player without changing
+  // objective, boss, extraction, or pressure-popup rules.
+  const flashAlpha=tier.id==='rupture' ? 0.42 : 0.32;
+  const previousFlash=g.screenFlash && g.screenFlash.alpha>0 ? g.screenFlash.alpha : 0;
+  g.screenFlash={ color:tier.color || '#b46bff', alpha:Math.max(previousFlash,flashAlpha), decay:tier.id==='rupture'?1.05:1.18 };
+  if(typeof shake !== 'undefined') shake=Math.max(shake,tier.id==='rupture'?18:13);
+  if(typeof addParticle === 'function'){
+    const count=typeof performanceAdjustedCount === 'function' ? performanceAdjustedCount(g,tier.id==='rupture'?26:18,true) : (tier.id==='rupture'?26:18);
+    for(let i=0;i<count;i++){
+      const a=rand(0,Math.PI*2);
+      const sp=rand(tier.id==='rupture'?95:70,tier.id==='rupture'?230:170);
+      addParticle(g,z.x+rand(-18,18),z.y+rand(-18,18),Math.cos(a)*sp,Math.sin(a)*sp,tier.color || '#b46bff',rand(0.25,0.68),rand(2.5,7),'spark');
+    }
+    addParticle(g,z.x,z.y,0,0,tier.color || '#b46bff',0.22,tier.id==='rupture'?32:24,'ring');
+  }
   if(typeof log === 'function') log(g,`Resonance surge: ${tier.label} pocket answered the disturbance.`);
   if(typeof sfx === 'function') sfx('wave',0.82);
   if(typeof floating === 'function') floating(g,z.x,z.y-34,'Resonance surge',tier.color);

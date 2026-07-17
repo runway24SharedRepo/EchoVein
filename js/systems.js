@@ -231,6 +231,7 @@ function update(g,dt){
   if(awaitingPressureChoice){ updateUI(g); return; }
   updateChargingWaveScheduler(g,dt);
   shake = Math.max(0, shake - dt*18);
+  updateScreenFlash(g,dt);
   logTimeout = Math.max(0, logTimeout-dt);
   updateGamepadActions(g);
   updatePlayer(g,dt);
@@ -290,6 +291,7 @@ function updateHollowPressure(g,dt){
     state.lastTierId=oldTier;
     state.tierId=tier.id;
     g.pressureFlash=2.6;
+    triggerPressureTierFeedback(g,tier,oldTier);
     if(typeof log === 'function') log(g, `Hollow Pressure ${tier.label}: ${tier.description}`);
     if(typeof sfx === 'function') sfx('wave',0.95);
     if(tier.legacy>0){
@@ -299,6 +301,41 @@ function updateHollowPressure(g,dt){
     }
   }
   g.pressureFlash=Math.max(0,(g.pressureFlash || 0)-dt);
+}
+
+function updateScreenFlash(g,dt){
+  const flash=g?.screenFlash;
+  if(!flash) return;
+  flash.alpha=Math.max(0,(Number(flash.alpha)||0)-dt*(Number(flash.decay)||1.0));
+  if(flash.alpha<=0) g.screenFlash=null;
+}
+
+function triggerPressureTierFeedback(g,tier,oldTier){
+  if(!g || !tier || tier.id==='low') return;
+  const color=tier.id==='critical' ? '#ff3030' : tier.id==='high' ? '#ff7a38' : '#ffcc4d';
+  const alpha=tier.id==='critical' ? 0.46 : tier.id==='high' ? 0.38 : 0.30;
+  const decay=tier.id==='critical' ? 1.05 : 1.18;
+  const oldFlash=g.screenFlash && g.screenFlash.alpha>0 ? g.screenFlash.alpha : 0;
+  g.screenFlash={ color, alpha:Math.max(oldFlash,alpha), decay };
+  if(typeof shake !== 'undefined') shake=Math.max(shake,10+(tier.legacy||0)*4);
+  const p=g.player;
+  if(!p || typeof addParticle !== 'function') return;
+  const count=typeof performanceAdjustedCount === 'function' ? performanceAdjustedCount(g,16+(tier.legacy||0)*4,true) : 16;
+  for(let i=0;i<count;i++){
+    const a=rand(0,Math.PI*2);
+    const sp=rand(50,155);
+    addParticle(
+      g,
+      p.x+rand(-22,22),
+      p.y+rand(-22,22),
+      Math.cos(a)*sp,
+      Math.sin(a)*sp,
+      color,
+      rand(0.25,0.62),
+      rand(2,5.5),
+      'spark'
+    );
+  }
 }
 
 function updateGamepadActions(g){

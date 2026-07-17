@@ -399,6 +399,9 @@ function makeGame(cls){
     resources:{ gild:0, voltarite:0, echo:0, ferriteBark:0, luminaSpores:0, aetherQuartz:0, crysalith:0, emberglass:0 },
     time:0, kills:0, level:1, xp:0, xpNeed:28, gold:0, nitra:0,
     hollowPressure:0, nextPressureTime:120, pressureFlash:0,
+    // Screen-space feedback flash used by Hollow Pressure tier changes and
+    // Resonance surges. It is intentionally visual-only and never blocks input.
+    screenFlash:null,
     hollowPressureState:{ value:0, lastValue:0, tierId:'low', lastTierId:'low', lastSourceTime:0, lastWarningTime:-9999, sourceTotals:{}, decayEnabled:true },
     // Resonance is local cave feedback layered on top of the run-level Hollow
     // Pressure meter. Old saves that do not contain this object are initialised
